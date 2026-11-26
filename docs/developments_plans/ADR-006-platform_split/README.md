@@ -228,7 +228,9 @@ A stored choice is a stored enum: its values are never renumbered or reused, wha
 - This ADR:
   - `ui/` is the only layer that names a screen. Nothing below requires a module of `ui/`: the jobs' calls into the menu and the others' includes of the display go (gate 6).
   - The 12864 is three modules: its view (`view_12864`, with the fonts and LVGL's settings, `lv_conf.h`, which follow the panel's depth), its panel's driver (`uc1701`), and the knob and buttons (`mini_12864`). `menu` names none of them.
+  - That takes a cut inside `menu.c`, which today is both the menu's task and the 12864's one-bit frame (its buffer, its lock, the pages sent to the panel). The frame's part goes to the view; the task, the keys and the jobs' screens stay. It is a move of code within the UI, shown by `menu_tour --compare` and the menu's frame times.
   - The view is a "one of".
+- **The web's mirror and `snap` copy the 12864's frame** as it is, 128 by 64 at one bit. They ask the view for it; with another view, what they get and how the page draws it is that screen's ADR's.
 - **Two readings of "alternative UI"**, both of which then fit:
   - another view of the one menu table: ADR-010's plan. A new setting is placed once;
   - a UI of its own, with its own pages and its own way round them (touch): the whole of `ui/` is the "one of". A new setting is then placed twice, and each UI has its own `menu_tour` baseline.
@@ -320,7 +322,7 @@ Gone since they were handed on: the menu's one-byte writes into enums (`mui_menu
 
 Each proven on the unit before the next. Ten gates, written again after the review (2026-11-27): the draft's first gate is three (the build's mechanics tried, the move, the libraries), each with one thing to prove; the rest are the draft's, in its order.
 
-**The check a move is judged by,** used by gates 2, 3 and 5: the image's symbols before and after (`arm-none-eabi-nm -S`: each function and object by name and size). Our code is at `-O0`, so a file moved or built as a library gives every function the size it had. A function gone, new or of another size is a change to explain. It is quick, it needs no unit, and it would have shown the hard fault's handler dropped.
+**The check a move is judged by,** used by gates 1 to 3 and 5: the image's symbols before and after (`arm-none-eabi-nm -S`: each function and object by name and size). Our code is at `-O0`, so a file moved or built as a library gives every function the size it had. A function gone, new or of another size is a change to explain. It is quick, it needs no unit, and it would have shown the hard fault's handler dropped.
 
 ### Gate 1: the build's mechanics, tried on two modules
 
@@ -369,7 +371,7 @@ One thing: each module built on its own. No file moves.
 
 ### Gate 5: C only
 
-1. `cleanup_mode.cpp` renamed `.c`. Proof: its functions' sizes as before; a purge on the unit.
+1. `cleanup_mode.cpp` renamed `.c`. Proof: its functions' sizes compared, each difference explained (another compiler front end reads the same lines); a purge on the unit.
 2. The ring buffer in C (`ring`), its array the caller's. Checked once on the PC against the old class with the same readings (above). Then `charge_mode.cpp` on it, and renamed `.c`.
 3. Proof: `charge_cycle`; the job task's stack by `stats tasks` before and after; the image's size.
 4. `mini_12864_module.cpp` and the interrupt class wait for gate 7's inputs.
@@ -381,8 +383,8 @@ The unit on the probe is enough (the application's layer).
 One cut a commit. After each, the module's `REQUIRES` line loses a name, and from then on the compiler refuses its return.
 
 In this order, the cheapest first, and those that free the screen and the tubes (the lines above) before the rest:
-1. **The jobs and the menu.** The four jobs wake the menu and ask whether it shows a page. Turned round: the menu follows the activity (`activity`), which the jobs already mark, and a job asks `activity` whether a start may be taken. Each of the four is read first; what the question guards is kept.
-2. **The screen named from below:** the includes of `display.h` and `mini_12864_module.h` in the Wi-Fi, the access point, the update and the modes. Each use read, then cut or turned into something the UI reads.
+1. **The jobs and the menu.** The four jobs wake the menu and ask whether it shows a page. A first idea, not read through: turned round, the menu follows the activity (`activity`), which the jobs already mark, and a job asks `activity` whether a start may be taken. Each of the four is read first, and what the question guards today is kept.
+2. **The screen named from below:** the includes of `display.h` and `mini_12864_module.h` in the Wi-Fi, the access point, the update and the modes. Each use read, then cut or turned into something the UI reads. With it, the frame's part of `menu.c` to the view (above, "The screen and its UI").
 3. **The update:** its includes of the menu, the display and the web; the event log's calls into it (the version's text and the reset's record handed to `events` at start-up).
 4. **The web started by the Wi-Fi** (`rest_endpoints_init`): started by `app`.
 5. **The restart closing the web's clients:** a list of things to do before a restart, which `web` joins.
@@ -445,21 +447,28 @@ Proof besides: `menu_tour --compare`, `charge_cycle`, `api_check`; the size by m
 
 After every gate, on the units it needs (AGENTS.md: the build and the platform on both boards, the rest on the unit on the probe):
 - `rc_run.py flash`, then `menu_tour --compare` equal to the unit's baseline, snap for snap, then `charge_cycle`;
-- the size report within a few KB of before, on both boards;
+- the size report within a few KB of before, on both boards (within 1 KB for gates 1 to 3, which change no code);
 - `release_records.py` and the host tests pass;
-- a gate that touches a stored struct: its size and its fields' offsets the same as before, on both images.
+- a gate that touches a stored struct: its size and its fields' offsets the same as before, on both images;
+- a gate that moves files or changes how they are linked (1 to 3): the image's symbols as before, and `pulses`, since the usual proof does not see a handler the linker dropped;
+- what each gate names for itself (above, "Gates").
 
 At the end:
 - the owner's real throw;
 - no `pico/`, `hardware/` or cyw43 include outside `platform/` and `boards/`;
-- no module requiring one in a layer above it (the module graph);
+- no module requiring one in a layer above it, and none below `ui/` requiring one of `ui/` (the module graph);
 - a unit updated from the release before keeps its settings (`rc_run.py settings`, compared);
 - the Pico W built with the servo gate left out by its board's list runs, and a build with it then reads its record back as stored;
+- the three kinds of pick each shown on a real build (gate 9);
+- the lines' lists in progress.md: what still names the tubes, and that nothing outside `ui/` names the screen;
+- each interface's row against ESP-IDF in progress.md;
 - the PC build's stand-ins the RTOS's only.
 
 ## Not in this ADR
 
 - ADR-007's work: the ESP-IDF build, the module call's ESP-IDF branch, `platform/esp32s3`, `boards/esp32s3_pico`.
+- Any build but the base build: a larger screen or its UI, another dispenser or its interface, a board with no radio. Each is an ADR of its own; this one makes the cuts they need.
+- A build's name in its image and in a release's manifest: the first ADR that makes a second build for a board.
 - A simulated unit on the PC.
 - The fixes handed on to an ADR of their own.
 - Any change a user can see.
@@ -467,10 +476,18 @@ At the end:
 
 ## To settle before approval
 
+From the draft, each with the review's recommendation:
 - **The layout** below: every module's name and every file's place.
-- **The stored enums against AGENTS.md's rule** that an old field is never retyped. By its letter, writing `decimal_places_t` as `uint8_t` is a retype; by its intent (the bytes and what they mean kept) it is not. The owner's word is needed before `release_records.py` is taught the difference.
-- **lwIP outside the platform**, a change from the draft.
-- **Gate 1 merged on its own**, as soon as it is proven.
+- **The stored enums against AGENTS.md's rule** that an old field is never retyped. By its letter, writing `decimal_places_t` as `uint8_t` is a retype; by its intent (the bytes and what they mean kept) it is not. The owner's word is needed before `release_records.py` is taught the difference. Recommended: yes, by its intent, the check taught to compare a field's width and its values.
+- **lwIP outside the platform**, a change from the draft. Recommended: yes, with the radio, the DHCP server and mDNS behind the network's interface.
+- **The move and the libraries each merged on their own** (gates 2 and 3), as soon as each is proven. Recommended: yes.
+
+From the owner's direction of 2026-11-27 on later builds:
+- **The dispenser: a build each, or a switch.** The owner's words are read here as both: one build with both and a stored switch where they fit, a build each where they do not. Is that the meaning?
+- **"Alternative UI" against ADR-005's rule 1** ("one screen UI", the owner's, 2026-11-13). Another view of the one menu table keeps the rule. A UI of its own changes it: every new setting is then placed in two UIs. The cuts here allow either. Recommended: the rule kept for small boards (never a cut-down second version of the same thing), and a larger screen's UI decided by its own ADR, once its panel and its input are known.
+- **The "several, one chosen" pick shown on the scale's makes** (gate 9): a test build with one make left out, on a unit whose stored make is that one. It is the only proof the rule gets before a second dispenser exists, and gate 6 hands the makes to `scale` anyway. The base build still carries all ten. Recommended: yes.
+- **The scale as one reader handed on** (above), in place of the draft's small fix. Recommended: yes.
+- **The more lines:** which the owner strikes, and what is missing.
 
 ## The layout, a first draft (2026-11-27)
 
@@ -479,11 +496,12 @@ Today's files by their module. A file split between a module and the platform is
 | Folder | Module | Today's files |
 |---|---|---|
 | `app/` | `app` | `app.c`, `app.h`; the version (`scripts/gen_version.py`) |
-| `ui/` | `menu` | `menu.c`, `menu_nav.c`, `menu_view_12864.c` and their headers; the fonts (`fonts/`, `scripts/bdf2lvgl.py`) |
+| `ui/` | `menu` | `menu.c` but for the 12864's frame, `menu_nav.c` and their headers |
+| `ui/` | `view_12864` | `menu_view_12864.c`; the frame's part of `menu.c` (gate 6); the fonts (`fonts/`, `scripts/bdf2lvgl.py`); `lv_conf.h` |
 | `ui/` | `mini_12864` | `mini_12864_module.cpp`, `mini_12864_settings.c`, `button.c` |
 | `web/` | `http_server` | `http_server.c` |
 | `web/` | `api` | `api_v1.c`, `api_v1_commands.c`, `rest_endpoints.c`, `web/` (the portal, `scripts/web_build.py`) |
-| `console/` | `console` | `rc_console.c`, `remote_control.c` |
+| `console/` | `remote_control` | `rc_console.c`, `remote_control.c` (not `console`: ESP-IDF's own) |
 | `services/` | `charge` | `charge_mode.cpp`, `charge_mode_settings.c`, `charge_mode_layout.c` |
 | `services/` | `charge_control` | `charge_controller.c`, `charge_tuner.c` (free of the chip) |
 | `services/` | `cleanup` | `cleanup_mode.cpp` |
@@ -499,15 +517,18 @@ Today's files by their module. A file split between a module and the platform is
 | `services/` | `servo_gate` | `servo_gate.c`, but for its PWM register |
 | `services/` | `leds` | `neopixel_led.c` |
 | `services/` | `profile` | `profile.c` |
-| `services/` | `update` | `update.c`, `update_poll.c`, `https_client.c`, `github_roots.pem` |
+| `services/` | `update` | `update.c` (the job, the slots' use) |
+| `services/` | `update_fetch` | `update_poll.c`, `https_client.c`, `github_roots.pem`: apart, as the part ADR-005's fallback leaves out |
 | `services/` | `wireless` | `wireless.c` but for cyw43, `access_point_mode.c`, `dnsserver.c`, `setup.c`, `unit_id.c` (its hashes) |
 | `drivers/` | `tmc2209` | `tmc2209.c`, `tmc_uart.c` |
 | `drivers/` | `uc1701` | `display.c` |
 | `drivers/` | `cat24c256` | `cat24c256_eeprom.c` |
 | `drivers/` | `scale_protocols` | the ten `*_scale.c` of the makes, `generic_scale.h` |
-| `common/` | `json` | `http_json.c` |
+| `common/` | `http_json` | `http_json.c` |
 | `common/` | `ring` | `FloatRingBuffer.cpp` |
 | `platform/` | `rp2` | `step_pulses.c`, `stepper.pio`, `ws2812.pio`, `gpio_irq_handler.h`, `update_slots.h` (to `include/`), `update_slots_rp2040.c`, `update_slots_rp2350.c`, `update_boot.h`, `picobin_image.c` (with the bootloader), `fault_handler.c`, `freertos_hooks.c`, `dhcpserver.c`; the restart and the USB loader of `system_control.c` (the web's clients closed first, by `app`); the cyw43 part of `wireless.c`, the servo's PWM register, the unit's unique id |
-| `boards/` | `pico_w`, `pico2_w` | `targets/` (the pin map, the flash layout, the partition table), `configuration.h`, `FreeRTOSConfig.h`, `lwipopts.h`, `lwipopts_examples_common.h`, `mbedtls_config.h`, `lv_conf.h` |
+| `boards/` | `pico_w`, `pico2_w` | `targets/` (the pin map, the flash layout, the partition table), `configuration.h`, `FreeRTOSConfig.h`, `lwipopts.h`, `lwipopts_examples_common.h`, `mbedtls_config.h` |
 
 The bootloader stays a program of its own, linking `platform/rp2`'s image reader.
+
+The tubes' modules in this table, for the dispenser's line: `charge`, `charge_control`, `cleanup`, `calibration` (its powder part), `calibration_method`, `motors`, `servo_gate`, `tmc2209`, the step pulses in `platform/rp2`, and `simulated_scale.c` in `scale`. They stay flat in their layers: a folder for them would be drawn before the thrower's ADR says where the line runs.
