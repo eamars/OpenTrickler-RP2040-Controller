@@ -2,15 +2,14 @@
 #define CHARGE_TUNER_H_
 /*
  * ADR-009 step 2: the auto-tuner, new_pid = tuner(old_pid, charge_data), as tools/charge_sim/step2_tuner.py runs it
- * on the twin (axes "kp+kd", the share modelled), in C with nothing of the RTOS in it; tests/step2_sim.py judges it
+ * on the twin (axes "kp+kd", the share counted), in C with nothing of the RTOS in it; tests/step2_sim.py judges it
  * against the Python on the same windows.
  *
  * After each throw, per powder: the throw's final weight less the target and its time to the stop. Each window of
  * CHARGE_TUNER_WINDOW throws is judged by the owner's objective, the tolerance first, then quicker (2026-11-26,
  * replacing the time per good charge): its share within the tolerance against the kept gains' throws (the latest
- * CHARGE_TUNER_POOL), and between shares alike its median time. The share is reckoned
- * from every throw's weight: a normal spread with the throws' median and the half-width of their middle 68%, so a
- * window of 25 decides as a count of its good throws cannot (2026-11-26).
+ * CHARGE_TUNER_POOL), and between shares alike its median time. The share is counted, as the unit judges each throw:
+ * modelled from the throws' spread it snapped to the scale's 0.02 grid on the bench (2026-11-26).
  *
  * It moves the fine tube's gains on two axes, by a factor (the owner, 2026-11-26: "consider Kd as well"):
  * - the steady gain: kp moved, kd held;
@@ -42,9 +41,9 @@
 #define CHARGE_TUNER_GAIN_HIGH 5.0
 #define CHARGE_TUNER_GAIN_AIM 1.0
 #define CHARGE_TUNER_COARSE_GAIN_MOST 0.4
-#define CHARGE_TUNER_SHARE_Z 1.0          // a share better by this many of the two shares' noise (step2_tuner.SHARE_Z)
+#define CHARGE_TUNER_SHARE_Z 0.5          // a share better by this many of the two shares' noise (step2_tuner.SHARE_Z)
 #define CHARGE_TUNER_TIME_MOST_S 10.0     // a window's median time past it loses (the owner, 2026-11-26; to test first)
-#define CHARGE_TUNER_FAR_SHARE 0.5        // both shares under it: judged by the median miss (the owner, 2026-11-26)
+#define CHARGE_TUNER_FAR_SHARE 0.5        // both shares under it: judged by the mean miss (the owner, 2026-11-26)
 #define CHARGE_TUNER_HOLD_RECENT 50       // the held gains' latest throws a hold is judged on
 
 typedef enum {

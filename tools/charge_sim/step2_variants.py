@@ -55,7 +55,7 @@ VARIANTS = {"built": (False, "none", "stay", "up"), "seed": (True, "none", "stay
             # first built), and no tuner
             # the objective the tolerance first, then quicker (the owner, 2026-11-26: the product); "@cost", the
             # time per good charge it replaced
-            "shipped": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "threshold", "tolerance"),
+            "shipped": (True, "none", "stay", "miss", "kp+kd", "counted", 0.0, "threshold", "tolerance"),
             "shipped@cost": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "threshold", "cost"),
             "shipped@target": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "reading"),
             "fixed+reading": (True, "none", "stay", "miss", None, "counted", 0.0, "reading")}

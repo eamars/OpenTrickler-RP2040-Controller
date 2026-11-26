@@ -50,7 +50,7 @@ STEPS = {1: ("first",), 2: ("holding (",), 3: ("the base again",), 4: ("kept",),
 # (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw; the
 # tuner on kp and kd by the share modelled; the throw never cut on the forecast, stopped by the reading within the fine
 # threshold under the target, main's rule (the owner, 2026-11-26)
-PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "modelled",
+PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "counted",
            "cut": "threshold", "objective": "tolerance"}
 # The gains thrown from: the owner's Pico W's (gate 1's twin), the bench's stored profile (gate 4's baseline), and the
 # bench's with an integral term put in by mistake (the tuner leaves it, and meets it with kp and kd) and with kp a

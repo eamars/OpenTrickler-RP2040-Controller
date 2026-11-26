@@ -547,6 +547,8 @@ def main() -> None:
     parser.add_argument("--label", default="", help="the end of the session's folder name, in place of the test's")
     parser.add_argument("--most-pour", type=float, required=True,
                         help="the most this run pours into the real cup, in grains: checked against 600 gr first")
+    parser.add_argument("--cup-emptied", metavar="WORDS", default=None,
+                        help="the owner's words that the cup was emptied since the last run (rc_run.py's own)")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("chain", help="five short runs of the fine tube: the recording chain's proof")
     nudges = sub.add_parser("nudges", help="small turns of the fine tube, each followed by a pause")
@@ -604,8 +606,9 @@ def main() -> None:
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
-    global CUP_MOST_POUR
+    global CUP_MOST_POUR, CUP_EMPTIED
     CUP_MOST_POUR = args.most_pour
+    CUP_EMPTIED = args.cup_emptied
 
     if args.command == "show":
         runs = json.loads((args.folder / "runs.json").read_text(encoding="utf-8"))

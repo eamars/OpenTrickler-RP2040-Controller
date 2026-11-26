@@ -1,8 +1,8 @@
 /*
  * ADR-009 step 2: the auto-tuner (charge_tuner.h), ported from tools/charge_sim/step2_tuner.py's Tuner with the axes
- * "kp+kd", the share modelled and the objective "tolerance": a trial is kept when its share within the tolerance is
- * clearly higher than the kept gains', or no lower and quicker (the owner, 2026-11-26). tests/step2_sim.py judges it against the Python window for
- * window.
+ * "kp+kd", the share counted and the objective "tolerance": a trial is kept when its share within the tolerance is
+ * higher than the kept gains' by half its noise, or no lower and quicker (the owner, 2026-11-26). tests/step2_sim.py
+ * judges it against the Python window for window.
  */
 #include "charge_tuner.h"
 
@@ -50,33 +50,15 @@ static double mean_of(const double *values, int count) {
 }
 
 
-// erf by Abramowitz and Stegun 7.1.26 (an error under 1.5e-7), as step2_tuner.erf_approx: libm's erf and its exp are
-// placed in RAM on the Pico W, 2.6 KB it has not got (2026-11-26); exp is the SDK's, on the chip's ROM
-static double erf_approx(double x) {
-    double sign = x < 0.0 ? -1.0 : 1.0;
-    x = fabs(x);
-    double t = 1.0 / (1.0 + 0.3275911 * x);
-    double poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
-    return sign * (1.0 - poly * exp(-x * x));
-}
-
-
-static double normal_cdf(double x, double mu, double sigma) {
-    return 0.5 * (1.0 + erf_approx((x - mu) / (sigma * sqrt(2.0))));
-}
-
-
-// The share within the tolerance of a normal spread with the throws' median and the half-width of their middle 68%
-// (step2_tuner.modelled)
-static double modelled_share(const charge_tuner_t *tuner, const double *errors, int count) {
-    double sorted[CHARGE_TUNER_POOL];
-    sorted_copy(errors, count, sorted);
-    double centre = median_sorted(sorted, count);
-    double width = (sorted[(int) (0.84 * (count - 1))] - sorted[(int) (0.16 * (count - 1))]) / 2.0;
-    if (width <= 0.0) {
-        return fabs(centre) < tuner->tolerance ? 1.0 : 0.0;
+// The share within the tolerance, counted as the unit judges each throw (its verdict: good when less than the
+// tolerance either way). Not modelled from the throws' spread: on a scale in 0.02 steps the percentiles snap to the
+// grid, and two windows at 56% and 68% good both read as 49% (the bench, 2026-11-26)
+static double counted_share(const charge_tuner_t *tuner, const double *errors, int count) {
+    int good = 0;
+    for (int i = 0; i < count; i++) {
+        good += fabs(errors[i]) < tuner->tolerance;
     }
-    return normal_cdf(tuner->tolerance, centre, width) - normal_cdf(-tuner->tolerance, centre, width);
+    return (double) good / count;
 }
 
 
@@ -93,22 +75,20 @@ static double share_noise(double share, int count) {
 }
 
 
-// The median of the misses' sizes
-static double median_miss(const double *errors, int count) {
-    double misses[CHARGE_TUNER_POOL];
+// The mean of the misses' sizes: a median snaps to the scale's step
+static double mean_miss(const double *errors, int count) {
+    double sum = 0.0;
     for (int i = 0; i < count; i++) {
-        misses[i] = fabs(errors[i]);
+        sum += fabs(errors[i]);
     }
-    double sorted[CHARGE_TUNER_POOL];
-    sorted_copy(misses, count, sorted);
-    return median_sorted(sorted, count);
+    return sum / count;
 }
 
 
 /*
  * Whether the window's throws are better than the kept gains' (the owner, 2026-11-26; step2_tuner.tolerance_first):
  * - a median time past CHARGE_TUNER_TIME_MOST_S loses to one within it, and between two past it the quicker wins;
- * - far from good (both shares under CHARGE_TUNER_FAR_SHARE), where the share has almost no signal, the smaller median
+ * - far from good (both shares under CHARGE_TUNER_FAR_SHARE), where the share has almost no signal, the smaller mean
  *   miss wins;
  * - else the tolerance first, then quicker: the share higher by more than CHARGE_TUNER_SHARE_Z of the two shares'
  *   noise, or quicker with a share no lower. No lower, not merely within the noise: a quicker trial kept while its
@@ -121,13 +101,13 @@ static bool better(const charge_tuner_t *tuner) {
         return trial_time > CHARGE_TUNER_TIME_MOST_S && base_time > CHARGE_TUNER_TIME_MOST_S ?
                trial_time < base_time : trial_time <= CHARGE_TUNER_TIME_MOST_S;
     }
-    double trial = modelled_share(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
-    double base = modelled_share(tuner, tuner->pool_errors, tuner->pool_count);
+    double trial = counted_share(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
+    double base = counted_share(tuner, tuner->pool_errors, tuner->pool_count);
     double margin = CHARGE_TUNER_SHARE_Z * hypot(share_noise(trial, CHARGE_TUNER_WINDOW),
                                                   share_noise(base, tuner->pool_count));
     if (trial < CHARGE_TUNER_FAR_SHARE && base < CHARGE_TUNER_FAR_SHARE) {
-        return median_miss(tuner->window_errors, CHARGE_TUNER_WINDOW) <
-               median_miss(tuner->pool_errors, tuner->pool_count);
+        return mean_miss(tuner->window_errors, CHARGE_TUNER_WINDOW) <
+               mean_miss(tuner->pool_errors, tuner->pool_count);
     }
     if (trial > base + margin) {
         return true;
@@ -219,7 +199,7 @@ static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, doub
         else {
             tuner->tried = 0;
             tuner->holding = true;
-            tuner->held_share = modelled_share(tuner, tuner->pool_errors, tuner->pool_count);
+            tuner->held_share = counted_share(tuner, tuner->pool_errors, tuner->pool_count);
             tuner->recent_count = 0;
             tuner->on_trial = false;
             *next_kp = tuner->base_kp;
@@ -288,7 +268,7 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
             }
             tuner->recent[tuner->recent_count++] = tuner->window_errors[i];
         }
-        double recent = modelled_share(tuner, tuner->recent, tuner->recent_count);
+        double recent = counted_share(tuner, tuner->recent, tuner->recent_count);
         double margin = CHARGE_TUNER_SHARE_Z * hypot(share_noise(recent, tuner->recent_count),
                                                       share_noise(tuner->held_share, tuner->pool_count));
         if (tuner->recent_count < CHARGE_TUNER_HOLD_RECENT || recent >= tuner->held_share - margin) {

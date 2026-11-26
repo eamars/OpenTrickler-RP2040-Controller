@@ -35,7 +35,7 @@ def run(job: tuple) -> dict:
     profile = STARTS[start]
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=True, hold="none",
                              cut="threshold")
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="modelled",
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="counted",
                               objective=objective)
     lag = statistics.median(lag for _, lag in records.lag)
     session = Session(rig, seed)

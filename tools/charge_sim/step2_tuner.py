@@ -38,12 +38,16 @@ POOL_THROWS = 75
 # its share within the tolerance passes the kept gains' by more than SHARE_Z of the two shares' noise; short of that, a
 # quicker trial whose share is not lower is better too (no lower, not merely within the noise: a quicker trial kept
 # while its share fell within the noise each time would walk the throws quicker and worse, window after window)
-SHARE_Z = 1.0
+# The share counted, as the unit judges each throw, with a margin of half the noise (the owner, 2026-11-26, after the
+# bench's 100 throws on 2.0.3-255: the share modelled from the throws' percentiles snapped to the A&D's 0.02 grid,
+# two windows at 56% and 68% good both read as 49%, and the better gains were put back)
+SHARE_Z = 0.5
 # The owner, 2026-11-26 (to test first; may change before ADR-009's release): a window whose median throw time passes
 # TIME_MOST_S loses to any within it, and between two past it the quicker wins
 TIME_MOST_S = 10.0
 # Far from good, the share within the tolerance has almost no signal (5% against 11% good is lost in a window's noise):
-# while both shares are under FAR_SHARE, the throws landing nearer the target (the smaller median miss) are better
+# while both shares are under FAR_SHARE, the throws landing nearer the target (the smaller mean miss: a median snaps
+# to the scale's step) are better
 # (the owner, 2026-11-26)
 FAR_SHARE = 0.5
 # A hold, once every neighbouring trial has been put back (the owner, 2026-11-26: hold when nothing beats it), ends when
@@ -109,8 +113,8 @@ def tolerance_first(trial: tuple, base: tuple, tolerance: float, share=counted) 
         return (trial_time < base_time if trial_time > TIME_MOST_S and base_time > TIME_MOST_S
                 else trial_time <= TIME_MOST_S), said + ", past the time"
     if trial_good < FAR_SHARE and base_good < FAR_SHARE:
-        trial_miss = statistics.median(abs(e) for e in trial[0])
-        base_miss = statistics.median(abs(e) for e in base[0])
+        trial_miss = statistics.fmean(abs(e) for e in trial[0])
+        base_miss = statistics.fmean(abs(e) for e in base[0])
         return trial_miss < base_miss, said + f", far: misses {trial_miss:.3f} against {base_miss:.3f}"
     if trial_good > base_good + margin:
         return True, said
