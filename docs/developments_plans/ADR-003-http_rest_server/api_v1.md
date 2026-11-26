@@ -400,7 +400,7 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 
 ## Experiments and recordings, for ADR-009 (reserved)
 
-**Not built by ADR-009** (the PR's review, O3, 2026-11-27): ADR-009 closed with its own calibration job and its tuner on the unit, and built neither the test throw nor the recordings below. They stay reserved as written, handed on in `HANDOVER.md` ("Handed on by ADR-009") until an ADR takes them. Until then a client tunes by each throw's `finished` (result, weight, elapsed_s), the live weight on the stream and the settings; a value it tries is a PATCH, live for a person's next charge until put back.
+**Not built by ADR-009** (the PR's review, O3, 2026-11-27): ADR-009 closed with its own calibration job and its tuner on the unit, and built neither the test throw nor the recordings below. They stay reserved as written until ADR-016 (Draft, 2026-11-27: an AI agent helps tune a powder's profile) settles what of them is built, replaced or dropped. Until then a client tunes by each throw's `finished` (result, weight, elapsed_s), the live weight on the stream and the settings; a value it tries is a PATCH, live for a person's next charge until put back.
 
 ADR-009's step 1 built its calibration as its own job (Calibration, above), its cup a part of it: the cup's resource reserved here is not built by it.
 
