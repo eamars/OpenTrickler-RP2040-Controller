@@ -19,6 +19,7 @@
 typedef struct {
     charge_controller_t controller;
     charge_room_t room;
+    int bare;                   // no room lent: the charge with the forecast and the tuner both off
 } lib_charge_t;
 
 
@@ -46,8 +47,15 @@ CHARGE_LIB_EXPORT void lib_charge_config(charge_controller_t *controller, const 
 }
 
 
+// Whether the next throws are lent no room, as the charge mode lends none with both switches off
+CHARGE_LIB_EXPORT void lib_charge_bare(charge_controller_t *controller, int bare) {
+    ((lib_charge_t *) controller)->bare = bare;
+}
+
+
 CHARGE_LIB_EXPORT int lib_charge_start(charge_controller_t *controller, double target, double now_ms) {
-    return charge_controller_start(controller, &((lib_charge_t *) controller)->room, target, now_ms);
+    lib_charge_t *charge = (lib_charge_t *) controller;
+    return charge_controller_start(controller, charge->bare ? NULL : &charge->room, target, now_ms);
 }
 
 

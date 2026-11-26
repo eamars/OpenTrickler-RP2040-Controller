@@ -151,7 +151,7 @@ static void air_add(charge_controller_t *controller, double due_s, double turns)
 
 bool charge_controller_start(charge_controller_t *controller, charge_room_t *room, double target, double now_ms) {
     const charge_config_t *config = &controller->config;
-    if (room == NULL || config->lag_count < 1 || config->lag_count > CHARGE_LAG_POINTS) {
+    if ((room == NULL && config->forecast) || config->lag_count < 1 || config->lag_count > CHARGE_LAG_POINTS) {
         return false;
     }
     controller->room = room;
@@ -230,27 +230,31 @@ void charge_controller_tick(charge_controller_t *controller, double now_ms) {
     double v = controller->fine_speed;
     v = v < controller->fine_rps ? fmin(controller->fine_rps, v + change) : fmax(controller->fine_rps, v - change);
     controller->fine_speed = v;
-    if (v > 0.0) {
-        controller->parcel += v * dt;
-    }
-    if (now - controller->parcel_start_s >= PARCEL_S) {
-        if (controller->parcel > 0.0) {
-            double speed = controller->parcel / (now - controller->parcel_start_s);
-            parcel_keep(controller, controller->parcel_start_s, controller->parcel, now);
-            air_add(controller, controller->parcel_start_s + lag_at(config, speed * (controller->k_known ? controller->k : 0.0)),
-                    controller->parcel);
+    // The fine tube's turns in parcels, the air and the quiet: only in a room lent (none: nothing kept, nothing learned)
+    if (controller->room != NULL) {
+        if (v > 0.0) {
+            controller->parcel += v * dt;
         }
-        controller->parcel = 0.0;
-        controller->parcel_start_s = now;
-    }
-    while (controller->air_count > 0 && controller->room->air[controller->air_first].due_s <= now) {
-        controller->unseen -= controller->room->air[controller->air_first].turns;
-        controller->air_first = (controller->air_first + 1) % CHARGE_AIR_MAX;
-        controller->air_count--;
-    }
-    if (!controller->quiet_known && !controller->coarse_moves && !controller->backoff_on) {
-        controller->quiet_known = true;
-        controller->quiet_at_s = now + lag_most(config) + config->settle_s;
+        if (now - controller->parcel_start_s >= PARCEL_S) {
+            if (controller->parcel > 0.0) {
+                double speed = controller->parcel / (now - controller->parcel_start_s);
+                parcel_keep(controller, controller->parcel_start_s, controller->parcel, now);
+                air_add(controller, controller->parcel_start_s +
+                                    lag_at(config, speed * (controller->k_known ? controller->k : 0.0)),
+                        controller->parcel);
+            }
+            controller->parcel = 0.0;
+            controller->parcel_start_s = now;
+        }
+        while (controller->air_count > 0 && controller->room->air[controller->air_first].due_s <= now) {
+            controller->unseen -= controller->room->air[controller->air_first].turns;
+            controller->air_first = (controller->air_first + 1) % CHARGE_AIR_MAX;
+            controller->air_count--;
+        }
+        if (!controller->quiet_known && !controller->coarse_moves && !controller->backoff_on) {
+            controller->quiet_known = true;
+            controller->quiet_at_s = now + lag_most(config) + config->settle_s;
+        }
     }
     // The stop, once the reading is within the fine threshold under the target (main's rule): never cut on the forecast
     if (controller->fine_rps > 0.0 && reached(controller)) {
@@ -453,19 +457,21 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
         controller->coarse_rps = 0.0;
         controller->backoff_on = false;
     }
-    if (controller->quiet_known && now_ms / 1000.0 >= controller->quiet_at_s) {
-        if (!controller->rest_known) {
-            rest_begin(controller, now_ms / 1000.0, weight);
+    if (controller->room != NULL) {
+        if (controller->quiet_known && now_ms / 1000.0 >= controller->quiet_at_s) {
+            if (!controller->rest_known) {
+                rest_begin(controller, now_ms / 1000.0, weight);
+            }
+            if (controller->row_count < CHARGE_ROWS_MAX) {
+                charge_row_t *row = &controller->room->rows[controller->row_count++];
+                row->t_s = (float) ((now_ms - controller->start_ms) / 1000.0);
+                row->weight = (float) weight;
+            } else {
+                controller->fit_cut = true;
+            }
         }
-        if (controller->row_count < CHARGE_ROWS_MAX) {
-            charge_row_t *row = &controller->room->rows[controller->row_count++];
-            row->t_s = (float) ((now_ms - controller->start_ms) / 1000.0);
-            row->weight = (float) weight;
-        } else {
-            controller->fit_cut = true;
-        }
+        choose(controller);
     }
-    choose(controller);
 
     // The stop first, whatever the coarse tube does (main's rule)
     if (reached(controller)) {
@@ -525,7 +531,7 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
 void charge_controller_resume(charge_controller_t *controller, double now_ms) {
     const charge_config_t *config = &controller->config;
     double now = now_ms / 1000.0;
-    if (controller->parcel > 0.0 && controller->last_tick_s > controller->parcel_start_s) {
+    if (controller->room != NULL && controller->parcel > 0.0 && controller->last_tick_s > controller->parcel_start_s) {
         double speed = controller->parcel / (controller->last_tick_s - controller->parcel_start_s);
         parcel_keep(controller, controller->parcel_start_s, controller->parcel, controller->last_tick_s);
         air_add(controller, controller->parcel_start_s +

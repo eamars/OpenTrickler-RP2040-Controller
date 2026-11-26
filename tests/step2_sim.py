@@ -8,7 +8,8 @@ it). Three runs on the twin's rigs:
   rest both carry its own weight a turn, which must agree;
 - the controller with the forecast off (its default, the owner, 2026-11-27), judged against main's loop
   (legacy_pid.py) the same way, on the starts with no integral term (the C holds its integral at the speed limits,
-  main's does not: kept on with the switch, the owner, 2026-11-27);
+  main's does not: kept on with the switch, the owner, 2026-11-27); every other session with no room lent, as the
+  charge mode lends none with the tuner off too (the PR's review, C3), the others in a room, as with the tuner on;
 - the controller, alone: the C throws on the twin itself, as the charge mode will on a unit, its sessions summed up
   beside the Python's on the same seeds. Printed, not judged: the plant follows the C's own speeds;
 - the tuner, judged: step2_tuner.py's Tuner, on the rule gate 1 passed with (a lower cost is enough: z 0), tunes the
@@ -117,6 +118,7 @@ def load_library() -> ctypes.CDLL:
     pd, pi = ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_int)
     for name, args, result in (("lib_charge_new", [], p), ("lib_charge_free", [p], None), ("lib_charge_size", [pi], i),
                                ("lib_charge_config", [p, ctypes.POINTER(Config)], None),
+                               ("lib_charge_bare", [p, i], None),
                                ("lib_charge_start", [p, d, d], i), ("lib_charge_tick", [p, d], None),
                                ("lib_charge_reading", [p, d, d], None), ("lib_charge_out", [p, pd, pd], i),
                                ("lib_charge_state", [p, pd, pd, pi, pi, pi], i), ("lib_charge_starved", [p], i),
@@ -140,6 +142,10 @@ class CController:
 
     def configure(self, config: Config) -> None:
         self.lib.lib_charge_config(self.handle, ctypes.byref(config))
+
+    def bare(self, bare: bool) -> None:
+        """Whether the next throws are lent no room: nothing kept, nothing learned."""
+        self.lib.lib_charge_bare(self.handle, int(bare))
 
     def _out(self) -> None:
         coarse, fine = ctypes.c_double(), ctypes.c_double()
@@ -259,6 +265,7 @@ def judged_session(job: tuple) -> list:
     lib = load_library()
     python = python_controller(profile, records, rig) if forecast else LegacyPid(profile)
     c = CController(lib, config_of(profile, records, rig.acceleration_rps2, forecast))
+    c.bare(not forecast and seed % 2 == 0)
     paired = Paired(python, c, k=forecast)
     session = Session(rig, seed)
     out = []
@@ -319,14 +326,16 @@ def tuner_case(job: tuple) -> dict:
             # As the unit: a starved throw ends the charge on a fault, before the tuner is fed (charge_mode.cpp)
             continue
         errors.append(result.true_error)
-        times.append(result.elapsed_s)
+        # The tuner times the fine tube's part of the throw, as the charge mode gives it (the PR's review, T1)
+        fine_part_s = controller.fine_part_s(result.elapsed_s)
+        times.append(fine_part_s)
         next_kp, next_kd = ctypes.c_double(), ctypes.c_double()
         next_coarse_kp = ctypes.c_double()
         k = controller.carried() or 0.0
         lag = statistics.median(lag for _, lag in records.lag)
         coarse_k = records.coarse_gr_turn or 0.0
         step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, profile.coarse_kp, k, coarse_k, lag,
-                                   result.true_error, result.elapsed_s, ctypes.byref(next_kp), ctypes.byref(next_kd),
+                                   result.true_error, fine_part_s, ctypes.byref(next_kp), ctypes.byref(next_kd),
                                    ctypes.byref(next_coarse_kp))
         if len(errors) < step2_tuner.WINDOW:
             if step != 0 and mismatch is None:

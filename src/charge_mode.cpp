@@ -146,9 +146,11 @@ static void charge_mode_log_stopped(activity_by_t by, event_reason_t reason) {
 /*
     ADR-009 step 2: the charge on the controller (charge_controller.c) and the auto-tuner (charge_tuner.c), kept for
     good: the weight a turn carried from throw to throw and the tuner's windows, in RAM, taken from the heap at the
-    first charge (the Pico W has no static RAM to spare). The throw's room is borrowed from the heap while a charge
-    runs. Both begin afresh at a start of the unit, at a change of powder or of the scale's
-    unit, and the tuner when the profile's fine gains are changed elsewhere or the switch is turned
+    first charge (the Pico W has no static RAM to spare). The throw's room is borrowed from the heap for the throws
+    that use it: with the forecast or the tuner on; with both off none is borrowed and the throw is main's loop and
+    no more (the PR's review, C3). Both begin afresh at a start of the unit, at a change of powder or of the scale's
+    unit, and the tuner when the profile's fine gains are changed elsewhere, the switch is turned or the target is
+    changed: its windows' times are one target's (the PR's review, T2)
 */
 typedef struct {
     charge_controller_t controller;
@@ -159,6 +161,8 @@ static charge_room_t * charge_room = NULL;
 static int charge_tuned_profile = -1;           // the powder they are for; -1 none yet
 static char charge_tuned_unit[4] = "";          // the scale's unit then
 static bool charge_tuning = false;              // the switch then
+static float charge_tuned_target = NAN;         // the target the tuner's throws were thrown at
+static float charge_fine_part_seconds = 0.0f;   // the last throw's: from the coarse tube's stop to the throw's
 static float charge_profile_kp = NAN;           // the profile's fine gains as last seen or written
 static float charge_profile_kd = NAN;
 static float charge_profile_ki = NAN;           // the user's alone: the tuner never moves it (the owner, 2026-11-26)
@@ -200,9 +204,11 @@ static void charge_step2_configure(profile_t * profile) {
     }
     if (!same || data->auto_tune != charge_tuning || profile->fine_kp != charge_profile_kp ||
         profile->fine_kd != charge_profile_kd || profile->fine_ki != charge_profile_ki ||
-        profile->coarse_kp != charge_profile_coarse_kp) {
+        profile->coarse_kp != charge_profile_coarse_kp ||
+        charge_mode_config.target_charge_weight != charge_tuned_target) {
         charge_tuner_init(&step2->tuner, data->fine_stop_threshold);
         charge_tuning = data->auto_tune;
+        charge_tuned_target = charge_mode_config.target_charge_weight;
         charge_profile_kp = profile->fine_kp;
         charge_profile_kd = profile->fine_kd;
         charge_profile_ki = profile->fine_ki;
@@ -282,10 +288,11 @@ static double charge_lag_middle(const charge_config_t *config) {
 // The throw at rest, its verdict read: its own weight a turn carried, and its weight and time given to the tuner. A
 // window closed, the next window's gains are the tuner's; better gains kept are written into the powder's profile and
 // stored
-static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
+static void charge_step2_at_rest(float reading, float target, float elapsed_s, float fine_part_s) {
     // The throw's verdict on the console, for the bench's window report (tools/charge_sim/bench/step2_windows.py)
-    printf("Charge: throw %u at rest, %.3f of %.3f in %.2f s\n", (unsigned) charge_throw_number, (double) reading,
-           (double) target, (double) elapsed_s);
+    printf("Charge: throw %u at rest, %.3f of %.3f in %.2f s, the fine tube's part %.2f s\n",
+           (unsigned) charge_throw_number, (double) reading, (double) target, (double) elapsed_s,
+           (double) fine_part_s);
     charge_controller_at_rest(&step2->controller, reading);
     double carried;
     bool has_carried = charge_controller_carried(&step2->controller, &carried);
@@ -301,7 +308,7 @@ static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
     charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, charge_kd_thrown,
                                                   charge_coarse_kp_thrown, has_carried ? carried : 0.0,
                                                   charge_coarse_k, charge_lag_middle(&step2->controller.config),
-                                                  (double) reading - target, elapsed_s, &next_kp, &next_kd,
+                                                  (double) reading - target, fine_part_s, &next_kp, &next_kd,
                                                   &next_coarse_kp);
     if (step == CHARGE_TUNER_THROWING) {
         return;
@@ -624,7 +631,18 @@ void charge_mode_wait_for_complete() {
     // records, a tick each millisecond and each reading as it comes; it sets both tubes' speeds
     charge_controller_t * controller = &step2->controller;
     charge_step2_configure(profile_get_selected());
-    if (!charge_controller_start(controller, charge_room, charge_mode_config.target_charge_weight,
+    // The throw's room, for the forecast and for the tuner (the weight a turn it learns): borrowed at the first throw
+    // that uses it and kept until the charge ends; with both switches off none is borrowed
+    bool room_used = charge_mode_config.eeprom_charge_mode_data.forecast ||
+                     charge_mode_config.eeprom_charge_mode_data.auto_tune;
+    if (room_used && charge_room == NULL) {
+        charge_room = (charge_room_t *) pvPortMalloc(sizeof(charge_room_t));
+        if (charge_room == NULL) {
+            printf("Charge: no room for the throw, %u bytes\n", (unsigned) sizeof(charge_room_t));
+        }
+    }
+    if ((room_used && charge_room == NULL) ||
+        !charge_controller_start(controller, room_used ? charge_room : NULL, charge_mode_config.target_charge_weight,
                                  (double) time_us_64() / 1000.0)) {
         charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
         return;
@@ -651,6 +669,7 @@ void charge_mode_wait_for_complete() {
            (unsigned long) usual_interval_ms, (unsigned long) stale_ms, (unsigned long) lost_ms);
 
     bool coarse_moved = true;
+    TickType_t coarse_stop_tick = 0;
     double coarse_set = 0.0;
     double fine_set = 0.0;
     TickType_t wake = xTaskGetTickCount();
@@ -718,6 +737,7 @@ void charge_mode_wait_for_complete() {
         // The coarse tube stopped for good: the servo gate to its ratio (0.0 open, 1.0 closed), as today
         if (coarse_moved && !controller->coarse_moves) {
             coarse_moved = false;
+            coarse_stop_tick = xTaskGetTickCount();
             if (servo_gate_enabled()) {
                 servo_gate_set_ratio(charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio, false);
             }
@@ -740,6 +760,9 @@ void charge_mode_wait_for_complete() {
     TickType_t now = xTaskGetTickCount();
     TickType_t elapsed_ticks = now - charge_start_tick;
     last_charge_elapsed_seconds = (float)(elapsed_ticks * portTICK_PERIOD_MS) / 1000.0f;
+    // The fine tube's part, from the coarse tube's stop: what the tuner times, as it does not grow with the charge
+    // (the PR's review, T1); 0 for a throw that ended before the coarse tube stopped
+    charge_fine_part_seconds = coarse_moved ? 0.0f : (float) ((now - coarse_stop_tick) * portTICK_PERIOD_MS) / 1000.0f;
     charge_timer_running = false;
 
     // Close the gate if the servo gate is present
@@ -848,7 +871,8 @@ void charge_mode_wait_for_cup_removal() {
     events_add(&finished);
     activity_throw_end();
     // Out of the throw, so gains kept are written as any setting between throws
-    charge_step2_at_rest(current_measurement, charge_mode_config.target_charge_weight, last_charge_elapsed_seconds);
+    charge_step2_at_rest(current_measurement, charge_mode_config.target_charge_weight, last_charge_elapsed_seconds,
+                         charge_fine_part_seconds);
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
     while (true) {
@@ -977,8 +1001,8 @@ uint8_t charge_mode_menu(void) {
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
 
-    // The controller and the tuner, kept from the first charge on, and the room for each throw, borrowed while the
-    // charge runs (ADR-009, gate 3); none to have, the charge ends at once and says why
+    // The controller and the tuner, kept from the first charge on (ADR-009, gate 3); none to have, the charge ends at
+    // once and says why. A throw's room is borrowed by the first throw that uses it (charge_mode_wait_for_complete)
     if (step2 == NULL) {
         step2 = (charge_step2_t *) pvPortMalloc(sizeof(charge_step2_t));
         if (step2 != NULL) {
@@ -987,10 +1011,8 @@ uint8_t charge_mode_menu(void) {
             charge_tuned_profile = -1;
         }
     }
-    charge_room = step2 != NULL ? (charge_room_t *) pvPortMalloc(sizeof(charge_room_t)) : NULL;
-    if (charge_room == NULL) {
-        printf("Charge: no room for the controller, %u and %u bytes\n", (unsigned) sizeof(charge_step2_t),
-               (unsigned) sizeof(charge_room_t));
+    if (step2 == NULL) {
+        printf("Charge: no room for the controller, %u bytes\n", (unsigned) sizeof(charge_step2_t));
         charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
     }
 

@@ -68,7 +68,7 @@ typedef struct {
                                         // never teaches one)
     bool forecast;                      // the charge settings' switch: the PID on the forecast, its speed cap and the
                                         // starved stop; off, the PID on the reading, as main's loop (the owner,
-                                        // 2026-11-27). The weight a turn is learned either way, for the tuner
+                                        // 2026-11-27). The weight a turn is learned in a room lent, for the tuner
 } charge_config_t;
 
 // A parcel of the fine tube's turns: when it began, from the throw's start, and how long it lasted
@@ -176,8 +176,10 @@ extern "C" {
 // A controller with nothing carried: as after a start of the unit
 void charge_controller_init(charge_controller_t *controller);
 
-// A throw begins: its target, at now_ms, in the room lent for it (kept until the throw is at rest). False when its
-// config cannot be used (no lag table) or no room is lent
+// A throw begins: its target, at now_ms, in the room lent for it (kept until the throw is at rest). With no room
+// (NULL) the throw keeps nothing and learns nothing: main's loop and no more, for a charge with the forecast and the
+// tuner both off (the PR's review, C3). False when its config cannot be used (no lag table), or the forecast is on
+// and no room is lent
 bool charge_controller_start(charge_controller_t *controller, charge_room_t *room, double target, double now_ms);
 
 // Each millisecond: the fine tube's turns counted, the air's due parcels shown, the stop the moment the forecast

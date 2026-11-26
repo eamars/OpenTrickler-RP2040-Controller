@@ -42,9 +42,10 @@ POOL_THROWS = 75
 # bench's 100 throws on 2.0.3-255: the share modelled from the throws' percentiles snapped to the A&D's 0.02 grid,
 # two windows at 56% and 68% good both read as 49%, and the better gains were put back)
 SHARE_Z = 0.5
-# The owner, 2026-11-26 (to test first; may change before ADR-009's release): a window whose median throw time passes
-# TIME_MOST_S loses to any within it, and between two past it the quicker wins
-TIME_MOST_S = 10.0
+# A window whose median time passes TIME_MOST_S loses to any within it, and between two past it the quicker wins. The
+# time is the fine tube's part of the throw (Step2.fine_part_s; the PR's review, T1, 2026-11-27): the owner's 10 s for
+# a throw (2026-11-26) as it stood at 10 gr, where the coarse tube's part is some 1.7 s (step2_limit_study.py)
+TIME_MOST_S = 8.0
 # Far from good, the share within the tolerance has almost no signal (5% against 11% good is lost in a window's noise):
 # while both shares are under FAR_SHARE, the throws landing nearer the target (the smaller mean miss: a median snaps
 # to the scale's step) are better

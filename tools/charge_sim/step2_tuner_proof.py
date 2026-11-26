@@ -39,19 +39,21 @@ def run(job: tuple) -> dict:
                               objective=objective)
     lag = statistics.median(lag for _, lag in records.lag)
     session = Session(rig, seed)
-    windows, errors, times = [], [], []
+    windows, errors, times, whole = [], [], [], []
     for _ in range(throws):
         controller.profile = profile
         result = step2.throw_one(session, controller, TARGET, TOLERANCE)
         errors.append(result.error)
-        times.append(result.elapsed_s)
+        # The tuner times the fine tube's part of the throw (the PR's review, T1); the window's time shown is the whole
+        times.append(controller.fine_part_s(result.elapsed_s))
+        whole.append(result.elapsed_s)
         if len(errors) == step2_tuner.WINDOW:
             good = sum(abs(e) < TOLERANCE - 1e-9 for e in errors) / len(errors)
             held = tuner.holding
-            windows.append((good, statistics.median(times), profile.fine_kp, profile.fine_kd, held))
+            windows.append((good, statistics.median(whole), profile.fine_kp, profile.fine_kd, held))
             profile, _ = tuner(profile, errors, times, k=controller.carried(), lag=lag,
                                coarse_k=records.coarse_gr_turn)
-            errors, times = [], []
+            errors, times, whole = [], [], []
     shown = []
     for target, count in SHOWN:
         for _ in range(count):

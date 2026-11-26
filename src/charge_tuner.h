@@ -5,7 +5,10 @@
  * on the twin (axes "kp+kd", the share counted), in C with nothing of the RTOS in it; tests/step2_sim.py judges it
  * against the Python on the same windows.
  *
- * After each throw, per powder: the throw's final weight less the target and its time to the stop. Each window of
+ * After each throw, per powder: the throw's final weight less the target and the time of the fine tube's part of it,
+ * from the coarse tube's stop to the throw's (the PR's review, T1: the whole throw's time grows with the charge, and
+ * its limit then kept the tuner from the tolerance at heavier charges). The throws of a window and of the kept gains
+ * are one target's: the charge mode begins the tuner afresh at a change of target (T2). Each window of
  * CHARGE_TUNER_WINDOW throws is judged by the owner's objective, the tolerance first, then quicker (2026-11-26,
  * replacing the time per good charge): its share within the tolerance against the kept gains' throws (the latest
  * CHARGE_TUNER_POOL), and between shares alike its median time. The share is counted, as the unit judges each throw:
@@ -42,7 +45,10 @@
 #define CHARGE_TUNER_GAIN_AIM 1.0
 #define CHARGE_TUNER_COARSE_GAIN_MOST 0.4
 #define CHARGE_TUNER_SHARE_Z 0.5          // a share better by this many of the two shares' noise (step2_tuner.SHARE_Z)
-#define CHARGE_TUNER_TIME_MOST_S 10.0     // a window's median time past it loses (the owner, 2026-11-26; to test first)
+// A window whose median time, the fine tube's part, passes it loses. The owner's 10 s for a throw (2026-11-26) as it
+// stood at the 10 gr it was judged at, where the coarse tube's part is some 1.7 s: on the twin 8 s on the fine tube's
+// part reaches the same gains at 10 gr, and more throws within the tolerance at 42.5 and 60 gr (progress, 2026-11-27)
+#define CHARGE_TUNER_TIME_MOST_S 8.0
 #define CHARGE_TUNER_FAR_SHARE 0.5        // both shares under it: judged by the mean miss (the owner, 2026-11-26)
 #define CHARGE_TUNER_HOLD_RECENT 50       // the held gains' latest throws a hold is judged on
 
@@ -99,8 +105,8 @@ extern "C" {
 void charge_tuner_init(charge_tuner_t *tuner, double tolerance);
 
 /*
- * A throw thrown on the fine kp and kd and the coarse kp: its final weight less the target, and its time to the
- * stop; k, the weight a turn the forecast carries now, coarse_k, step 1's coarse weight a turn, and lag, step 1's
+ * A throw thrown on the fine kp and kd and the coarse kp: its final weight less the target, and the time of the fine
+ * tube's part of it; k, the weight a turn the forecast carries now, coarse_k, step 1's coarse weight a turn, and lag, step 1's
  * middle lag (0 when none). When it closes a window, the gains the next window is thrown on go into next_kp, next_kd and
  * next_coarse_kp and the step taken is returned; else CHARGE_TUNER_THROWING, and they are the gains thrown
  */

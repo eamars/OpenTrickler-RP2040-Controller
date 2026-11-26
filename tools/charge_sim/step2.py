@@ -155,6 +155,8 @@ class Step2(LegacyPid):
         self.turned_total = 0.0         # the fine tube's turns turned out in closed parcels
         self.starve_from = None         # (turns shown, reading) where the starvation's window began
         self.starved = False
+        self.started_ms = now_ms
+        self.coarse_stop_ms = None      # when the coarse tube stopped: the fine tube's part of the throw begins
 
     def carried(self):
         """The median of the last throws' own weights a turn: one clump's throw moves it not at all. With none yet,
@@ -279,6 +281,14 @@ class Step2(LegacyPid):
         """Step 2 reads its verdict once the slowest lag and the settle time have passed after the stop."""
         return max(self.lag_seconds) + self.records.settle_s
 
+    def fine_part_s(self, elapsed_s: float) -> float:
+        """The fine tube's part of a throw that took elapsed_s: from the coarse tube's stop to the throw's. What the
+        tuner times (the PR's review, T1): it does not grow with the charge. 0 for a throw ended before the coarse
+        tube stopped."""
+        if self.coarse_stop_ms is None:
+            return 0.0
+        return max(0.0, elapsed_s - (self.coarse_stop_ms - self.started_ms) / 1000.0)
+
     def at_rest(self, reading: float) -> None:
         """The throw's own weight a turn in hindsight, from its verdict's reading: the fine tube's powder since the
         coarse tube's quiet over its turns not yet shown then, so only the quiet's moment rests on the lag table.
@@ -332,6 +342,7 @@ class Step2(LegacyPid):
         if coarse_error <= 0.0 and self.coarse_moves:
             self.coarse_moves = False
             self.coarse_rps = 0.0
+            self.coarse_stop_ms = now_ms
             self._backoff(now_ms)
         elapsed_ms = now_ms - self.last_sample_ms
         if self.coarse_moves and self.backoff_until_ms is None:

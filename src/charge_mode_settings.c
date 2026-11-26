@@ -96,7 +96,7 @@ static const setting_field_t charge_fields[] = {
     {.name = "auto_tune", .label = "Auto-tune", .group = "Tuning",
      .about = "After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then "
               "quicker ones, better ones kept into the powder's profile; a coarse Kp so high its powder overshoots is "
-              "brought down once; off, the profile is never changed",
+              "brought down once; a change of target begins it afresh; off, the profile is never changed",
      .type = SETTING_BOOLEAN, CHARGE_FIELD(auto_tune), .applies = "the next throw"},
     // ADR-009 step 2: the forecast's switch (the owner, 2026-11-27)
     {.name = "forecast", .label = "Forecast", .group = "Tuning",
