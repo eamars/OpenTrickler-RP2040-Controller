@@ -18,6 +18,7 @@ Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 | Creedmoor Sports series      | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
 | Radwag R series              | ✔️   | ✔️                                | Baud: 9600, Format: 8d,1s,np      |
 | Sartorius series             | ✔️   | ❌ (Not supported yet, but doable) | Baud: 9600, Format: **7d**,1s,np  |
+| FA-E / FA-EN series (aelabgroup) | ✔️ | ❌                              | Baud: 4800 or faster (the balance's default is 1200), Format: 8d,1s,np |
 | Generic Scale Driver         | ✔️   |                                   | Depends                           |
 
 ### Supported Hardware
