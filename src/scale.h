@@ -55,11 +55,23 @@ typedef enum {
 } scale_action_t;
 
 
+// The scale's lag is kept at this many flows (ADR-009 step 1, item 4)
+#define SCALE_LAG_POINTS 5
+
+typedef struct {
+    float flow_per_s;           // the weight a second it was measured at; -1 never calibrated
+    float lag_ms;               // how far the reading ran behind the powder poured at that flow
+} scale_lag_point_t;
+
 typedef struct {
     uint16_t scale_data_rev;
     scale_driver_t scale_driver;
     scale_baudrate_t scale_baudrate;
     scale_uart_format_t scale_uart_format;
+    // The calibration's scale (ADR-009 step 1, items 3 and 4); -1 never calibrated. Appended at the end: an earlier
+    // version's record is kept by load_config (ADR-009, gate 2)
+    float settle_ms;
+    scale_lag_point_t lag[SCALE_LAG_POINTS];    // slowest flow first
 } eeprom_scale_data_t;
 
 
@@ -107,6 +119,8 @@ bool scale_simulation_start(void);
 void scale_simulation_stop(void);
 bool scale_simulation_is_on(void);
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
+// The next reading if one has come since the last taken, else false at once (ADR-009, gate 3: the charge's millisecond)
+bool scale_take_new_measurement(float * current_measurement);
 
 /**
  * @brief The remote control's frame tap (ADR-013): while it is on, a driver that calls scale_tap_frame() copies

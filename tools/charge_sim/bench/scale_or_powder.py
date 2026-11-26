@@ -3,7 +3,7 @@
 Two powders were weighed by one scale on one unit. If what arrives after a stop is the scale's lag, a stop looks
 the same at the same flow in digits a second whatever the powder, and it cannot depend on the trial before it.
 If powder is left at the lip, it is the tube's speed and the powder that set it, and the start after owes it.
-`progress.md` (2026-11-21, daytime) has the checks and their pass, written before this was run.
+ADR-009's `legacy/progress.md` (2026-11-21, daytime) has the checks and their pass, written before this was run.
 
 Usage:
     python scale_or_powder.py --recordings ../recordings --first pico2w_ar2209 --second pico2w_bm2

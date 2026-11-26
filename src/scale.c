@@ -41,6 +41,9 @@ const eeprom_scale_data_t default_scale_persistent_config = {
     .scale_driver = SCALE_DRIVER_AND_FXI,
     .scale_baudrate = BAUDRATE_19200,
     .scale_uart_format = UART_FMT_8D_1S_NP,
+    // The calibration's scale: never calibrated
+    .settle_ms = -1.0f,
+    .lag = {{-1.0f, -1.0f}, {-1.0f, -1.0f}, {-1.0f, -1.0f}, {-1.0f, -1.0f}, {-1.0f, -1.0f}},
 };
 
 
@@ -308,6 +311,16 @@ static const setting_choice_t scale_format_choices[] = {
 
 
 #define SCALE_FIELD(member) SETTING_AT(eeprom_scale_data_t, member)
+// One flow of the lag's table, its two fields: lag_<n>_flow_per_s and lag_<n>_ms
+#define SCALE_LAG_FIELDS(n) \
+    {.name = "lag_" #n "_flow_per_s", .label = "Lag " #n ", flow", .group = "Calibration", \
+     .about = "The flow the scale's lag was measured at, slowest first; null, never calibrated", \
+     .type = SETTING_NUMBER, SCALE_FIELD(lag[n - 1].flow_per_s), .unit = "weight/s", .min = 0.0f, .max = 1000.0f, \
+     .nullable = true, .null_held = -1.0f, .applies = "now"}, \
+    {.name = "lag_" #n "_ms", .label = "Lag " #n, .group = "Calibration", \
+     .about = "How far the reading ran behind the powder poured at that flow; null, never calibrated", \
+     .type = SETTING_NUMBER, SCALE_FIELD(lag[n - 1].lag_ms), .unit = "ms", .min = 0.0f, .max = 10000.0f, \
+     .nullable = true, .null_held = -1.0f, .applies = "now"}
 
 static const setting_field_t scale_fields[] = {
     {.name = "driver", .label = "Make", .short_label = "Make",
@@ -321,6 +334,17 @@ static const setting_field_t scale_fields[] = {
      .about = "The scale's serial frame, as the scale is set",
      .type = SETTING_CHOICE, SCALE_FIELD(scale_uart_format), SETTING_CHOICES(scale_format_choices),
      .applies = "now"},
+    // ADR-009 step 1: the calibration's scale, items 3 and 4
+    {.name = "settle_ms", .label = "Settle time", .group = "Calibration",
+     .about = "How long a small change takes from the reading's first move to its rest, as the calibration found it; "
+              "null, never calibrated",
+     .type = SETTING_NUMBER, SCALE_FIELD(settle_ms), .unit = "ms", .min = 0.0f, .max = 30000.0f,
+     .nullable = true, .null_held = -1.0f, .applies = "now"},
+    SCALE_LAG_FIELDS(1),
+    SCALE_LAG_FIELDS(2),
+    SCALE_LAG_FIELDS(3),
+    SCALE_LAG_FIELDS(4),
+    SCALE_LAG_FIELDS(5),
 };
 
 
@@ -592,6 +616,15 @@ uint32_t scale_get_usual_interval_ms(void) {
         sorted[pos] = value;
     }
     return sorted[count / 2];
+}
+
+
+bool scale_take_new_measurement(float * current_measurement) {
+    if (xSemaphoreTake(scale_config.scale_measurement_ready, 0) == pdTRUE) {
+        *current_measurement = scale_get_current_measurement();
+        return true;
+    }
+    return false;
 }
 
 

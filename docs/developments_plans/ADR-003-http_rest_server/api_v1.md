@@ -27,13 +27,14 @@ Each field below comes from today's stored structs, read in the code on 2026-11-
 - **Colours** are `"#rrggbb"`.
 - **Ids:** a powder profile's is an opaque number (0 to 7 today, but a client reads the list and does not count on that); a motor's is its name, `coarse` or `fine`. Each is listed at its collection's path: `GET /api/v1/powder_profiles`, `GET /api/v1/settings/motors`.
 - **What a request reads or writes is named in its path; what an action works on is a field of its body.** `PATCH /api/v1/settings/motors/fine` writes the fine motor's settings. `POST /api/v1/motor_run/start` takes `{"motor": "fine", ...}`: the run is the job, and the motor its parameter (ADR-009). A GET carries no body. An id is the same in a path, a body, a reply and an event (owner's review of PR #129, 2026-11-16).
-- **Unknown fields in a request are refused** (400 `unknown_field`), so a typo is caught rather than ignored.
+- **A settings write ignores a name the resource does not have, and says so** (the owner, 2026-11-26: forward compatibility): the reply, the resource as its GET gives it, ends with `"ignored": [...]`, each such name (`"..."` last when more did not fit); the names it has are written as usual. So a copy of a later version's settings restores onto an earlier one, and a typo shows in the reply. **An action's body still refuses an unknown field** (400 `unknown_field`): an action does what it was asked, or nothing.
 - **API replies carry `Cache-Control: no-store`.** The schema and the pages carry an `ETag`, the build's hash, and are answered 304 when unchanged.
 
 ### Growing within v1
 
 What may change within v1, and what a client does about it:
 - **New paths and new fields** are added. A client ignores a field it does not know. **A request only ever gains optional fields.**
+- **A settings write's unknown name:** A settings write that names a field the resource does not have is answered 200 with the names in `"ignored"` (ADR-009, 2026-11-26), where it was 400 `unknown_field` before; an action's body still refuses one.
 - **A choice may gain values:** a new scale driver, a new state, a new end reason, a new event kind, a new `activity`. A client treats a value it does not know as "something else", and does not fail.
 - **A field never goes, and never changes its meaning or its unit.** A setting that moves keeps its old place as the default. For example, if the stop thresholds become per profile (ADR-009, ADR-014), `settings/charge` keeps them, and a profile's own field, `null` when not set, uses that default.
 - **Limits, defaults and steps are the schema's, not the contract's.** They may change from one build to another; the schema is the truth for its build.
@@ -52,7 +53,7 @@ What may change within v1, and what a client does about it:
 | 200 | A read, a write, an action done; a stop with nothing to stop |
 | 202 | An action under way: a charge started or stopped, a restart |
 | 304 | The schema or a page, unchanged since the `ETag` the client gave |
-| 400 | Not JSON, an unknown field, a wrong type, a value outside its limits, a missing confirmation, a start with no target |
+| 400 | Not JSON, an unknown field in an action's body, a wrong type, a value outside its limits, a missing confirmation, a start with no target |
 | 403 | A `Host` that is not the unit's |
 | 404 | No such path on this build, or no such id |
 | 405 | The path exists, the method does not; `Allow` lists the methods. A GET of an action's path is not refused: it gives the action's usage (below) |
@@ -131,7 +132,7 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | throw | paused | `throw`, `pause`: its number in the throw (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
-| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault), and for a driver's fault its `motor` and `fault` |
+| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault, fault: the fine tube starved of powder ("Fine: no powder") or no memory for the throw ("No memory"); ADR-009), and for a driver's fault its `motor` and `fault` |
 | purge | started | `by` |
 | purge | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
@@ -169,6 +170,21 @@ ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_prof
 | `POST /api/v1/purge/start` | `{}` | 202. The purge runs, at speed 0 until a PATCH gives one. 409 `busy` while another job runs; 409 `driver_fault` (looked at afresh, as the charge's) |
 | `POST /api/v1/purge/stop` | `{}` | A stop; it acknowledges `fault` |
 | `PATCH /api/v1/purge` | `{"speed_rps": 2.0}`, or `{"speed_rps": 2.0, "time_s": 30}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. With `time_s` (1 to 600 *p*), for at most that long: a new PATCH before then sets a new speed and a new time, and when the time runs out with none, the purge stops by itself (`purge stopped`, `by` the unit, `reason` time). A client with no person at the unit gives a short time and sends the speed again while it wants it, so a client that loses the network leaves no motor turning for longer than its last time. Without `time_s` it turns until stopped, as at the unit. 409 `not_running` when idle. A speed beyond the motors' limit is turned at the limit, not refused: the limit follows the motors' settings, so the schema cannot give it, and the reply's `speed_rps` is the speed taken. In `fault` no speed is taken (409 `not_running`): the motors stay stopped until the purge is acknowledged (review D1, C6) |
+
+## Calibration (ADR-009, step 1)
+
+A job of three parts, each run alone: `cup` (its capacity and weight), `scale` (its settle time and its lag), `powder` (each tube's least speed, for the powder given or the one the charge uses). Each part begins with the empty cup put on the scale, which is then zeroed; the scale's and a powder's parts turn the tubes, and pause when a run would pass the cup's capacity. What a part finds is kept only when the person keeps it. In `activity` it is `calibration`, and `POST /api/v1/stop` stops it.
+
+| Method and path | Body | Reply |
+|---|---|---|
+| `GET /api/v1/calibration` | | `state` (idle, starting, running), `part`, `profile` and `profile_name` (a powder's part: the profile calibrated; else null), `step` (below; null when idle), `by`, `progress` (0 to 100 while running), `line` (what it does, in words), `weight` (the reading now), `pouring` and `pour_turns` (the fill's: the coarse tube turning, its turns still to go), `capacity` (the cup's, found; null before), `result` (at `result`: the scale's `settle_ms`, `lag` as `{flow_per_s, ms}` slowest first, `step` and `rest_sd` (its smallest change and its spread at rest over the bursts) and `margin` (what Save writes into the charge's `steady_sd_margin` and `zero_mean_margin` when it is at most 1, their most: one step, or twice the spread where that is more; ADR-009, 2026-11-26), each null where not measured; a powder's `fine_min_speed_rps`, `coarse_min_speed_rps`, `fine_weight_per_turn` and `coarse_weight_per_turn`, each null where not found, and `was`; with `elapsed_s`, `poured`, `failure`), `failure` (at `failed`), and `records`: what is kept, `cup` (`capacity`), `scale` (`settle_ms`, `lag`), `powder` (`profile`, `name`, its two least speeds, its `fine_weight_per_turn` and `coarse_weight_per_turn`) |
+| `POST /api/v1/calibration/start` | `{"part": "scale"}`, or `{"part": "powder", "profile": 2}` | 202. A powder's part calibrates the profile given, the powder in the hopper, or without one the profile the charge uses. 400 `not_a_choice`, 400 `out_of_range` for no such profile; 409 `busy` while another job runs or a person has a screen open at the unit; 409 `driver_fault` |
+| `POST /api/v1/calibration/answer` | `{"answer": "next"}` | 200. The person's answer at a step: `next` at `cup_on`, `full` at `fill`, `keep` at `keep`, `done` at `empty` and `failed`, `go_on` at `paused`. 409 `not_now` at another step; 409 `not_running` |
+| `POST /api/v1/calibration/pour` | `{"turns": 0.5}` | 200. While the cup is filled: the coarse tube turned at least these turns from now, back when below 0; a turn under way the same way is extended to them and never added to, so asks faster than the tube are dropped and it stops within half a turn of the last; the other way replaces it (at the unit, each detent of the knob is a quarter turn, right forward and left back; the web's Hold to dispense asks half a turn forward every 150 ms while held). 400 `wrong_type`, 400 `out_of_range` (0, or past half a turn either way); 409 `not_filling` at another step |
+| `POST /api/v1/calibration/save` | `{}` | 200. At `result`, the records found kept and stored: the scale's into `settings/scale`, a powder's least speeds into its profile; the part then ends. The cup's are kept by `answer` `keep`. All or nothing: 409 `not_kept` when a setting refuses one of them, its `message` the setting's own refusal, and nothing is kept (the PR's review, U1). 409 `not_now` at another step |
+| `POST /api/v1/calibration/stop` | `{}` | A stop; what was found and not kept is discarded |
+
+The steps: `cup_on`, `zeroing`, then the cup's `fill`, `keep`, `empty` (its `lift` and `back` gone with its weight, which nothing read: the PR's review, O1); the scale's and a powder's `running`, `paused` when the cup would be passed, and `result`; `failed` when an item could not be measured (`failure` says which, and nothing is retried), or when a run saw the cup lifted ("Cup: lifted mid-run": a reading 2 under the part's zero) or no reading for the scale's lost time ("Scale: no reading": ten of its intervals, never under 1 s), nothing kept. Its events: `calibration` `started` (`part`, `by`), `paused`, `resumed`, `finished` (the records found), `stored`, `stopped` (`part`, `by`, `reason`: finished, stopped, failed, fault).
 
 ## The scale, the gate, the motors, the screen
 
@@ -232,8 +248,10 @@ What ADR-014 calls a powder profile: how a powder flows, and the controller's ga
 | `coarse_min_speed_rps`, `coarse_max_speed_rps` | number | rev/s | 0 to 100, min not above max; used up to the coarse motor's `max_speed_rps` | `p6`, `p7` (`..._flow_speed_rps`) |
 | `fine_kp`, `fine_ki`, `fine_kd` | number | | 0 or more *p* | `p8` to `p10` |
 | `fine_min_speed_rps`, `fine_max_speed_rps` | number | rev/s | as coarse, with the fine motor | `p11`, `p12` |
+| `fine_weight_per_turn` | number or null | weight | 0.001 to 100; null, never calibrated (0 held). The fine tube's weight a turn where it streams, kept by the powder's calibration: the charge forecasts its first throws on this powder from it (ADR-009, step 2) | appended (ADR-009) |
+| `coarse_weight_per_turn` | number or null | weight | 0.001 to 100; null, never calibrated (0 held). The coarse tube's, kept by the same calibration (ADR-009, 2026-11-26) | appended (ADR-009) |
 
-Eight slots today, so no POST to make one and no DELETE. Those may come (ADR-014, or ADR-009's tuning saving a new one) without changing the paths. Today's `rev` and `compatibility` (`p0`, `p1`) are used by nothing in the code and are not in v1.
+Eight slots today, so no POST to make one and no DELETE. Those may come (ADR-014, or ADR-009's tuning saving a new one) without changing the paths. Today's `rev` (`p0`) and `compatibility` (`p1`, written by v1.2x's REST API) are kept as stored, used by nothing, and are not in v1. The two weights a turn are appended to each powder (ADR-009, 2026-11-26), so a v1.2x block is read whole by the migration (`load_config_layout`) and they start null, never calibrated.
 
 ## Settings
 
@@ -246,7 +264,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 - **A test stand-in is never stored.** The console's simulated scale runs in place of the stored driver and never shows in `settings/scale`, and no save stores it.
 - **The shapes, as built in gate 3:**
   - `GET /api/v1/settings` is `{"api": "1", "firmware": {"version", "vcs", "build"}, "unit_id", "resources": {...}}`, each resource under its path (`"/api/v1/settings/charge"`, `"/api/v1/powder_profiles/0"`) as its own GET gives it. An import PATCHes each path with its fields, `saved` left out.
-  - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`). `saved` sent in a PATCH is 400 `read_only`.
+  - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`), as an action's. `saved` sent in a PATCH is 400 `read_only`.
   - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`, and `short_label` where the label is long), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies: `min`, `max` and `step` for numbers only. For a client with little room (ADR-010, gate 6: the unit's screen; ADR-008's pages may use them): `short_label` (where the label and a value do not fit 128 px), `edit_step` (what one detent, or an arrow, moves a number by), and a boolean's `on_label` and `off_label` ("Reversed", "Normal"). `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`.
   - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_purge_runs` for the purge's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `purge`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
   - `GET /api/v1/powder_profiles/{id}` gives `saved`, this powder's own (ADR-008, gate 2: the eight are one block in the EEPROM, and a powder is saved when it is as the EEPROM holds it, whatever the others are) and its fields; `GET /api/v1/powder_profiles` gives `saved`, the block's, and each profile's `id` and `name`.
@@ -258,17 +276,21 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 |---|---|---|---|---|---|
 | `coarse_stop_threshold` | number | weight | 0 to 100 *p* | now | `c5` |
 | `fine_stop_threshold` | number | weight | 0 to 10 *p* | now | `c6` |
-| `steady_sd_margin` | number | weight | 0 to 1 *p*. The steady test, in three places: the zero, the cup's removal, the resume after a pause | now | `c7` (`set_point_sd_margin`) |
-| `zero_mean_margin` | number | weight | 0 to 1 *p* | now | `c8` (`set_point_mean_margin`) |
+| `steady_sd_margin` | number | weight | 0 to 1 *p*. The steady test, in three places: the zero, the cup's removal, the resume after a pause. The scale's calibration writes it from the scale's own noise (ADR-009, 2026-11-26) | now | `c7` (`set_point_sd_margin`) |
+| `zero_mean_margin` | number | weight | 0 to 1 *p*. Written with `steady_sd_margin` by the scale's calibration. The cup counts as lifted once the readings are steady and their mean 10 of it below zero (ADR-009, 2026-11-26) | now | `c8` (`set_point_mean_margin`) |
 | `decimal_places` | choice | | 2, 3 | now. A change keeps the charge's target as a weight, and is refused (400 `out_of_range`) when the target cannot be shown at the new decimals (review D2) | `c9` (an index) |
 | `coarse_stop_gate_ratio` | number or null | | 0 to 1; null: the gate is not moved | now | `c13` (-1 for not moved) |
-| `coarse_stop_backoff_enable` | boolean | | | now | `c14` |
+| `coarse_stop_backoff_enable` | boolean | | false by default: v1.21 had no back-off (ADR-009, 2026-11-27) | now | `c14` |
 | `coarse_stop_backoff_turns` | number | turns | 0.125 to 2 *p*, step 0.125 | now | `c15` |
 | `coarse_stop_backoff_speed_rps` | number | rev/s | 0 to 100; 0 is the coarse motor's minimum speed; used up to its `max_speed_rps` | now | `c16` |
 | `precharge_enable` | boolean | | | now | `c10` |
 | `precharge_time_ms` | integer | ms | 0 to 5,000 *p* (RST is not read while it runs) | now | `c11` |
 | `precharge_speed_rps` | number | rev/s | 0 to 100; used up to the coarse motor's `max_speed_rps` | now | `c12` |
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
+| `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
+| ~~`cup_weight`~~ | | | Removed from the settings (the PR's review, O1, 2026-11-27): nothing set it or read it once the cup's part lost its lift. The record keeps the field, unused | | |
+| `auto_tune` | boolean | | false by default (ADR-009, 2026-11-27). After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then quicker ones (a window is timed by the fine tube's part of its throws, from the coarse tube's stop; a median past 8 s loses), better ones kept into the powder's profile, stored, their writes `by` unit; a change of target, of powder or of the gains begins it afresh from the profile's gains (the PR's review, T1 and T2, 2026-11-27); at the first window's end a coarse Kp whose gain (Kp x the powder's `coarse_weight_per_turn` x the scale's middle lag) is above 0.4 is tried at 0.4 through the second window with the fine gains put right, and kept the same way (ADR-009, 2026-11-26); off, the profile is never changed (ADR-009, step 2) | the next throw | new |
+| `forecast` | boolean | | false by default (ADR-009, 2026-11-27). On: the fine trickler's PID steers on the reading and the powder still falling, held slow enough that what is falling never passes the target, and a throw whose fine powder stops coming ends on the fault "Fine: no powder". Off: the PID on the reading alone, as main's loop (its integral still held at the speed limits) | the next throw | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 
@@ -301,6 +323,9 @@ The two are stored as one block, so they are saved together, and each one's `sav
 | `driver` | choice | and_fxi, steinberg_sbs, gng_jjb, ussolid_jfdbs, jm_science, creedmoor, radwag_ps_r2, sartorius, generic, fa_en, simulated | at restart (the reader task is made once; ADR-006). The stored choice: a test stand-in never shows here | `s0` (an index; an unknown one was stored) |
 | `baud` | choice | 4800, 9600, 19200 | now | `s1` (an index; an unknown one set 0 baud) |
 | `format` | choice | 8n1, 7n1 | now | `s2` (an index) |
+| `settle_ms` | number or null | 0 to 30,000 ms; null: never calibrated. How long a small change takes from the reading's first move to its rest (ADR-009, step 1) | now | new |
+| `lag_1_flow_per_s` to `lag_5_flow_per_s` | number or null | 0 to 1,000, a weight a second, slowest first; null: never calibrated. The flows the lag was measured at | now | new |
+| `lag_1_ms` to `lag_5_ms` | number or null | 0 to 10,000 ms; null: never calibrated. How far the reading ran behind the powder poured at each flow (ADR-009, step 1) | now | new |
 
 ### `/api/v1/settings/gate`, saved at `/api/v1/settings/gate/save` (refused while `in_throw`)
 
@@ -374,6 +399,10 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | Waiting for news in place of polling | ADR-008, ADR-009 | `?wait=` on the event log, or a push channel |
 
 ## Experiments and recordings, for ADR-009 (reserved)
+
+**Not built by ADR-009** (the PR's review, O3, 2026-11-27): ADR-009 closed with its own calibration job and its tuner on the unit, and built neither the test throw nor the recordings below. They stay reserved as written, handed on in `HANDOVER.md` ("Handed on by ADR-009") until an ADR takes them. Until then a client tunes by each throw's `finished` (result, weight, elapsed_s), the live weight on the stream and the settings; a value it tries is a PATCH, live for a person's next charge until put back.
+
+ADR-009's step 1 built its calibration as its own job (Calibration, above), its cup a part of it: the cup's resource reserved here is not built by it.
 
 Written 2026-11-15 at the owner's challenge ("does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?"), with the owner's word to settle it with the reviewer so that ADR-009 needs "minimum changes later", and the owner's warning that "tuning will need some access to huge amount of data". Reviewed in a fourth round (E1 to E21, at the end). **ADR-003 builds none of this but what "What gate 2 and gate 4 build for it" names.** It fixes the paths and the shapes now, so that ADR-009 builds to them and only adds: columns, marks, summary fields, override fields, as the growth rules allow.
 

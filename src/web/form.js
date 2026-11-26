@@ -99,15 +99,17 @@ function fieldId(path, field) {
     return `f-${path.split("/").slice(3).join("-")}-${field.name}`;
 }
 
-// The schema's unit "weight" is the scale's own unit (grains or grams): no word of its own beside a field
+// The schema's unit "weight" is the scale's own unit (grains or grams): no word of its own beside a field; a flow,
+// "weight/s", is "/s" beside it
 function unitOf(field) {
-    return field.unit === "weight" ? "" : (field.unit || "");
+    return (field.unit || "").replace("weight", "");
 }
 
 function limitsOf(field) {
     const parts = [];
     if (typeof field.min === "number" && typeof field.max === "number") {
-        const unit = field.unit === "weight" ? " in the scale's unit" : (unitOf(field) ? " " + unitOf(field) : "");
+        const unit = field.unit === "weight" ? " in the scale's unit"
+            : field.unit === "weight/s" ? " in the scale's unit a second" : (unitOf(field) ? " " + unitOf(field) : "");
         parts.push(`${field.min} to ${field.max}${unit}`);
     }
     // When it takes effect, in the schema's words, unless at once (features: 58)

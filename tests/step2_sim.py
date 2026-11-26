@@ -1,0 +1,439 @@
+"""The charge controller and the auto-tuner in C (src/charge_controller.c, src/charge_tuner.c) run on the simulation
+beside the Python (tools/charge_sim/step2.py, step2_tuner.py): ADR-009, step 2, gate 2, with no unit.
+
+The C is compiled for this PC as a library (tests/host/charge_lib.c; the host's compiler as tests/host_test.py finds
+it). Three runs on the twin's rigs:
+- the controller, judged: step2.py's Step2 throws on the twin and drives it; the C is given the same calls (each
+  millisecond's tick and each reading) and must ask the same speeds and stop at the same millisecond; at each throw's
+  rest both carry its own weight a turn, which must agree;
+- the controller with the forecast off (its default, the owner, 2026-11-27), judged against main's loop
+  (legacy_pid.py) the same way, on the starts with no integral term (the C holds its integral at the speed limits,
+  main's does not: kept on with the switch, the owner, 2026-11-27); every other session with no room lent, as the
+  charge mode lends none with the tuner off too (the PR's review, C3), the others in a room, as with the tuner on;
+- the controller, alone: the C throws on the twin itself, as the charge mode will on a unit, its sessions summed up
+  beside the Python's on the same seeds. Printed, not judged: the plant follows the C's own speeds;
+- the tuner, judged: step2_tuner.py's Tuner, on the rule gate 1 passed with (a lower cost is enough: z 0), tunes the
+  Python's throws from a start's gains; the C tuner is given the same throws and must take the same steps to the same
+  kp, window for window.
+
+    venv\\Scripts\\python tests\\step2_sim.py [--rigs ...] [--sessions 2] [--tuner-throws 300]
+"""
+
+import argparse
+import ctypes
+import dataclasses
+import statistics
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "tools" / "charge_sim"))
+sys.path.insert(0, str(REPO / "tests"))
+
+import rigs  # noqa: E402
+import step2  # noqa: E402
+import step2_tuner  # noqa: E402
+from host_test import compiler  # noqa: E402
+from legacy_pid import AR2209_PICOW_168, LegacyPid  # noqa: E402
+from step2_variants import BENCH  # noqa: E402
+from throw import Session  # noqa: E402
+from workers import Workers  # noqa: E402
+
+LIBRARY = REPO / "build_host" / ("charge_lib.dll" if os.name == "nt" else "charge_lib.so")
+LAG_POINTS = 5
+TARGET = 10.0
+CLOSE_RPS = 1e-4                # two speeds this near are the same: the C's settings are floats, the Python's doubles
+CLOSE_K = 1e-4                  # two weights a turn this near (relative) are the same
+CLOSE_KP = 1e-9
+# The C tuner's steps (charge_tuner.h) and words the Python's note for the same step holds
+STEPS = {1: ("first",), 2: ("holding (",), 3: ("the base again",), 4: ("kept",), 5: ("the other way",),
+         6: ("nothing beats",), 7: ("the gain", "the braking"), 8: ("the gains as they were",), 9: ("resumed",)}
+# The product as it ships (ADR-009, 2026-11-26): step 1's weight a turn seeds the carry; the study of the variants
+# (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw; the
+# tuner on kp and kd by the share modelled; the throw never cut on the forecast, stopped by the reading within the fine
+# threshold under the target, main's rule (the owner, 2026-11-26)
+PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "counted",
+           "cut": "threshold", "objective": "tolerance"}
+# The gains thrown from: the owner's Pico W's (gate 1's twin), the bench's stored profile (gate 4's baseline), and the
+# bench's with an integral term put in by mistake (the tuner leaves it, and meets it with kp and kd) and with kp a
+# hundredth (the tuner's first trial puts it right); and the bench's with the coarse stop threshold under the fine one,
+# where main stops both tubes on the fine threshold while the coarse tube still turns (the PR's review, C1)
+STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH, "bench ki": dataclasses.replace(BENCH, fine_ki=0.1),
+          "bench slow": dataclasses.replace(BENCH, fine_kp=0.02),
+          "bench wild coarse": dataclasses.replace(BENCH, coarse_kp=0.2),
+          "bench low coarse": dataclasses.replace(BENCH, coarse_stop_threshold=0.02)}
+
+
+class Channel(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_float) for name in ("kp", "ki", "kd", "least_rps", "most_rps")]
+
+
+class Config(ctypes.Structure):
+    _fields_ = [("coarse", Channel), ("fine", Channel), ("coarse_threshold", ctypes.c_float),
+                ("fine_threshold", ctypes.c_float),
+                ("backoff_enable", ctypes.c_bool), ("backoff_turns", ctypes.c_float), ("backoff_rps", ctypes.c_float),
+                ("settle_s", ctypes.c_float), ("lag_count", ctypes.c_int),
+                ("lag_flow_per_s", ctypes.c_float * LAG_POINTS), ("lag_s", ctypes.c_float * LAG_POINTS),
+                ("acceleration_rps2", ctypes.c_float), ("fine_weight_per_turn", ctypes.c_float),
+                ("forecast", ctypes.c_bool)]
+
+
+def config_of(profile, records, acceleration_rps2: float, forecast: bool = True) -> Config:
+    """The C's config from the Python's profile and step 1's records; the forecast off, the fine tube's least the
+    profile's, as main's loop has it."""
+    lag = list(records.lag)[:LAG_POINTS]
+    flows = (ctypes.c_float * LAG_POINTS)(*[flow for flow, _ in lag])
+    lags = (ctypes.c_float * LAG_POINTS)(*[seconds for _, seconds in lag])
+    return Config(Channel(profile.coarse_kp, profile.coarse_ki, profile.coarse_kd, profile.coarse_min_rps,
+                          profile.coarse_max_rps),
+                  Channel(profile.fine_kp, profile.fine_ki, profile.fine_kd,
+                          records.fine_least_rps if forecast else profile.fine_min_rps, profile.fine_max_rps),
+                  profile.coarse_stop_threshold, profile.fine_stop_threshold, profile.backoff_enable, profile.backoff_turns,
+                  profile.backoff_speed_rps, records.settle_s, len(lag), flows, lags, acceleration_rps2,
+                  records.fine_gr_turn if PRODUCT["seed"] and records.fine_gr_turn else 0.0, forecast)
+
+
+def python_controller(profile, records, rig):
+    """The Python reference as the product ships."""
+    return step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=PRODUCT["seed"],
+                       hold=PRODUCT["hold"], cut=PRODUCT["cut"])
+
+
+def build_library() -> None:
+    """The controller and the tuner built for this PC as a library."""
+    LIBRARY.parent.mkdir(exist_ok=True)
+    command = compiler() + ["-shared", "-std=c11", "-Wall", "-Wextra", "-O1", "-fPIC", "-I", str(REPO / "src"),
+                            str(REPO / "tests" / "host" / "charge_lib.c"), str(REPO / "src" / "charge_controller.c"),
+                            str(REPO / "src" / "charge_tuner.c"), "-o", str(LIBRARY)]
+    built = subprocess.run(command, capture_output=True, text=True)
+    if built.returncode != 0 or built.stderr.strip():
+        raise SystemExit(built.stdout + built.stderr + "\nVERDICT FAIL the controller did not build cleanly")
+
+
+def load_library() -> ctypes.CDLL:
+    lib = ctypes.CDLL(str(LIBRARY))
+    p, d, i = ctypes.c_void_p, ctypes.c_double, ctypes.c_int
+    pd, pi = ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_int)
+    for name, args, result in (("lib_charge_new", [], p), ("lib_charge_free", [p], None), ("lib_charge_size", [pi], i),
+                               ("lib_charge_config", [p, ctypes.POINTER(Config)], None),
+                               ("lib_charge_bare", [p, i], None),
+                               ("lib_charge_start", [p, d, d], i), ("lib_charge_tick", [p, d], None),
+                               ("lib_charge_reading", [p, d, d], None), ("lib_charge_out", [p, pd, pd], i),
+                               ("lib_charge_state", [p, pd, pd, pi, pi, pi], i), ("lib_charge_starved", [p], i),
+                               ("lib_charge_verdict_after_s", [p], d), ("lib_charge_at_rest", [p, d], None),
+                               ("lib_charge_carried", [p, pd], i), ("lib_tuner_new", [d], p),
+                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, d, d, d, pd, pd, pd], i)):
+        getattr(lib, name).argtypes = args
+        getattr(lib, name).restype = result
+    return lib
+
+
+class CController:
+    """The C controller with the Python's face: start, on_tick and on_reading, then coarse_rps, fine_rps and done."""
+
+    def __init__(self, lib, config: Config):
+        self.lib = lib
+        self.handle = lib.lib_charge_new()
+        self.configure(config)
+        self.coarse_rps = self.fine_rps = 0.0
+        self.done = True
+
+    def configure(self, config: Config) -> None:
+        self.lib.lib_charge_config(self.handle, ctypes.byref(config))
+
+    def bare(self, bare: bool) -> None:
+        """Whether the next throws are lent no room: nothing kept, nothing learned."""
+        self.lib.lib_charge_bare(self.handle, int(bare))
+
+    def _out(self) -> None:
+        coarse, fine = ctypes.c_double(), ctypes.c_double()
+        self.done = bool(self.lib.lib_charge_out(self.handle, ctypes.byref(coarse), ctypes.byref(fine)))
+        self.coarse_rps, self.fine_rps = coarse.value, fine.value
+
+    def start(self, target: float, now_ms: float) -> None:
+        if not self.lib.lib_charge_start(self.handle, target, now_ms):
+            raise RuntimeError("the C refused its config")
+        self._out()
+
+    def on_tick(self, now_ms: float) -> None:
+        self.lib.lib_charge_tick(self.handle, now_ms)
+        self._out()
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        self.lib.lib_charge_reading(self.handle, now_ms, weight)
+        self._out()
+
+    @property
+    def verdict_after_s(self) -> float:
+        return self.lib.lib_charge_verdict_after_s(self.handle)
+
+    def at_rest(self, reading: float) -> None:
+        self.lib.lib_charge_at_rest(self.handle, reading)
+
+    def carried(self):
+        k = ctypes.c_double()
+        return k.value if self.lib.lib_charge_carried(self.handle, ctypes.byref(k)) else None
+
+    @property
+    def starved(self) -> bool:
+        return bool(self.lib.lib_charge_starved(self.handle))
+
+    def state(self) -> dict:
+        k, unseen = ctypes.c_double(), ctypes.c_double()
+        parcels, rows, cut = ctypes.c_int(), ctypes.c_int(), ctypes.c_int()
+        known = self.lib.lib_charge_state(self.handle, ctypes.byref(k), ctypes.byref(unseen), ctypes.byref(parcels),
+                                          ctypes.byref(rows), ctypes.byref(cut))
+        return {"k": k.value if known else None, "unseen": unseen.value, "parcels": parcels.value, "rows": rows.value,
+                "cut": bool(cut.value)}
+
+
+class Paired:
+    """The Python's Step2 driving the twin, the C given the same calls: each call's answers compared."""
+
+    def __init__(self, python, c: CController, k: bool = True):
+        self.python, self.c = python, c
+        self.k = k                      # the weights a turn compared too: main's loop has none
+        self.calls = 0
+
+    def start(self, target: float, now_ms: float) -> None:
+        self.python.start(target, now_ms)
+        self.c.start(target, now_ms)
+        self.throw = {"rate": 0.0, "k_diff": 0.0, "py_stop": None, "c_stop": None, "first": None}
+        self._compare(now_ms)
+
+    def _compare(self, now_ms: float) -> None:
+        py, c, throw = self.python, self.c, self.throw
+        if py.done and throw["py_stop"] is None:
+            throw["py_stop"] = now_ms
+        if c.done and throw["c_stop"] is None:
+            throw["c_stop"] = now_ms
+        if py.done or c.done:
+            return
+        rate = max(abs(py.coarse_rps - c.coarse_rps), abs(py.fine_rps - c.fine_rps))
+        throw["rate"] = max(throw["rate"], rate)
+        c_k = c.state()["k"]
+        py_k = py.k if self.k else c_k
+        if (py_k is None) != (c_k is None):
+            throw["k_diff"] = float("inf")
+        elif py_k is not None:
+            throw["k_diff"] = max(throw["k_diff"], abs(py_k - c_k) / py_k)
+        if throw["first"] is None and (rate > CLOSE_RPS or throw["k_diff"] > CLOSE_K):
+            throw["first"] = f"at {now_ms:.0f} ms: speeds {py.coarse_rps:.5f}/{py.fine_rps:.5f} against " \
+                             f"{c.coarse_rps:.5f}/{c.fine_rps:.5f}, k {py_k} against {c_k}"
+        self.calls += 1
+
+    def on_tick(self, now_ms: float) -> None:
+        self.python.on_tick(now_ms)
+        self.c.on_tick(now_ms)
+        self._compare(now_ms)
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        self.python.on_reading(now_ms, weight)
+        self.c.on_reading(now_ms, weight)
+        self._compare(now_ms)
+
+    @property
+    def coarse_rps(self) -> float:
+        return self.python.coarse_rps
+
+    @property
+    def fine_rps(self) -> float:
+        return self.python.fine_rps
+
+    @property
+    def done(self) -> bool:
+        return self.python.done
+
+
+# An empty fine hopper (the starved stop): calibrated while the hopper was full
+EMPTY_HOPPER = "pico2w_ar2209_f2+fine_empty"
+
+
+def calibrated_on(rig_name: str) -> str:
+    """The rig step 1 ran on: a failure that comes in use (an empty hopper) was not there at the calibration."""
+    return "+".join(part for part in rig_name.split("+") if part not in ("fine_empty", "coarse_empty"))
+
+
+def judged_session(job: tuple) -> list:
+    """One session of the Python's throws, the C given the same calls: a dict a throw. The forecast off, the Python is
+    main's loop, which has no weight a turn, no verdict's wait of its own and no starved stop."""
+    rig_name, records, seed, start, forecast = job
+    rig = rigs.get_rig(rig_name)
+    profile = STARTS[start]
+    lib = load_library()
+    python = python_controller(profile, records, rig) if forecast else LegacyPid(profile)
+    c = CController(lib, config_of(profile, records, rig.acceleration_rps2, forecast))
+    c.bare(not forecast and seed % 2 == 0)
+    paired = Paired(python, c, k=forecast)
+    session = Session(rig, seed)
+    out = []
+    for _ in range(step2.THROWS_PER_SESSION):
+        after = python.verdict_after_s if forecast else c.verdict_after_s
+        result = session.throw(paired, TARGET, profile.fine_stop_threshold, verdict_after_s=after)
+        c.at_rest(result.reading)
+        c_k = c.carried()
+        if forecast:
+            python.at_rest(result.reading)
+        py_k = python.carried() if forecast else c_k
+        throw = dict(paired.throw)
+        throw["verdict_after"] = abs(after - c.verdict_after_s)
+        throw["carried"] = (0.0 if py_k is None and c_k is None else
+                            float("inf") if (py_k is None) != (c_k is None) else abs(py_k - c_k) / py_k)
+        throw.update(c.state())
+        throw["timeout"] = result.verdict == "timeout"
+        throw["starved"] = (python.starved if forecast else False, c.starved)
+        out.append(throw)
+    return out
+
+
+def alone_session(job: tuple) -> tuple:
+    """One session thrown by the C alone and one by the Python on the same seed: [(error, time, verdict)] each."""
+    rig_name, records, seed, start = job
+    rig = rigs.get_rig(rig_name)
+    profile = STARTS[start]
+    out = []
+    for made in (CController(load_library(), config_of(profile, records, rig.acceleration_rps2)),
+                 python_controller(profile, records, rig)):
+        session = Session(rig, seed)
+        throws = []
+        for _ in range(step2.THROWS_PER_SESSION):
+            result = session.throw(made, TARGET, profile.fine_stop_threshold, verdict_after_s=made.verdict_after_s)
+            made.at_rest(result.reading)
+            throws.append((result.true_error, result.elapsed_s, result.verdict))
+        out.append(throws)
+    return out[0], out[1]
+
+
+def tuner_case(job: tuple) -> dict:
+    """The Python's throws tuned by the Python's tuner from a start's gains, the C tuner given the same throws."""
+    rig_name, records, start, throws, seed = job
+    rig = rigs.get_rig(rig_name)
+    profile = STARTS[start] if start in STARTS else dataclasses.replace(AR2209_PICOW_168, **step2_tuner.STARTS[start])
+    start_ki = profile.fine_ki
+    lib = load_library()
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=PRODUCT["blind"], first=PRODUCT["first"],
+                              axes=PRODUCT["axes"], share=PRODUCT["share"], objective=PRODUCT["objective"])
+    c_tuner = lib.lib_tuner_new(profile.fine_stop_threshold)
+    controller = python_controller(profile, records, rig)
+    session = Session(rig, seed)
+    errors, times, windows, mismatch = [], [], 0, None
+    for _ in range(throws):
+        controller.profile = profile
+        result = step2.throw_one(session, controller, TARGET, profile.fine_stop_threshold)
+        if controller.starved:
+            # As the unit: a starved throw ends the charge on a fault, before the tuner is fed (charge_mode.cpp)
+            continue
+        errors.append(result.true_error)
+        # The tuner times the fine tube's part of the throw, as the charge mode gives it (the PR's review, T1)
+        fine_part_s = controller.fine_part_s(result.elapsed_s)
+        times.append(fine_part_s)
+        next_kp, next_kd = ctypes.c_double(), ctypes.c_double()
+        next_coarse_kp = ctypes.c_double()
+        k = controller.carried() or 0.0
+        lag = statistics.median(lag for _, lag in records.lag)
+        coarse_k = records.coarse_gr_turn or 0.0
+        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, profile.coarse_kp, k, coarse_k, lag,
+                                   result.true_error, fine_part_s, ctypes.byref(next_kp), ctypes.byref(next_kd),
+                                   ctypes.byref(next_coarse_kp))
+        if len(errors) < step2_tuner.WINDOW:
+            if step != 0 and mismatch is None:
+                mismatch = f"window {windows}: the C closed a window early"
+            continue
+        thrown = (profile.fine_kp, profile.fine_kd)
+        profile, note = tuner(profile, errors, times, k=k, lag=lag, coarse_k=coarse_k)
+        errors, times = [], []
+        said = STEPS.get(step, ("none",))
+        apart = (abs(next_kp.value - profile.fine_kp) > CLOSE_KP * profile.fine_kp
+                 or abs(next_kd.value - profile.fine_kd) > CLOSE_KP * max(profile.fine_kd, 1.0)
+                 or abs(next_coarse_kp.value - profile.coarse_kp) > CLOSE_KP * profile.coarse_kp)
+        if mismatch is None and (not any(word in note for word in said) or apart):
+            mismatch = (f"window {windows} (kp {thrown[0]:.4f}, kd {thrown[1]:.1f}): Python {note!r} to kp "
+                        f"{profile.fine_kp:.6f}, kd {profile.fine_kd:.3f}, coarse kp {profile.coarse_kp:.5f}; the C "
+                        f"{said[0]!r} to kp {next_kp.value:.6f}, kd {next_kd.value:.3f}, coarse kp "
+                        f"{next_coarse_kp.value:.5f}")
+        if mismatch is None and profile.fine_ki != start_ki:
+            mismatch = f"window {windows}: the Python tuner moved ki to {profile.fine_ki:g} (the tuner never touches ki)"
+        windows += 1
+    lib.lib_tuner_free(c_tuner)
+    return {"rig": rig_name, "start": start, "windows": windows, "kp": profile.fine_kp, "kd": profile.fine_kd,
+            "ki": profile.fine_ki, "coarse_kp": profile.coarse_kp, "mismatch": mismatch}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS) + [EMPTY_HOPPER])
+    parser.add_argument("--sessions", type=int, default=2, help="sessions of 25 throws a rig, judged and alone")
+    parser.add_argument("--tuner-throws", type=int, default=300)
+    parser.add_argument("--starts", nargs="+", default=["owner", "bench", "bench ki", "bench slow",
+                                                        "bench wild coarse", "bench low coarse"],
+                        help="owner, bench, bench ki, bench slow, bench wild coarse, bench low coarse (the coarse "
+                             "stop threshold under the fine one), or a step2_tuner start")
+    args = parser.parse_args()
+    build_library()
+    room = ctypes.c_int()
+    size = load_library().lib_charge_size(ctypes.byref(room))
+    print(f"the controller: {size} bytes, and a throw's room {room.value} bytes")
+    failures = []
+    with Workers() as pool:
+        calibrated = [calibrated_on(rig) for rig in args.rigs]
+        made = dict(zip(args.rigs, pool.map(step2.rig_records, calibrated)))
+        runs = [("The controller, judged: the C given the Python's calls on the Python's throws", True, args.rigs,
+                 [start for start in args.starts if start in STARTS]),
+                ("The forecast off, judged: the C given main's loop's calls on its throws", False,
+                 [rig for rig in args.rigs if rig != EMPTY_HOPPER],
+                 [start for start in args.starts if start in STARTS and not STARTS[start].fine_ki])]
+        for title, forecast, run_rigs, run_starts in runs:
+            print(title)
+            for rig_name in run_rigs:
+                jobs = [(rig_name, made[rig_name], 5000 + s, start, forecast) for s in range(args.sessions)
+                        for start in run_starts]
+                throws = [t for batch in pool.map(judged_session, jobs) for t in batch]
+                same_stop = sum(t["py_stop"] == t["c_stop"] for t in throws)
+                worst_rate = max(t["rate"] for t in throws)
+                worst_k = max(t["k_diff"] for t in throws)
+                worst_carry = max(t["carried"] for t in throws)
+                most = max(t["parcels"] for t in throws)
+                rows = max(t["rows"] for t in throws)
+                cut = sum(t["cut"] for t in throws)
+                starved = sum(t["starved"][0] for t in throws)
+                print(f"  {rig_name:36s} {len(throws)} throws: the same stop {same_stop}, starved {starved} "
+                      f"(the C alike), speeds within {worst_rate:.1e} rev/s, k within {worst_k:.1e}, carried within {worst_carry:.1e}; room: {most} parcels, {rows} "
+                      f"readings; the own's room passed in {cut}")
+                for n, t in enumerate(throws):
+                    if (t["py_stop"] != t["c_stop"] or t["first"] or t["carried"] > CLOSE_K or t["verdict_after"] > 1e-6
+                            or t["starved"][0] != t["starved"][1]):
+                        failures.append(f"{rig_name} throw {n}: stop {t['py_stop']} against {t['c_stop']} ms; "
+                                        f"{t['first'] or ''} carried {t['carried']:.1e}, cut {t['cut']}")
+        print("The controller, alone: the C throwing on the twin, the Python on the same seeds (printed)")
+        for rig_name in args.rigs:
+            for start in [s for s in args.starts if s in STARTS]:
+                jobs = [(rig_name, made[rig_name], 6000 + s, start) for s in range(args.sessions)]
+                pairs = pool.map(alone_session, jobs)
+                mine = [r for m, _ in pairs for r in m]
+                theirs = [r for _, t in pairs for r in t]
+                tol = AR2209_PICOW_168.fine_stop_threshold
+                print(f"  {rig_name + ', ' + start:36s} C      {step2.summary(mine, tol)}")
+                print(f"  {'':36s} Python {step2.summary(theirs, tol)}")
+        print("The tuner, judged: the C given the Python's throws window for window")
+        jobs = [(rig_name, made[rig_name], start, args.tuner_throws, 7000) for rig_name in args.rigs
+                for start in args.starts]
+        for case in pool.map(tuner_case, jobs):
+            said = case["mismatch"] or "the same steps"
+            print(f"  {case['rig']:36s} from {case['start']:8s} {case['windows']} windows, kp {case['kp']:.3f}, "
+                  f"kd {case['kd']:.0f}" + (f", ki {case['ki']:g}" if case["ki"] else "") +
+                  f", coarse kp {case['coarse_kp']:.4f}: {said}")
+            if case["mismatch"]:
+                failures.append(f"{case['rig']} from {case['start']}: {case['mismatch']}")
+    for failure in failures[:20]:
+        print("  " + failure)
+    if failures:
+        print(f"VERDICT FAIL {len(failures)} differences")
+        return 1
+    print("VERDICT PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

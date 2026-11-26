@@ -34,11 +34,12 @@ static const setting_field_t charge_fields[] = {
      .applies = "now"},
     {.name = "steady_sd_margin", .label = "Steady margin (SD)", .group = "Thresholds",
      .about = "The readings are steady when their standard deviation is below it: for the zero, the cup's removal "
-              "and the resume after a pause",
+              "and the resume after a pause. The scale's calibration sets it from the scale's own step",
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_sd_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
     {.name = "zero_mean_margin", .label = "Zero margin (mean)", .group = "Thresholds",
-     .about = "The scale reads zero when the mean of its readings is this near it",
+     .about = "The scale reads zero when the mean of its readings is this near it. The scale's calibration sets it "
+              "from the scale's own step",
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_mean_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
     {.name = "decimal_places", .label = "Decimal places", .group = "Display", .short_label = "Decimals",
@@ -85,6 +86,24 @@ static const setting_field_t charge_fields[] = {
     {.name = "colour_not_ready", .label = "Not ready", .group = "Colours",
      .about = "The LEDs' colour while the unit waits for the cup",
      .type = SETTING_COLOUR, CHARGE_FIELD(neopixel_not_ready_colour), .applies = "now"},
+    // ADR-009 step 1: the calibration's cup, item 1 (item 2, cup_weight, is no setting: the record keeps it unused)
+    {.name = "cup_capacity", .label = "Cup capacity", .group = "Calibration",
+     .about = "How much the cup holds, filled and kept by the calibration: no pour of a calibration passes it; null, "
+              "never calibrated",
+     .type = SETTING_NUMBER, CHARGE_FIELD(cup_capacity), .unit = "weight", .min = 0.0f, .max = 10000.0f,
+     .nullable = true, .null_held = -1.0f, .applies = "now"},
+    // ADR-009 step 2, gate 3: the auto-tuner's switch
+    {.name = "auto_tune", .label = "Auto-tune", .group = "Tuning",
+     .about = "After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then "
+              "quicker ones, better ones kept into the powder's profile; a coarse Kp so high its powder overshoots is "
+              "brought down once; a change of target begins it afresh; off, the profile is never changed",
+     .type = SETTING_BOOLEAN, CHARGE_FIELD(auto_tune), .applies = "the next throw"},
+    // ADR-009 step 2: the forecast's switch (the owner, 2026-11-27)
+    {.name = "forecast", .label = "Forecast", .group = "Tuning",
+     .about = "The fine trickler steers on the reading and the powder still falling, held slow enough that what is "
+              "falling never passes the target, and a throw whose powder stops coming ends on a fault; off, it "
+              "steers on the reading alone",
+     .type = SETTING_BOOLEAN, CHARGE_FIELD(forecast), .applies = "the next throw"},
 };
 
 

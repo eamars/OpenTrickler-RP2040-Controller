@@ -11,7 +11,7 @@ Nothing here needs a firmware change except step 7. Every command below exists o
 - **Plan for several hundred trials a kind:** a release comes in about one trial of four.
 - **Do not leave `scale tap on` running for long:** the scale task's free stack fell to 48 during the session (`stats`). `record.py flick` reads weights by `state` instead.
 - **The recorder exists:** `tools/charge_sim/bench/record.py` (`chain`, `nudges`, `runs`, `steps`, `flick`, `show`), with `lag.py`, `stop_shape.py` and `flick_summary.py` beside it.
-- **Done already:** steps 0 (with powder), 2, 3, 4 (one pass, coarse to 3 rev/s) and a console-only part of 7. Their results and what is left are in `HANDOVER.md` and `../progress.md`.
+- **Done already:** steps 0 (with powder), 2, 3, 4 (one pass, coarse to 3 rev/s) and a console-only part of 7. Their results and what is left are in `HANDOVER.md` and `../legacy/progress.md`.
 
 ## Before any contact
 

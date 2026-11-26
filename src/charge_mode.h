@@ -47,6 +47,17 @@ typedef struct {
     rgbw_u32_t neopixel_over_charge_colour;
     rgbw_u32_t neopixel_not_ready_colour;
 
+    // The calibration's cup (ADR-009 step 1, items 1 and 2), in the scale's unit; -1 never calibrated. Appended at the
+    // end: an earlier version's record is kept by load_config (ADR-009, gate 2)
+    float cup_capacity;
+    float cup_weight;           // kept in the record, unused since the PR's review (2026-11-27)
+    // The auto-tuner's switch (ADR-009 step 2, gate 3), off by default (the owner, 2026-11-27). Appended at the end: an
+    // earlier version's record is kept by load_config, this field its default
+    bool auto_tune;
+    // The forecast's switch (ADR-009 step 2, the owner, 2026-11-27), off by default: the forecast, its speed cap and
+    // the starved stop. Appended at the end, past the struct's old tail padding (auto_tune's three bytes): a record
+    // stored before it is 76 bytes, found at that size, and this field takes its default
+    bool forecast __attribute__((aligned(4)));
 } eeprom_charge_mode_data_t;
 
 typedef struct {
@@ -61,6 +72,12 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * How the charge record is read (charge_mode_layout.c): append-only from v2.0.0's 64 bytes; below it only v1.21's 52,
+ * field by field. v1.19 and v2.0.0 inserted fields in it (ADR-009's review, B1); the owner's floor is v1.21
+ */
+extern const config_layout_t charge_mode_layout;
 
 
 bool charge_mode_config_init(void);
@@ -103,6 +120,17 @@ typedef enum {
     CHARGE_START_NO_TARGET,
 } charge_start_result_t;
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
+
+// What the controller costs (ADR-009, gate 3), since the unit started: its time each millisecond and each reading, the
+// most and the mean, in microseconds; the heap's least free while a charge ran
+typedef struct {
+    uint32_t tick_most_us;
+    uint32_t tick_mean_us;
+    uint32_t reading_most_us;
+    uint32_t reading_mean_us;
+    uint32_t heap_low;
+} charge_cost_t;
+void charge_mode_get_cost(charge_cost_t * cost);
 
 // The charge as GET /api/v1/charge gives it
 typedef struct {

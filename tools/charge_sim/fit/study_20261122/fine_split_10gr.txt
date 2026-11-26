@@ -1,0 +1,11 @@
+300 throws each at 10 gr, seed 1; shares of all throws, of the true weight
+rig             scale       controller             good 0.02   over  under  good 0.04   over  under  error gr  spread  time s    95%  timeout  shown good
+pico2w_ar2209+fine_by_speedmeasured    fast_one_fixed             64.3%  19.0%  16.7%      90.7%   9.3%   0.0%    +0.002   0.038    12.1   19.0     0.0%       92.0%
+pico2w_ar2209+fine_by_speedmeasured    fast_one_learnt            64.0%  19.3%  16.7%      90.3%   9.7%   0.0%    +0.004   0.040    11.0   17.8     0.0%       90.3%
+pico2w_ar2209+fine_by_speedmeasured    fast_split_learnt          63.3%  20.3%  16.3%      89.0%  11.0%   0.0%    +0.006   0.040    10.9   16.3     0.0%       89.7%
+pico2w_bm2+fine_by_speedmeasured    fast_one_fixed             81.3%   5.0%  13.7%      99.0%   1.0%   0.0%    -0.009   0.021     9.7   13.4     0.0%       99.0%
+pico2w_bm2+fine_by_speedmeasured    fast_one_learnt            83.7%   6.0%  10.3%      98.3%   1.7%   0.0%    -0.007   0.022     8.6   13.0     0.0%       98.7%
+pico2w_bm2+fine_by_speedmeasured    fast_split_learnt          80.0%   4.7%  15.3%      98.7%   1.3%   0.0%    -0.007   0.022     8.9   12.5     0.0%       98.3%
+pico2w_ar2209   measured    fast_one_fixed             64.3%  17.3%  18.3%      91.3%   8.0%   0.7%    +0.002   0.035    10.0   18.3     0.0%       91.0%
+pico2w_ar2209   measured    fast_one_learnt            59.3%  22.7%  18.0%      86.3%  13.0%   0.7%    +0.006   0.040    10.2   18.0     0.0%       86.3%
+pico2w_ar2209   measured    fast_split_learnt          65.0%  19.7%  15.3%      89.0%  11.0%   0.0%    +0.004   0.036    10.1   17.0     0.0%       89.3%

@@ -32,6 +32,7 @@
 #include "settings.h"
 #include "activity.h"
 #include "update.h"
+#include "calibration.h"
 #include "wireless.h"
 #include "http_server.h"
 
@@ -143,13 +144,21 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
         }
     }
 
-    snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u bad_frames=%lu",
+    // The charge controller's cost since the start (ADR-009, gate 3): its time each millisecond and each reading, most
+    // and mean in microseconds, and the heap's least free while a charge ran
+    charge_cost_t cost;
+    charge_mode_get_cost(&cost);
+    snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u bad_frames=%lu "
+             "charge_tick_us=%lu/%lu charge_reading_us=%lu/%lu charge_heap_low=%lu",
              (unsigned) xPortGetFreeHeapSize(),
              (unsigned) xPortGetMinimumEverFreeHeapSize(),
              (unsigned) task_count,
              remote_control_task_status[min_idx].pcTaskName,
              (unsigned) remote_control_task_status[min_idx].usStackHighWaterMark,
-             (unsigned long) scale_get_bad_frames());
+             (unsigned long) scale_get_bad_frames(),
+             (unsigned long) cost.tick_most_us, (unsigned long) cost.tick_mean_us,
+             (unsigned long) cost.reading_most_us, (unsigned long) cost.reading_mean_us,
+             (unsigned long) cost.heap_low);
     return true;
 }
 
@@ -792,6 +801,15 @@ static bool remote_control_wifi(const char *args, char *reply, size_t reply_size
 
 
 // `update [try]`: the image slots, and a restart into a trial of the other one (ADR-004)
+// ADR-009 step 1: a part of the calibration started, answered, filled, kept or stopped (calibration_console())
+static bool remote_control_calibrate(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                     void *write_ctx) {
+    (void) write;
+    (void) write_ctx;
+    return calibration_console(args, reply, reply_size);
+}
+
+
 static bool remote_control_update(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                   void *write_ctx) {
     (void) write;
@@ -817,6 +835,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"charge", remote_control_charge},
     {"setting", remote_control_setting},
     {"update", remote_control_update},
+    {"calibrate", remote_control_calibrate},
     {"wifi", remote_control_wifi},
 };
 

@@ -1,0 +1,12 @@
+300 throws each at 10 gr, seed 1; shares of all throws, of the true weight
+rig             scale       controller             good 0.02   over  under  good 0.04   over  under  error gr  spread  time s    95%  timeout  shown good
+pico2w_ar2209   measured    glide                      71.7%  26.3%   2.0%      83.3%  16.0%   0.7%    +0.016   0.039    12.5   26.0     0.0%       72.0%
+pico2w_ar2209   measured    glide_coarse_low           74.3%  24.7%   1.0%      86.0%  13.7%   0.3%    +0.015   0.045    12.0   26.6     0.0%       75.0%
+pico2w_ar2209   measured    glide_fine_high            74.0%  24.3%   1.7%      83.7%  15.3%   1.0%    +0.017   0.042    14.4   29.6     0.0%       73.7%
+pico2w_ar2209   measured    glide_pc_lags              73.3%  25.7%   1.0%      82.7%  17.0%   0.3%    +0.016   0.044    18.2   30.5     0.0%       73.3%
+pico2w_ar2209   measured    glide_all_off              74.3%  23.3%   2.3%      85.0%  14.3%   0.7%    +0.013   0.039    18.2   33.8     0.0%       75.0%
+pico2w_bm2      measured    glide                      89.7%  10.3%   0.0%      97.0%   3.0%   0.0%    +0.003   0.024    13.0   19.8     0.0%       90.7%
+pico2w_bm2      measured    glide_coarse_low           83.3%  16.0%   0.7%      93.0%   7.0%   0.0%    +0.006   0.026    13.3   23.3     0.0%       84.3%
+pico2w_bm2      measured    glide_fine_high            84.3%  15.0%   0.7%      93.0%   7.0%   0.0%    +0.005   0.031    14.7   24.2     0.0%       84.0%
+pico2w_bm2      measured    glide_pc_lags              90.3%   9.7%   0.0%      95.3%   4.7%   0.0%    +0.004   0.026    18.0   26.3     0.0%       90.3%
+pico2w_bm2      measured    glide_all_off              83.7%  16.0%   0.3%      93.0%   7.0%   0.0%    +0.007   0.027    19.8   27.1     0.0%       85.0%

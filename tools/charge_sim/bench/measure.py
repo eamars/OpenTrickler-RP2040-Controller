@@ -6,7 +6,9 @@ figure names the recordings it came from. The session's manifest (`fit/<session>
 no rule finds (the watched nudges, the speed plans with no controller, the throws and their settings, the tapped
 maps where the session has them) and what is stated of the rig without a recording.
 
-A session's stops are every `*_creepstop` folder in its time span: never a folder of another powder.
+A session's stops are every `*_creepstop` folder in its time span: never a folder of another powder. A manifest may
+name more folders whose creep-stop trials are the session's too (`stops`): a trial's calibration, made by
+`bench/trial.py`, stops each tube at its speeds as a `*_creepstop` folder does.
 
 Usage:
     python measure.py --session pico2w_bm2 --out ../fit/pico2w_bm2.json
@@ -22,7 +24,8 @@ import stats
 HERE = Path(__file__).resolve().parent
 LONG_RUN_S = 30.0       # a creep-stop trial this long is a steady run: read for its flow, not only its stop
 SHORT_RUN_S = 1.5       # a creep-stop trial shorter than this is a watched nudge, not a stop
-MAP_RUN_S = 2.0         # a stop's run this long gives its tube's powder a turn
+MAP_RUN_S = 2.0         # a stop's run this long gives its tube's powder a turn,
+MAP_TURNS = 0.4         # and so does one this many turns long: a coarse stop of a trial turns that in a second
 FAST_GR_S = 0.3         # a flow this fast shows the scale's delay: a few kernels more or less do not count
 
 
@@ -47,13 +50,18 @@ def session_of(recordings: Path, name: str) -> dict:
     raise SystemExit(f"no session named {name} in {recordings / 'sessions.json'}")
 
 
-def stop_trials(recordings: Path, session: dict) -> list:
-    """Every stop of the session, each with its folder's name: (trial, folder)."""
+def stop_trials(recordings: Path, session: dict, named: tuple = ()) -> list:
+    """Every stop of the session, each with its folder's name: (trial, folder). `named`: more folders of its span."""
     trials = []
-    for folder in sorted(recordings.glob("*_creepstop")):
-        if session["from"] <= folder.name[:15] <= session["to"]:
-            trials.extend((trial, folder.name) for trial in load_runs(folder)
-                          if trial["note"] == "creepstop" and trial["run_s"] >= SHORT_RUN_S)
+    folders = [folder for folder in sorted(recordings.glob("*_creepstop"))
+               if session["from"] <= folder.name[:15] <= session["to"]]
+    for name in named:
+        if not session["from"] <= name[:15] <= session["to"]:
+            raise SystemExit(f"{name} is outside the session's span {session['from']} to {session['to']}")
+        folders.append(recordings / name)
+    for folder in folders:
+        trials.extend((trial, folder.name) for trial in load_runs(folder)
+                      if trial["note"] == "creepstop" and trial["run_s"] >= SHORT_RUN_S)
     return trials
 
 
@@ -152,7 +160,7 @@ def stop_map_figures(trials: list) -> dict:
     by_speed = {}
     for trial, folder in trials:
         tube, stop = kind_of(trial)
-        if stop == "held" and trial["run_s"] >= MAP_RUN_S:
+        if stop == "held" and (trial["run_s"] >= MAP_RUN_S or trial["turns"] >= MAP_TURNS):
             by_speed.setdefault((tube, trial["speed_asked_rps"]), []).append((trial, folder))
     out = {}
     for tube in sorted({tube for tube, _ in by_speed}):
@@ -202,7 +210,7 @@ def session_figures(recordings: Path, manifest: dict) -> dict:
     recorded = manifest["recordings"]
     stated = json.loads(json.dumps(manifest["stated"]))
     stated["powder"]["kernel_gr"] = session["kernel_gr"]
-    trials = stop_trials(recordings, session)
+    trials = stop_trials(recordings, session, tuple(recorded.get("stops", ())))
     figures = {"name": manifest["name"],
                "rig": {key: session[key] for key in ("unit", "powder", "powder_note", "scale", "from", "to")},
                "stated": stated,

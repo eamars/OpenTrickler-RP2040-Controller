@@ -1,0 +1,112 @@
+800 throws a case at 10 gr; the PID law in the frame (option 2), envelope on; pass: good and over within 2 SD of two runs' difference, median within 0.5 s
+pico2w_ar2209 measured band 0.02: baseline good 73.9% over 23.9% median 11.0 s; second seed 75.0% 22.6% 11.4 s; noise good 4.4 over 4.3 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +1.5  over   -0.3  median  -0.3 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.8  over   +0.5  median  -0.4 s  ok
+  D10 REST_EXTRA_S                 0  good   +2.7  over   -2.1  median  -0.5 s  ok
+  N.3 ALL_THREE                    0  good   +1.4  over   -0.3  median  -0.8 s  MOVES
+pico2w_ar2209 measured band 0.04: baseline good 89.9% over 9.9% median 9.6 s; second seed 87.5% 12.4% 9.9 s; noise good 3.0 over 3.0 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   -3.9  over   +3.2  median  +0.1 s  MOVES
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +0.7  over   -1.1  median  -0.4 s  ok
+  D10 REST_EXTRA_S                 0  good   -1.5  over   +1.5  median  -0.1 s  ok
+  N.3 ALL_THREE                    0  good   -0.5  over   +0.5  median  -0.6 s  MOVES
+pico2w_ar2209 late_small band 0.02: baseline good 72.2% over 25.8% median 13.7 s; second seed 73.8% 24.9% 14.0 s; noise good 4.5 over 4.4 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +1.0  over   -0.8  median  -0.1 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -1.5  over   +1.8  median  -0.5 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +0.2  over   -0.3  median  -0.4 s  ok
+  N.3 ALL_THREE                    0  good   -0.6  over   +0.6  median  -0.9 s  MOVES
+pico2w_ar2209 late_small band 0.04: baseline good 87.9% over 11.8% median 11.8 s; second seed 88.9% 10.5% 12.2 s; noise good 3.3 over 3.2 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   -0.3  over   +0.1  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +1.2  over   -1.1  median  -0.2 s  ok
+  D10 REST_EXTRA_S                 0  good   +1.1  over   -1.0  median  -0.4 s  ok
+  N.3 ALL_THREE                    0  good   +2.4  over   -2.0  median  -0.5 s  ok
+pico2w_ar2209 holds band 0.02: baseline good 69.0% over 28.4% median 23.2 s; second seed 72.6% 24.2% 23.4 s; noise good 4.6 over 4.5 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.1  over   -0.1  median  -1.1 s  MOVES
+  D10 REST_EXTRA_S                 0  good   -0.6  over   +0.9  median  -0.7 s  MOVES
+  N.3 ALL_THREE                    0  good   -1.4  over   +1.5  median  -0.8 s  MOVES
+pico2w_ar2209 holds band 0.04: baseline good 83.2% over 16.1% median 21.1 s; second seed 82.9% 16.8% 21.3 s; noise good 3.7 over 3.7 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +3.2  over   -3.1  median  -0.6 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +1.2  over   -0.6  median  -0.4 s  ok
+  N.3 ALL_THREE                    0  good   +1.6  over   -1.3  median  -0.6 s  MOVES
+pico2w_ar2209 slow band 0.02: baseline good 65.5% over 31.2% median 22.0 s; second seed 67.6% 28.6% 21.9 s; noise good 4.8 over 4.6 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +1.2  over   -0.6  median  -0.6 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +2.4  over   -2.0  median  -0.6 s  MOVES
+  N.3 ALL_THREE                    0  good   -0.3  over   +0.8  median  -0.9 s  MOVES
+pico2w_ar2209 slow band 0.04: baseline good 85.2% over 14.2% median 19.5 s; second seed 81.6% 17.9% 19.4 s; noise good 3.5 over 3.5 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -1.6  over   +1.8  median  -0.5 s  ok
+  D10 REST_EXTRA_S                 0  good   +1.6  over   -1.1  median  -0.4 s  ok
+  N.3 ALL_THREE                    0  good   -2.1  over   +2.0  median  -0.6 s  MOVES
+pico2w_ar2209 slower band 0.02: baseline good 62.9% over 32.1% median 30.1 s; second seed 62.9% 32.1% 28.5 s; noise good 4.8 over 4.7 points, median bar 1.6 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.3  over   -0.3  median  -0.2 s  ok
+  D10 REST_EXTRA_S                 0  good   +2.7  over   -2.4  median  -0.7 s  ok
+  N.3 ALL_THREE                    0  good   +1.0  over   -2.4  median  -1.3 s  ok
+pico2w_ar2209 slower band 0.04: baseline good 82.0% over 17.2% median 28.0 s; second seed 80.1% 18.6% 25.0 s; noise good 3.8 over 3.8 points, median bar 3.0 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -1.5  over   +1.0  median  +0.5 s  ok
+  D10 REST_EXTRA_S                 0  good   +0.0  over   -0.6  median  -0.2 s  ok
+  N.3 ALL_THREE                    0  good   -0.9  over   +0.1  median  -0.8 s  ok
+pico2w_bm2 measured band 0.02: baseline good 89.5% over 10.4% median 13.7 s; second seed 87.6% 12.2% 14.0 s; noise good 3.1 over 3.0 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +1.2  over   -1.2  median  -0.2 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.6  over   +0.5  median  -1.3 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +0.1  over   -0.2  median  -0.4 s  ok
+  N.3 ALL_THREE                    0  good   -1.1  over   +1.0  median  -1.6 s  MOVES
+pico2w_bm2 measured band 0.04: baseline good 98.0% over 2.0% median 11.6 s; second seed 97.2% 2.8% 11.9 s; noise good 1.4 over 1.4 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.8  over   -0.8  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.4  over   +0.4  median  -1.1 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +0.3  over   -0.2  median  -0.2 s  ok
+  N.3 ALL_THREE                    0  good   -0.1  over   +0.1  median  -1.4 s  MOVES
+pico2w_bm2 late_small band 0.02: baseline good 83.9% over 15.5% median 16.2 s; second seed 86.4% 13.2% 16.5 s; noise good 3.7 over 3.6 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +1.6  over   -1.3  median  -0.2 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +0.4  over   +0.3  median  -1.1 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +3.9  over   -3.8  median  -0.4 s  MOVES
+  N.3 ALL_THREE                    0  good   +0.1  over   +0.4  median  -1.6 s  MOVES
+pico2w_bm2 late_small band 0.04: baseline good 96.9% over 3.1% median 14.1 s; second seed 97.0% 3.0% 14.4 s; noise good 1.7 over 1.7 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.6  over   -0.6  median  -0.1 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +0.2  over   -0.2  median  -1.2 s  MOVES
+  D10 REST_EXTRA_S                 0  good   +0.7  over   -0.8  median  -0.2 s  ok
+  N.3 ALL_THREE                    0  good   +1.0  over   -1.0  median  -1.4 s  MOVES
+pico2w_bm2 holds band 0.02: baseline good 86.9% over 11.6% median 28.9 s; second seed 86.8% 12.6% 27.7 s; noise good 3.4 over 3.2 points, median bar 1.1 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +2.9  over   -2.0  median  -0.9 s  ok
+  D10 REST_EXTRA_S                 0  good   +3.0  over   -2.3  median  -0.1 s  ok
+  N.3 ALL_THREE                    0  good   +1.1  over   -0.4  median  -0.5 s  ok
+pico2w_bm2 holds band 0.04: baseline good 96.2% over 3.6% median 25.9 s; second seed 95.8% 4.2% 25.5 s; noise good 1.9 over 1.9 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.6  over   +0.6  median  -0.4 s  ok
+  D10 REST_EXTRA_S                 0  good   -0.8  over   +0.9  median  -0.1 s  ok
+  N.3 ALL_THREE                    0  good   +0.9  over   -0.7  median  -0.7 s  MOVES
+pico2w_bm2 slow band 0.02: baseline good 84.6% over 14.5% median 27.0 s; second seed 86.2% 13.0% 26.5 s; noise good 3.6 over 3.5 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -0.1  over   +0.6  median  -0.3 s  ok
+  D10 REST_EXTRA_S                 0  good   -0.4  over   +0.9  median  -0.1 s  ok
+  N.3 ALL_THREE                    0  good   -1.9  over   +2.1  median  -0.5 s  MOVES
+pico2w_bm2 slow band 0.04: baseline good 94.5% over 5.5% median 24.3 s; second seed 95.8% 4.2% 23.5 s; noise good 2.3 over 2.3 points, median bar 0.9 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +0.4  over   -0.4  median  -0.4 s  ok
+  D10 REST_EXTRA_S                 0  good   -0.2  over   +0.3  median  -0.0 s  ok
+  N.3 ALL_THREE                    0  good   +1.4  over   -1.5  median  -0.6 s  ok
+pico2w_bm2 slower band 0.02: baseline good 81.1% over 17.5% median 33.7 s; second seed 80.1% 17.5% 34.0 s; noise good 3.9 over 3.8 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   -1.9  over   +2.4  median  -0.1 s  ok
+  D10 REST_EXTRA_S                 0  good   -2.4  over   +1.9  median  +0.1 s  ok
+  N.3 ALL_THREE                    0  good   -0.6  over   +0.3  median  -0.7 s  MOVES
+pico2w_bm2 slower band 0.04: baseline good 92.0% over 7.4% median 29.7 s; second seed 93.9% 6.0% 30.1 s; noise good 2.7 over 2.6 points, median bar 0.5 s
+  C16 STILL_LEAST_S                0  good   +0.0  over   +0.0  median  +0.0 s  ok
+  D9  COARSE_ROOM_EXTRA_GR         0  good   +1.1  over   -0.5  median  -0.4 s  ok
+  D10 REST_EXTRA_S                 0  good   +0.4  over   -0.1  median  -0.5 s  ok
+  N.3 ALL_THREE                    0  good   +0.5  over   +0.0  median  -0.8 s  MOVES
+VERDICTS
+C16 STILL_LEAST_S         sensitive: [pico2w_ar2209 measured 0.04 at 0: good -3.9 over +3.2 median +0.1 s]
+D9  COARSE_ROOM_EXTRA_GR  sensitive: [pico2w_ar2209 late_small 0.02 at 0: good -1.5 over +1.8 median -0.5 s] [pico2w_ar2209 holds 0.02 at 0: good -0.1 over -0.1 median -1.1 s] [pico2w_ar2209 holds 0.04 at 0: good +3.2 over -3.1 median -0.6 s] [pico2w_ar2209 slow 0.02 at 0: good +1.2 over -0.6 median -0.6 s] [pico2w_bm2 measured 0.02 at 0: good -0.6 over +0.5 median -1.3 s] [pico2w_bm2 measured 0.04 at 0: good -0.4 over +0.4 median -1.1 s] [pico2w_bm2 late_small 0.02 at 0: good +0.4 over +0.3 median -1.1 s] [pico2w_bm2 late_small 0.04 at 0: good +0.2 over -0.2 median -1.2 s]
+D10 REST_EXTRA_S          sensitive: [pico2w_ar2209 holds 0.02 at 0: good -0.6 over +0.9 median -0.7 s] [pico2w_ar2209 slow 0.02 at 0: good +2.4 over -2.0 median -0.6 s] [pico2w_bm2 late_small 0.02 at 0: good +3.9 over -3.8 median -0.4 s]
+N.3 ALL_THREE             sensitive: [pico2w_ar2209 measured 0.02 at 0: good +1.4 over -0.3 median -0.8 s] [pico2w_ar2209 measured 0.04 at 0: good -0.5 over +0.5 median -0.6 s] [pico2w_ar2209 late_small 0.02 at 0: good -0.6 over +0.6 median -0.9 s] [pico2w_ar2209 holds 0.02 at 0: good -1.4 over +1.5 median -0.8 s] [pico2w_ar2209 holds 0.04 at 0: good +1.6 over -1.3 median -0.6 s] [pico2w_ar2209 slow 0.02 at 0: good -0.3 over +0.8 median -0.9 s] [pico2w_ar2209 slow 0.04 at 0: good -2.1 over +2.0 median -0.6 s] [pico2w_bm2 measured 0.02 at 0: good -1.1 over +1.0 median -1.6 s] [pico2w_bm2 measured 0.04 at 0: good -0.1 over +0.1 median -1.4 s] [pico2w_bm2 late_small 0.02 at 0: good +0.1 over +0.4 median -1.6 s] [pico2w_bm2 late_small 0.04 at 0: good +1.0 over -1.0 median -1.4 s] [pico2w_bm2 holds 0.04 at 0: good +0.9 over -0.7 median -0.7 s] [pico2w_bm2 slow 0.02 at 0: good -1.9 over +2.1 median -0.5 s] [pico2w_bm2 slower 0.02 at 0: good -0.6 over +0.3 median -0.7 s] [pico2w_bm2 slower 0.04 at 0: good +0.5 over +0.0 median -0.8 s]
+TALLY: cases; in how many good, over and the median moved past their bars; the mean moves
+second seed                  0  cases 20  good  1  over  1  median  4  mean good +0.21  over -0.21 points  median -0.20 s
+STILL_LEAST_S                0  cases 20  good  1  over  1  median  0  mean good +0.13  over -0.08 points  median -0.03 s
+COARSE_ROOM_EXTRA_GR         0  cases 20  good  0  over  0  median  8  mean good +0.11  over +0.01 points  median -0.55 s
+REST_EXTRA_S                 0  cases 20  good  1  over  1  median  2  mean good +0.73  over -0.56 points  median -0.31 s
+ALL_THREE                    0  cases 20  good  0  over  0  median 15  mean good +0.09  over -0.01 points  median -0.88 s

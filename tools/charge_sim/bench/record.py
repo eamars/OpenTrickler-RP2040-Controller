@@ -49,6 +49,10 @@ BACKOFF_TURNS = 0.25
 CHARGE_EXIT, CHARGE_WAIT_FOR_ZERO, CHARGE_WAIT_FOR_COMPLETE = 0, 1, 2
 CHARGE_WAIT_FOR_CUP_REMOVAL, CHARGE_WAIT_FOR_CUP_RETURN = 3, 4
 FINE_STOP_THRESHOLD_GR = 0.03
+ZERO_WAIT_MOST_S = 20.0        # a charge waiting for zero longer than this is zeroed again (throws --rezero)
+CUP_MOST_POUR = None           # the run's most pour, given at the command line: the real cup is checked first
+CUP_EMPTIED = None             # the owner's words that the cup was emptied, given at the command line, or None
+ELF = None                     # the image on the unit, when it is not the board's own build folder's
 
 
 class Bench:
@@ -57,7 +61,13 @@ class Bench:
     def __init__(self, repo: Path, name: str, board: str, tap: bool = True):
         sys.path.insert(0, str(repo / "tools" / "remote_control"))
         import rc_run   # the checkout's own runner, of the firmware's time: found only once the repo is known
-        self.session = rc_run.Session(argparse.Namespace(board=board, elf=None), f"adr009_{name}")
+        self.session = rc_run.Session(argparse.Namespace(board=board, elf=ELF), f"adr009_{name}")
+        # The real cup, before anything turns (the owner, 2026-11-23: the hopper stays filled)
+        self.cup_name = f"record {name}"
+        go, self.cup_before = self.session.cup_before(self.cup_name, CUP_MOST_POUR, None, CUP_EMPTIED)
+        if not go:
+            self.session.finish()
+            raise SystemExit(f"refused: the cup ({self.cup_before}) and the most pour ({CUP_MOST_POUR:.0f} gr)")
         stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.folder = repo / "logs" / "adr009" / f"{stamp}_{name}"
         self.folder.mkdir(parents=True)
@@ -161,7 +171,8 @@ class Bench:
         self.runs.append(trial)
         return trial
 
-    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str) -> dict:
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str,
+                   backoff: tuple = (BACKOFF_TURNS, BACKOFF_RPS)) -> dict:
         """
         One trial of the creep-stop test: a tube at a steady speed, stopped, then still.
 
@@ -188,10 +199,11 @@ class Bench:
             during.append((time.monotonic(), self.weight()))
         stopped = time.monotonic()
         if stop == "backoff":
-            self.session.send(f"motor {tube} {-BACKOFF_RPS:g}")
+            turns, rps = backoff
+            self.session.send(f"motor {tube} {-rps:g}")
             reversed_at = time.monotonic()
             after = []
-            while time.monotonic() - reversed_at < BACKOFF_TURNS / BACKOFF_RPS:
+            while time.monotonic() - reversed_at < turns / rps:
                 after.append((time.monotonic(), self.weight()))
             self.session.send(f"motor {tube} {HOLD_RPS:g}")
         else:
@@ -300,7 +312,7 @@ class Bench:
                 time.sleep(0.5)
 
     def throws(self, host: str, target: float, profile: int, count: int, watch_s: float, rezero: bool,
-               cup_holds: float = 0.0) -> None:
+               cup_holds: float = 0.0, leave_last: bool = False) -> None:
         """
         Real throws of the firmware's own loop, recorded: the charge started over the API with a powder profile,
         the console's state read as fast as it answers.
@@ -319,6 +331,7 @@ class Bench:
             watch_s: how long after the stop the weight at rest is read.
             rezero: zero the scale between throws in place of a changed cup.
             cup_holds: powder already in the cup from an earlier run, which the first zero then takes away too.
+            leave_last: the last throw's charge left waiting for the cup to be lifted, not stopped.
         """
         import unit_api   # beside rc_run.py, of the firmware's time
         unit = unit_api.Unit(host)
@@ -329,8 +342,21 @@ class Bench:
         self.start_charge(unit, target, profile)
         samples, done, poured, last_state, pending, stopped_at = [], 0, cup_holds, None, False, None
         limit = time.monotonic() + count * 180.0
+        zeroing_since = None
         while done < count and time.monotonic() < limit:
             sample = self.state()
+            # Powder landing after the zero (a fast throw's coarse tail) leaves the charge waiting for a zero it never
+            # sees, past what the API's zero puts right while it waits (2026-11-26, throw 13 on 2.0.3-252): the
+            # charge stopped, the scale zeroed with no job (taken whatever the pan holds), and started again
+            zeroing_since = (zeroing_since or time.monotonic()) if sample["charge"] == CHARGE_WAIT_FOR_ZERO else None
+            if rezero and zeroing_since is not None and time.monotonic() - zeroing_since > ZERO_WAIT_MOST_S:
+                print(f"the charge waited {ZERO_WAIT_MOST_S:.0f} s for zero at {sample['weight']:+.3f}: zeroed again",
+                      flush=True)
+                self.end_charge()
+                self.zero_scale(unit)
+                self.start_charge(unit, target, profile)
+                zeroing_since, last_state, pending = None, None, False
+                continue
             if sample["charge"] == CHARGE_EXIT and last_state not in (None, CHARGE_EXIT):
                 print("the charge ended at the unit")
                 self.charging = False
@@ -358,6 +384,11 @@ class Bench:
                 self.zero_scale(unit)
                 self.start_charge(unit, target, profile)
                 last_state = None
+        if self.charging and leave_last:
+            # The last charge left waiting on "Remove Cup": the person's lift when the cup is emptied is seen (the
+            # cup's lift, ADR-009 3b); its motors stand, and the charge ends at the unit or by the next run
+            print("the last charge waits for the cup to be lifted", flush=True)
+            self.charging = False
         if self.charging:
             self.end_charge()
 
@@ -382,6 +413,7 @@ class Bench:
                 out.write(f"{parts[1]},{parts[2]},{header}\n")
         (self.folder / "runs.json").write_text(json.dumps(self.runs, indent=1), encoding="utf-8")
         print(f"saved {len(self.session.console.tap_lines)} frames and {len(self.runs)} runs to {self.folder}")
+        self.session.cup_after(self.cup_name, self.cup_before, CUP_MOST_POUR)
         return self.session.finish()
 
 
@@ -513,6 +545,10 @@ def main() -> None:
     parser.add_argument("--repo", required=True, type=Path, help="the checkout whose rc_run.py and build match the unit")
     parser.add_argument("--board", default="pico2_w")
     parser.add_argument("--label", default="", help="the end of the session's folder name, in place of the test's")
+    parser.add_argument("--most-pour", type=float, required=True,
+                        help="the most this run pours into the real cup, in grains: checked against 600 gr first")
+    parser.add_argument("--cup-emptied", metavar="WORDS", default=None,
+                        help="the owner's words that the cup was emptied since the last run (rc_run.py's own)")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("chain", help="five short runs of the fine tube: the recording chain's proof")
     nudges = sub.add_parser("nudges", help="small turns of the fine tube, each followed by a pause")
@@ -555,6 +591,8 @@ def main() -> None:
     throws.add_argument("--watch-s", type=float, default=3.5, help="the cup stays on this long after the tubes stop")
     throws.add_argument("--rezero", action="store_true",
                         help="zero the scale between throws, the powder left in the cup, in place of a changed cup")
+    throws.add_argument("--leave-last", action="store_true",
+                        help="leave the last throw's charge waiting for the cup to be lifted (the cup's lift seen)")
     throws.add_argument("--cup-holds", type=float, default=0.0,
                         help="grains already in the cup from an earlier run, counted toward its limit")
     ramp = sub.add_parser("ramp", help="a tube through speeds one after another with no stop between, then "
@@ -568,6 +606,9 @@ def main() -> None:
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
+    global CUP_MOST_POUR, CUP_EMPTIED
+    CUP_MOST_POUR = args.most_pour
+    CUP_EMPTIED = args.cup_emptied
 
     if args.command == "show":
         runs = json.loads((args.folder / "runs.json").read_text(encoding="utf-8"))
@@ -607,7 +648,8 @@ def main() -> None:
                 trial = bench.flick(name, FLICKS[name], args.pause_ms / 1000.0, args.still_s)
                 print(f"{name} {trial['gained_gr']:+.3f} {trial['steps']} {trial['moves_ms']:.0f}", flush=True)
         elif args.command == "throws":
-            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero, args.cup_holds)
+            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero, args.cup_holds,
+                         args.leave_last)
         elif args.command == "creepstop":
             least, most = (float(text) for text in args.run_s.split(":"))
             plan = [(float(speed), stop) for speed in args.speeds.split(",")

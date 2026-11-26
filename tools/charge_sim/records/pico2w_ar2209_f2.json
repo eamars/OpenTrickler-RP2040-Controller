@@ -1,0 +1,367 @@
+{
+ "name": "pico2w_ar2209_f2",
+ "what": {
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "powder_note": "the same AR2209 as the sessions before, a day on; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "from": "20261123_232000",
+  "to": "20261123_235959"
+ },
+ "scale": {
+  "report_jitter_s": 0.002,
+  "sensor_tau_s": 0.03,
+  "open_tau_s": 0.1,
+  "closed_tau_s": 1.3,
+  "link_min_s": 0.009,
+  "link_max_s": 0.029,
+  "open_above_gr": 0.05,
+  "noise_gr": 0.0015,
+  "dead_s": 0.4062,
+  "hold_s": 0.875,
+  "report_s": 0.04749,
+  "name": "A&D FX-300i, FAST",
+  "digit_gr": 0.02
+ },
+ "powder": {
+  "kernel_cv": 0.12,
+  "name": "AR2209, long in the air",
+  "kernel_gr": 0.021
+ },
+ "coarse": {
+  "regularity": 2.0,
+  "settle_s": 0.0,
+  "ripple_turn": 0.0,
+  "ripple_rifling": 0.0,
+  "reverse_spill_gr": 0.0,
+  "reverse_spill_cv": 0.3,
+  "reverse_spill_s": 0.25,
+  "start_turns": 0.2,
+  "retreat_turns": 0.5,
+  "name": "large tube",
+  "rifling_starts": 5,
+  "drop_mm": 50.0,
+  "gr_per_turn": [
+   [
+    1.0,
+    10.3624
+   ]
+  ],
+  "burst_kernels": [
+   [
+    0.1,
+    5.5068
+   ],
+   [
+    0.707107,
+    3.9149
+   ]
+  ],
+  "late_s": [
+   [
+    0.1,
+    0.0
+   ],
+   [
+    0.707107,
+    0.0
+   ]
+  ]
+ },
+ "fine": {
+  "regularity": 1.6818,
+  "settle_s": 0.0,
+  "ripple_turn": 0.0,
+  "ripple_rifling": 0.0,
+  "reverse_spill_gr": 0.0,
+  "reverse_spill_cv": 0.3,
+  "reverse_spill_s": 0.25,
+  "start_turns": 0.2,
+  "retreat_turns": 0.5,
+  "name": "small low-flow tube",
+  "rifling_starts": 5,
+  "drop_mm": 50.0,
+  "gr_per_turn": [
+   [
+    1.0,
+    0.81
+   ]
+  ],
+  "burst_kernels": [
+   [
+    0.1,
+    1.3643
+   ],
+   [
+    0.194739,
+    1.4066
+   ],
+   [
+    0.389478,
+    1.4066
+   ],
+   [
+    0.778956,
+    2.3466
+   ],
+   [
+    1.0,
+    3.3009
+   ],
+   [
+    3.0,
+    1.6683
+   ]
+  ],
+  "late_s": [
+   [
+    0.1,
+    0.0625
+   ],
+   [
+    0.194739,
+    0.25
+   ],
+   [
+    0.389478,
+    0.1875
+   ],
+   [
+    0.778956,
+    0.0
+   ],
+   [
+    1.0,
+    0.0312
+   ],
+   [
+    3.0,
+    0.0
+   ]
+  ]
+ },
+ "motors": {
+  "acceleration_rps2": 50.0,
+  "max_speed_rps": 5.0
+ },
+ "sources": {
+  "coarse.burst_kernels.0.1": {
+   "how": "solved",
+   "from": "coarse 0.1 held: rise_sd",
+   "miss_in_tolerances": 0.12
+  },
+  "coarse.burst_kernels.0.707107": {
+   "how": "solved",
+   "from": "coarse 0.707107 held: rise_sd",
+   "miss_in_tolerances": 0.13
+  },
+  "coarse.drop_mm": {
+   "how": "stated"
+  },
+  "coarse.gr_per_turn": {
+   "how": "measured",
+   "from": "map coarse"
+  },
+  "coarse.late_s.0.1": {
+   "how": "solved",
+   "from": "coarse 0.1 held stop,coarse 0.1 released stop: rise",
+   "miss_in_tolerances": 1.02
+  },
+  "coarse.late_s.0.707107": {
+   "how": "solved",
+   "from": "coarse 0.707107 held stop,coarse 0.707107 released stop: rise",
+   "miss_in_tolerances": 0.34
+  },
+  "coarse.regularity": {
+   "how": "assumed"
+  },
+  "coarse.retreat_turns": {
+   "how": "assumed"
+  },
+  "coarse.reverse_spill_cv": {
+   "how": "assumed"
+  },
+  "coarse.reverse_spill_gr": {
+   "how": "assumed"
+  },
+  "coarse.reverse_spill_s": {
+   "how": "assumed"
+  },
+  "coarse.rifling_starts": {
+   "how": "stated"
+  },
+  "coarse.ripple_rifling": {
+   "how": "assumed"
+  },
+  "coarse.ripple_turn": {
+   "how": "assumed"
+  },
+  "coarse.settle_s": {
+   "how": "assumed"
+  },
+  "coarse.start_turns": {
+   "how": "assumed"
+  },
+  "fine.burst_kernels.0.1": {
+   "how": "solved",
+   "from": "fine 0.1: fano_1s, fano_2s, fano_4s",
+   "miss_in_tolerances": 0.25
+  },
+  "fine.burst_kernels.0.194739": {
+   "how": "solved",
+   "from": "fine 0.194739 held: rise_sd",
+   "miss_in_tolerances": 0.29
+  },
+  "fine.burst_kernels.0.389478": {
+   "how": "solved",
+   "from": "fine 0.389478 held: rise_sd",
+   "miss_in_tolerances": 0.3
+  },
+  "fine.burst_kernels.0.778956": {
+   "how": "solved",
+   "from": "fine 0.778956 held: rise_sd",
+   "miss_in_tolerances": 0.56
+  },
+  "fine.burst_kernels.1": {
+   "how": "solved",
+   "from": "fine 1 held: rise_sd",
+   "miss_in_tolerances": 0.58
+  },
+  "fine.burst_kernels.3": {
+   "how": "solved",
+   "from": "fine 3 held: rise_sd",
+   "miss_in_tolerances": 0.29
+  },
+  "fine.drop_mm": {
+   "how": "stated"
+  },
+  "fine.gr_per_turn": {
+   "how": "measured",
+   "from": "map fine"
+  },
+  "fine.late_s.0.1": {
+   "how": "solved",
+   "from": "fine 0.1 held stop,fine 0.1 released stop: rise",
+   "miss_in_tolerances": 0.09
+  },
+  "fine.late_s.0.194739": {
+   "how": "solved",
+   "from": "fine 0.194739 held stop,fine 0.194739 released stop: rise",
+   "miss_in_tolerances": 0.12
+  },
+  "fine.late_s.0.389478": {
+   "how": "solved",
+   "from": "fine 0.389478 held stop,fine 0.389478 released stop: rise",
+   "miss_in_tolerances": 0.1
+  },
+  "fine.late_s.0.778956": {
+   "how": "solved",
+   "from": "fine 0.778956 held stop,fine 0.778956 released stop: rise",
+   "miss_in_tolerances": 0.18
+  },
+  "fine.late_s.1": {
+   "how": "solved",
+   "from": "fine 1 held stop,fine 1 released stop: rise",
+   "miss_in_tolerances": 0.05
+  },
+  "fine.late_s.3": {
+   "how": "solved",
+   "from": "fine 3 held stop,fine 3 released stop: rise",
+   "miss_in_tolerances": 0.61
+  },
+  "fine.regularity": {
+   "how": "solved",
+   "from": "fine 0.1 held stop: fano_1s, fano_2s, fano_4s",
+   "miss_in_tolerances": 0.25
+  },
+  "fine.retreat_turns": {
+   "how": "assumed"
+  },
+  "fine.reverse_spill_cv": {
+   "how": "assumed"
+  },
+  "fine.reverse_spill_gr": {
+   "how": "assumed"
+  },
+  "fine.reverse_spill_s": {
+   "how": "assumed"
+  },
+  "fine.rifling_starts": {
+   "how": "stated"
+  },
+  "fine.ripple_rifling": {
+   "how": "assumed"
+  },
+  "fine.ripple_turn": {
+   "how": "assumed"
+  },
+  "fine.settle_s": {
+   "how": "solved",
+   "from": "nudges,fine 0.1 held stop,fine 0.194739 held stop,fine 0.389478 held stop,fine 0.778956 held stop,fine 1 held stop,fine 3 held stop: fano, nothing, three_up, kernels, fano_1s",
+   "miss_in_tolerances": 0.44
+  },
+  "fine.start_turns": {
+   "how": "assumed"
+  },
+  "motors.acceleration_rps2": {
+   "how": "stated"
+  },
+  "motors.max_speed_rps": {
+   "how": "stated"
+  },
+  "powder.kernel_cv": {
+   "how": "assumed"
+  },
+  "powder.kernel_gr": {
+   "how": "stated"
+  },
+  "scale.closed_tau_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.dead_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.digit_gr": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.hold_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.link_max_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.link_min_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.noise_gr": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.open_above_gr": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.open_tau_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.report_jitter_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.report_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  },
+  "scale.sensor_tau_s": {
+   "how": "taken",
+   "from": "the record pico2w_ar2209"
+  }
+ }
+}

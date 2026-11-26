@@ -377,6 +377,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .gate-open { display: grid; place-items: center; min-height: var(--job-key); font-size: 1.6rem; font-weight: 700;
              font-variant-numeric: tabular-nums; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair.one { grid-template-columns: 1fr; }
 /* The update as a job in its card: the screen's word, how far as a figure and a bar, the power, Stop in its place */
 .job-view { display: grid; gap: 8px; margin-top: 12px; }
 .job-word { font-weight: 700; font-size: 1.15rem; }
@@ -440,3 +441,34 @@ body[data-page="setup"] { padding-left: 0; }
 .setup-address { font-size: 1.3rem; font-weight: 700; color: var(--ink); word-break: break-all; }
 /* A fact's name holds its line; its value gives way (rule: text holds its line) */
 .facts dt { white-space: nowrap; }
+
+/* ADR-009 step 1: the calibration's cards in Settings, its job's card first */
+/* No scroll anchoring inside: a step's card changing height must not scroll the page under the person (rule 17) */
+.calibration { display: grid; gap: 12px; overflow-anchor: none; }
+.calibration-job .status { margin: 12px 0 4px; }
+.calibration-job .figure-line { margin: 4px 0; }
+.calibration-job .bar { width: 100%; }
+.calibration-job .bar i { background: var(--ink); }
+.calibration .pair { padding: 12px 0; }
+/* The calibration's sheet: the page's sheet (above) as a wizard, a part's steps one at a time, its keys at its foot in
+   fixed places; a fixed size on anything wider than a phone and the whole screen on a phone, so no step moves them */
+.sheet.wizard { height: min(560px, calc(100dvh - 32px)); }
+.sheet.wizard[open] { display: flex; flex-direction: column; }
+html:has(.sheet.wizard[open]) { overflow: hidden; }     /* the page under it never scrolls meanwhile */
+.sheet-title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--soft); }
+.wizard .calibration-job { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* The step's words are the sheet's heading (what to do now), wrapped, never cut */
+.wizard .calibration-job .status { display: block; min-height: 0; margin: 4px 0 10px; padding: 0; border: 0;
+                                   border-radius: 0; background: none; white-space: normal; font-size: 1.25rem; }
+.wizard .calibration-job .status::before { content: none; }
+.wizard .calibration-job .field-help { font-size: 1rem; }       /* the step's words, read, not small print */
+.wizard .calibration-job .field.inline { text-align: left; }    /* a record's name and value, as in its card */
+.wizard .calibration-job .pair { margin-top: auto; padding: 12px 0 0; }
+.wizard .calibration-job .pair > button { min-height: var(--job-key); }  /* a lone Cancel as tall as a pair's keys */
+.wizard .calibration-job .figure-line { align-self: center; }   /* its own width, the unit beside it within the sheet */
+@media (max-width: 599px) {
+    .sheet.wizard { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+}
+.action.hold { border: 1px solid var(--edge); background: transparent; color: var(--ink); touch-action: none;
+               user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.action.hold.held { background: var(--well); border-color: var(--ink); }

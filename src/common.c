@@ -127,25 +127,29 @@ uint32_t software_crc32(void * data, size_t length) {
 
 /*
     The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
-    against it, so a write from the menu or the console counts as one from the web does. One entry an address.
+    against it, so a write from the menu or the console counts as one from the web does. One entry an address, with
+    the record's size, so a part of it can be read back as stored (config_read_part).
 */
 #define CONFIG_STORED_MAX 16
 static struct {
     uint16_t addr;
+    uint16_t size;
     uint32_t crc;
 } config_stored[CONFIG_STORED_MAX];
 static size_t config_stored_count = 0;
 
 
-static void config_stored_set(uint16_t addr, uint32_t crc) {
+static void config_stored_set(uint16_t addr, uint32_t crc, size_t size) {
     for (size_t idx = 0; idx < config_stored_count; idx += 1) {
         if (config_stored[idx].addr == addr) {
             config_stored[idx].crc = crc;
+            config_stored[idx].size = (uint16_t) size;
             return;
         }
     }
     if (config_stored_count < CONFIG_STORED_MAX) {
         config_stored[config_stored_count].addr = addr;
+        config_stored[config_stored_count].size = (uint16_t) size;
         config_stored[config_stored_count].crc = crc;
         config_stored_count += 1;
     }
@@ -190,7 +194,7 @@ static bool config_hold(uint16_t addr, const void * cfg, size_t size, bool defau
     }
     memcpy(config_held[idx].data, cfg, size);
     config_held[idx].defaults = config_held[idx].defaults || defaults;
-    config_stored_set(addr, software_crc32((void *) cfg, size));
+    config_stored_set(addr, software_crc32((void *) cfg, size), size);
     printf("Config: on trial, the write at 0x%04x held until the update is confirmed\n", addr);
     return true;
 }
@@ -242,6 +246,33 @@ bool config_read_stored(uint16_t addr, void * cfg, size_t size) {
 }
 
 
+bool config_read_part(uint16_t addr, void * out, size_t size) {
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        uint16_t record = config_stored[idx].addr;
+        size_t record_size = config_stored[idx].size;
+        if (addr < record || addr + size > record + record_size) {
+            continue;
+        }
+        size_t offset = addr - record;
+        // On a trial, what is stored is the write held: the EEPROM may still hold an earlier version's record
+        for (size_t held = 0; held < config_held_count; held += 1) {
+            if (config_held[held].addr == record) {
+                memcpy(out, config_held[held].data + offset, size);
+                return true;
+            }
+        }
+        uint8_t *whole = malloc(record_size);
+        bool is_ok = whole != NULL && config_read_stored(record, whole, record_size);
+        if (is_ok) {
+            memcpy(out, whole + offset, size);
+        }
+        free(whole);
+        return is_ok;
+    }
+    return false;
+}
+
+
 bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
     uint32_t crc = software_crc32((void *) cfg, size);
     for (size_t idx = 0; idx < config_stored_count; idx += 1) {
@@ -253,9 +284,125 @@ bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
 }
 
 
+/*
+    A record's migration, one for every module (the owner, 2026-11-25: "Between new size and 1, we can try if CRC
+    matches any try_size - 1 ... So if we only append new item to the list, then the non-corrupted data should always
+    match"; 2026-11-26: append, never repurpose, ignore and discard what is not known). Fields are only appended: at the
+    record's end, or for a record that is a header and an array (the powders, the motors), at each element's end, the
+    header as it was. A record whose CRC32 fails at its size is looked for at each size it could have had, by an
+    earlier version or a later one, within its slot; found, its part is filled into the struct, element by element,
+    the rest at the defaults. A wrong match is a chance of one in about four billion for each size tried.
+*/
+static const config_layout_t config_plain = {.header = 0, .element = 0, .count = 0};
+
+
+// The record's known earlier layout stored at `stored` bytes, or NULL
+static const config_past_layout_t *config_past(const config_layout_t *layout, size_t stored) {
+    for (size_t idx = 0; idx < layout->past_count; idx += 1) {
+        if (layout->past[idx].size == stored) {
+            return &layout->past[idx];
+        }
+    }
+    return NULL;
+}
+
+
+/*
+    Whether a record of this layout can have been stored at `stored` bytes: one of its known earlier layouts, or a
+    size it has been append-only from (below it, a prefix would be read shifted: ADR-009's review, B1)
+*/
+static bool config_size_fits(const config_layout_t *layout, size_t stored) {
+    if (config_past(layout, stored) != NULL) {
+        return true;
+    }
+    if (stored < layout->append_only_from) {
+        return false;
+    }
+    if (layout->element == 0) {
+        return stored > sizeof(uint16_t);       // past the old revision
+    }
+    return stored > layout->header && (stored - layout->header) % layout->count == 0;
+}
+
+
+/*
+    The size the record in the slot was stored at, other than `size`: the longest below it (an earlier version's),
+    else the shortest above it (a later version's); 0 when none. The CRC is carried from one size to the next, so the
+    slot is read through once
+*/
+static size_t config_stored_size(const uint8_t *slot, size_t room, size_t size, const config_layout_t *layout) {
+    uint32_t crc = 0;
+    size_t shorter = 0;
+    for (size_t stored = 1; stored + sizeof(crc) <= room; stored += 1) {
+        crc = software_crc32_continue(crc, slot + stored - 1, 1);
+        if (stored > size && shorter > 0) {
+            break;
+        }
+        if (stored == size || !config_size_fits(layout, stored)) {
+            continue;
+        }
+        uint32_t held;
+        memcpy(&held, slot + stored, sizeof(held));
+        if (crc == held) {
+            if (stored > size) {
+                return stored;
+            }
+            shorter = stored;
+        }
+    }
+    return shorter;
+}
+
+
+/*
+    A record stored at `stored` bytes, into the struct: the defaults, then what it holds of each field: a known earlier
+    layout field by field (a field's bytes then into its place now, a narrower one widened with zeros), else element by
+    element as a prefix of each
+*/
+static void config_fill(void *cfg, const void *default_cfg, size_t size, const uint8_t *slot, size_t stored,
+                        const config_layout_t *layout) {
+    memcpy(cfg, default_cfg, size);
+    const config_past_layout_t *past = config_past(layout, stored);
+    if (past != NULL) {
+        for (uint8_t idx = 0; idx < past->field_count; idx += 1) {
+            const config_field_map_t *field = &past->fields[idx];
+            uint8_t *place = (uint8_t *) cfg + field->now;
+            memset(place, 0, field->now_size);
+            memcpy(place, slot + field->was, field->was_size < field->now_size ? field->was_size : field->now_size);
+        }
+        return;
+    }
+    if (layout->element == 0) {
+        memcpy(cfg, slot, stored < size ? stored : size);
+        return;
+    }
+    memcpy(cfg, slot, layout->header);
+    size_t was = (stored - layout->header) / layout->count;
+    size_t part = was < layout->element ? was : layout->element;
+    for (size_t idx = 0; idx < layout->count; idx += 1) {
+        memcpy((uint8_t *) cfg + layout->header + idx * layout->element, slot + layout->header + idx * was, part);
+    }
+}
+
+
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
+    return load_config_layout(addr, cfg, default_cfg, size, NULL, rev_validation);
+}
+
+
+bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
+                        const config_layout_t * layout, uint16_t rev_validation) {
     bool is_ok;
     uint32_t calculated_crc32;
+
+    if (layout == NULL) {
+        layout = &config_plain;
+    }
+    else if (layout->element > 0 &&
+             (layout->count == 0 || layout->header + layout->element * layout->count != size)) {
+        printf("Config: the layout at 0x%04x is not its struct's: read as a plain record\n", addr);
+        layout = &config_plain;
+    }
 
 
     // Prepare rx buffer
@@ -307,6 +454,26 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
     calculated_crc32 = software_crc32(buf, size);
     memcpy(&received_crc32, buf + size, sizeof(received_crc32));
 
+    // Another version's record, found at the size it was stored at: what it holds of each field kept, the rest at the
+    // defaults, and stored at this version's size at once (a later version's fields discarded), held on trial as any
+    // write is. Nothing is reset
+    if (received_rev == 0 && calculated_crc32 != received_crc32 && size + sizeof(received_crc32) <= EEPROM_SLOT_SIZE) {
+        uint8_t *slot = malloc(EEPROM_SLOT_SIZE);
+        size_t stored = slot != NULL && eeprom_read(addr, slot, EEPROM_SLOT_SIZE) ?
+                        config_stored_size(slot, EEPROM_SLOT_SIZE, size, layout) : 0;
+        if (stored > 0) {
+            printf("Config: the record at 0x%04x was stored %u bytes long by %s version: %s\n", addr, (unsigned) stored,
+                   stored < size ? "an earlier" : "a later",
+                   config_past(layout, stored) != NULL ? "read field by field from its layout then" :
+                   stored < size ? "kept, the appended fields at their defaults" : "its fields read, the rest discarded");
+            config_fill(cfg, default_cfg, size, slot, stored, layout);
+            free(slot);
+            free(buf);
+            return save_config(addr, cfg, size);
+        }
+        free(slot);
+    }
+
     // We will validate if the rev (first 2 byte) is 0, AND CRC check matches. 
     if ((received_rev != 0) || (calculated_crc32 != received_crc32)) {
         if (received_rev != 0) {
@@ -329,7 +496,7 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
         // Copy from buffer to config
         memcpy(cfg, buf, size);
         free(buf);
-        config_stored_set(addr, calculated_crc32);
+        config_stored_set(addr, calculated_crc32, size);
     }
 
     return true;
@@ -371,7 +538,7 @@ bool save_config_now(uint16_t addr, void * cfg, size_t size) {
     }
     else {
         printf("Configuration write successfully\n");
-        config_stored_set(addr, calculated_crc32);
+        config_stored_set(addr, calculated_crc32, size);
     }
 
     free(buf);

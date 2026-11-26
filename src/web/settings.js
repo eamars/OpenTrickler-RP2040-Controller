@@ -6,6 +6,7 @@
 
 // The parts in the order a person sets a unit up; each one resource, but the motors, two under one name
 const SETTINGS_PARTS = [
+    {key: "calibration", label: "Calibration", paths: [], api: "/api/v1/calibration"},  // ADR-009 step 1
     {key: "scale", label: "Scale", paths: ["/api/v1/settings/scale"]},                  // features: 46 47
     {key: "charge", label: "Charge", paths: ["/api/v1/settings/charge"]},               // features: 49
     // features: 55 56
@@ -25,11 +26,14 @@ const partShown = {};
 // What the unit carries, by its own report (the index's features: ADR-008, gate 2), read once: a part of a feature it
 // does not carry is not drawn (features: N9)
 let unitCarries = null;
+// The paths the unit's index lists: a part with an API of its own (the calibration) is drawn only where the unit has it
+let unitPaths = new Set();
 
 async function readCarries() {
     if (unitCarries === null) {
         const index = await api("GET", "/api/v1");
         unitCarries = index.ok ? Object.fromEntries((index.data.features || []).map((f) => [f.name, f.present])) : {};
+        unitPaths = new Set(index.ok ? (index.data.resources || []).map((r) => r.path) : []);
     }
     return unitCarries;
 }
@@ -38,7 +42,8 @@ async function drawSettingsList(resources, chosen) {
     const list = element("nav", {class: "list", "aria-label": "Settings"});
     for (const part of SETTINGS_PARTS) {
         const present = part.paths.filter((path) => resources[path]);
-        if (present.length === 0 || (part.feature && unitCarries && unitCarries[part.feature] === false)) {
+        const listed = part.api ? unitPaths.has(part.api) : present.length > 0;
+        if (!listed || (part.feature && unitCarries && unitCarries[part.feature] === false)) {
             continue;   // the unit does not carry it (ADR-005's report, gate 2): absent, not empty
         }
         const unsaved = present.some((path) => resources[path].saved === false);
@@ -118,20 +123,412 @@ function drawGateControl() {
     return card;
 }
 
+// ADR-009 step 1: the calibration, its three parts each run alone, as the 12864's Settings > Calibration
+// (tools/ui_mock/calibration_12864.py), on the unit's API (api_v1.md, Calibration; calibration.c). The stand-in plays
+// it with no unit (tests/calibration_mock.py)
+const CALIBRATION = "/api/v1/calibration";
+// The fill's Hold to dispense: half a turn from now asked while held, more often than it takes to pour (a quarter second
+// at the fill's 2 rev/s), so it pours steadily through a late reply; the unit extends a pour, never adds to it, so the
+// tube stops within a quarter second of the release
+const POUR_TURNS = 0.5;
+const POUR_EVERY_MS = 150;
+let calibrationTimer = null;
+let calibrationOwner = null;    // the view whose card the poll draws into: one at a time
+let calibrationPeriod = null;   // its poll's period, in ms
+
+function stopCalibrationPoll() {
+    if (calibrationTimer !== null) {
+        clearInterval(calibrationTimer);
+        calibrationTimer = null;
+    }
+    calibrationOwner = null;
+    calibrationPeriod = null;
+}
+
+// The calibration's sheet: one dialog over the page while a part runs, a step at a time, its keys in fixed places at
+// its foot (the owner, 2026-11-25: "a popup dialog for each calibration item (like a wizard)"). Esc does the step's
+// way out (Cancel, Stop, Discard), never a silent close: a part ends only by its own keys, as at the unit
+function calibrationSheet() {
+    let sheet = document.getElementById("calibration-sheet");
+    if (sheet === null) {
+        sheet = element("dialog", {id: "calibration-sheet", class: "sheet wizard",
+                                     "aria-labelledby": "calibration-sheet-title"});
+        sheet.addEventListener("cancel", (event) => {
+            event.preventDefault();
+            const out = sheet.querySelector("[data-out]");
+            if (out !== null) {
+                out.click();
+            }
+        });
+        // A browser may close it on Esc all the same (one with no click on the page yet): while its part runs it opens
+        // again, so a step with no way out by Esc (the result) is not left unseen
+        sheet.addEventListener("close", () => {
+            if (sheet.dataset.running === "yes") {
+                sheet.showModal();
+            }
+        });
+        document.body.append(sheet);
+    }
+    return sheet;
+}
+
+const known = (value) => value !== null && value !== undefined;
+
+// The scale's unit as the unit reports it (GET /api/v1/scale), grains as the screen writes them; "" where the unit
+// cannot tell, and the number is shown alone, as on the screen
+let scaleUnit = "";
+const withUnit = (text) => scaleUnit ? `${text} ${scaleUnit}` : text;
+
+function weightText(value) {
+    return known(value) ? withUnit(value.toFixed(2)) : "Not done";
+}
+
+function msText(ms) {
+    return known(ms) ? `${(ms / 1000).toFixed(2)} s` : "Not done";
+}
+
+function rps(speed) {
+    return known(speed) ? `${speed} rev/s` : "Not done";
+}
+
+function line(label, value) {
+    return element("div", {class: "field inline"}, element("span", {}, label), element("output", {}, value));
+}
+
+// What changes within a step, as the unit says it: drawn into the step's card in place, never by rebuilding it
+function liveValues(cal) {
+    const live = {};
+    if (["zeroing", "fill"].includes(cal.step)) {
+        live.figure = cal.weight.toFixed(2);
+    }
+    if (cal.step === "running") {
+        live.figure = String(cal.progress);
+        live.note = cal.line;
+        live.bar = `${cal.progress}%`;
+    }
+    return live;
+}
+
+/*
+ * The calibration's cards, and its parts' steps in the sheet over the page (calibrationSheet). In Settings (no
+ * options): the cup's and the scale's cards with their records and Calibrate buttons, and where a powder is
+ * calibrated. On a powder's page ({profile, page: "powders", start, saved}): start, the page's own button among the
+ * powder's actions, which starts it and is off while any part runs; saved() once its records are kept, so its form
+ * shows them. The sheet opens with a part's first step, and by itself while a part started elsewhere runs (on a
+ * powder's page, that powder's), and closes when the part has ended
+ */
+function drawCalibration(options = {}) {
+    const forPowder = options.profile !== undefined;
+    const page = options.page || "settings";
+    const box = element("div", {class: "calibration"});
+    let drawnKey = null;                // the step and the records the cards were built for
+    let unitStep;                       // the step the scale's unit was last read at
+    const send = async (method, path, body, refused = "Not done") => {
+        const reply = await api(method, path, body);
+        reply.ok ? draw(reply.data) : refusal(reply, refused);
+        if (reply.ok && path.endsWith("/save") && options.saved) {
+            options.saved();
+        }
+    };
+    const answer = (word) => send("POST", `${CALIBRATION}/answer`, {answer: word});
+    const stop = () => send("POST", `${CALIBRATION}/stop`, {});
+    const button = (text, kind, act) => element("button", {class: kind, type: "button", onclick: act}, text);
+    const out = (text, kind, act) => {       // a step's way out, which Esc does too
+        const key = button(text, kind, act);
+        key.dataset.out = "";
+        return key;
+    };
+    const cancel = () => out("Cancel", "ghost", stop);
+    // The fill's key: pours while it is held (a finger, the mouse, or Space and Enter), never after; a step that
+    // replaces it under the finger stops it too
+    const holdToPour = () => {
+        const key = element("button", {class: "action ghost hold", type: "button"}, "Hold to dispense");
+        let timer = null;
+        const end = () => {
+            if (timer !== null) {
+                clearInterval(timer);
+                timer = null;
+            }
+            key.classList.remove("held");
+        };
+        const pour = () => {
+            if (!key.isConnected) {
+                end();
+                return;
+            }
+            api("POST", `${CALIBRATION}/pour`, {turns: POUR_TURNS});
+        };
+        const begin = (event) => {
+            event.preventDefault();
+            if (timer === null) {
+                key.classList.add("held");
+                pour();
+                timer = setInterval(pour, POUR_EVERY_MS);
+            }
+        };
+        key.addEventListener("pointerdown", begin);
+        // A finger lifted or slid off the key, or the page left: the pour stops
+        for (const name of ["pointerup", "pointercancel", "pointerleave", "blur"]) {
+            key.addEventListener(name, end);
+        }
+        key.addEventListener("keydown", (event) => {
+            if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+                begin(event);
+            }
+        });
+        key.addEventListener("keyup", (event) => {
+            if (event.key === " " || event.key === "Enter") {
+                end();
+            }
+        });
+        key.addEventListener("contextmenu", (event) => event.preventDefault());
+        return key;
+    };
+
+    const jobCard = (cal) => {
+        const card = element("div", {class: "calibration-job", "aria-live": "polite"});
+        const head = (status) => card.append(element("div", {class: "status"}, element("span", {}, status)));
+        const figure = (unit) => card.append(
+            element("div", {class: "figure-line"}, element("span", {class: unit === "%" ? "figure short" : "figure",
+                                                                    "data-live": "figure"}),
+                    element("span", {class: "unit"}, unit)));
+        const note = (text) => card.append(element("p", {class: "field-help", "data-live": text ? null : "note"},
+                                                   text || ""));
+        // A step's keys side by side at the sheet's foot; a step with one key gives it the whole width
+        const actions = (...buttons) => card.append(element("div", {class: buttons.length === 1 ? "pair one" : "pair"},
+                                                            ...buttons));
+        const powder = cal.profile_name;
+        const named = {cup: "The cup", scale: "The scale", powder}[cal.part];
+        switch (cal.step) {
+        case "cup_on":
+            head("Put the empty cup on the scale");
+            note({powder: `With ${powder} in the hopper: it is what is calibrated.`,
+                  scale: "With powder in the hopper: its runs pour it."}[cal.part] || "To catch the powder.");
+            // The key as the screen's: Next where nothing turns yet, Start where the motors start
+            actions(cancel(), button(cal.part === "cup" ? "Next" : "Start", "action go", () => answer("next")));
+            break;
+        case "zeroing":
+            head("Zeroing");
+            figure(scaleUnit);
+            actions(cancel());
+            break;
+        case "fill":
+            // As at the unit, where the knob pours (the owner, 2026-11-25): the key pours while held
+            head("Fill the cup");
+            figure(scaleUnit);
+            card.append(holdToPour());
+            actions(cancel(), button("It's full", "action go", () => answer("full")));
+            break;
+        case "keep":
+            head(`It holds ${weightText(cal.capacity)}`);
+            note("Keep it as the cup's capacity? No pour of a calibration passes it.");
+            actions(cancel(), button("Keep", "action go", () => answer("keep")));
+            break;
+        case "empty":
+            head("Empty the cup");
+            note("Then put it back on the scale.");
+            actions(button("Done", "action go", () => answer("done")));
+            break;
+        case "running":
+            head("Calibrating");
+            figure("%");
+            card.append(element("div", {class: "bar"}, element("i", {"data-live": "bar"})));
+            note();
+            actions(out("Stop", "action halt", stop));
+            break;
+        case "paused":
+            head("Empty the cup");
+            note(`${withUnit(cal.line)}. Empty it, put it back, then go on.`);
+            actions(out("Stop", "action halt", stop), button("Go on", "action go", () => answer("go_on")));
+            break;
+        case "result": {
+            const result = cal.result;
+            head(`${named}: done`);
+            if (cal.part === "scale") {
+                const lag = result.lag;
+                card.append(line("Settle time", known(result.settle_ms) ? msText(result.settle_ms) : "Not found"),
+                            line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not found"),
+                            line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not found"));
+                // What Keep writes into the charge's steady and zero margins, only when it writes them (at most 1)
+                if (known(result.margin) && result.margin <= 1) {
+                    card.append(line("Charge margins", withUnit(result.margin.toFixed(3))));
+                }
+            } else {
+                card.append(line("Fine minimum", known(result.fine_min_speed_rps) ? rps(result.fine_min_speed_rps) :
+                                                 "Not found"),
+                            line("Was", rps(result.was.fine_min_speed_rps)),
+                            line("Fine weight a turn", known(result.fine_weight_per_turn) ?
+                                                       withUnit(result.fine_weight_per_turn.toFixed(3)) : "Not found"),
+                            line("Coarse minimum", known(result.coarse_min_speed_rps) ?
+                                                   rps(result.coarse_min_speed_rps) : "Not found"),
+                            line("Was", rps(result.was.coarse_min_speed_rps)));
+            }
+            card.append(line("Took", `${(result.elapsed_s / 60).toFixed(1)} min, ${withUnit(result.poured.toFixed(0))}`));
+            if (result.failure) {
+                note(`${result.failure}.`);
+            }
+            // Discard asks first, in the screen's words, and Esc does not discard: it is no way out here (the PR's
+            // review, U3)
+            actions(button("Discard", "ghost", async () => {
+                        if (await confirmAction("Discard what was found?", "", "Discard", "Cancel", true)) {
+                            stop();
+                        }
+                    }),
+                    button(cal.part === "scale" ? "Keep" : "Save", "action go",
+                           () => send("POST", `${CALIBRATION}/save`, {}, "Not kept")));
+            break;
+        }
+        case "failed":
+            // Said as a failure, never as something kept, as the 12864 says it
+            head("Not calibrated");
+            note(`${cal.failure}. Nothing changed.`);
+            actions(button("OK", "action go", () => answer("done")));
+            break;
+        }
+        return card;
+    };
+
+    const cards = (cal) => {
+        const busy = cal.state !== "idle";
+        const start = (part, text, extra = {}) =>
+            element("button", {class: "ghost", type: "button", disabled: busy,
+                               onclick: () => send("POST", `${CALIBRATION}/start`, {part, ...extra})}, text);
+        if (forPowder) {
+            return [];          // its start is the page's own button (options.start)
+        }
+        const {cup, scale} = cal.records;
+        const lag = scale.lag;
+        const slot = (part, text) => element("div", {class: "field"}, start(part, text));
+        return [
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
+                    line("Capacity", weightText(cup.capacity)),
+                    slot("cup", "Calibrate the cup")),
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Scale"),
+                    line("Settle time", msText(scale.settle_ms)),
+                    line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not done"),
+                    line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not done"),
+                    slot("scale", "Calibrate the scale")),
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Powders"),
+                    element("p", {class: "field-help"}, "A powder is calibrated from its own page."),
+                    element("div", {class: "field"}, element("button", {class: "ghost", type: "button",
+                                                                        onclick: () => { location.hash = "#powders"; }},
+                                                             "Open Powders"))),
+        ];
+    };
+
+    if (options.start) {
+        options.start.onclick = () => send("POST", `${CALIBRATION}/start`, {part: "powder", profile: options.profile});
+    }
+    const draw = (cal) => {
+        if (options.start) {
+            options.start.disabled = cal.state !== "idle";
+        }
+        // A powder's page shows its own powder's job alone
+        const running = cal.state === "running" && cal.step !== null &&
+                        (!forPowder || (cal.part === "powder" && cal.profile === options.profile));
+        // Built again only for a new step or new records; within a step its figures change in place, so a button is
+        // never replaced under a finger
+        const key = JSON.stringify({step: running && [cal.part, cal.step, cal.capacity, cal.failure],
+                                    state: cal.state, part: cal.part, profile: cal.profile, records: cal.records});
+        const sheet = calibrationSheet();
+        if (key !== drawnKey) {
+            drawnKey = key;
+            box.replaceChildren(...cards(cal));
+            if (running) {
+                const title = {cup: "Calibrate the cup", scale: "Calibrate the scale",
+                               powder: `Calibrate ${cal.profile_name}`}[cal.part];
+                sheet.replaceChildren(element("h2", {id: "calibration-sheet-title", class: "sheet-title"}, title),
+                                      jobCard(cal));
+                sheet.dataset.running = "yes";
+                if (!sheet.open) {
+                    sheet.showModal();
+                }
+            } else {
+                sheet.dataset.running = "";
+                if (sheet.open) {
+                    sheet.close();
+                }
+            }
+        }
+        if (running) {
+            for (const [name, value] of Object.entries(liveValues(cal))) {
+                const at = sheet.querySelector(`[data-live="${name}"]`);
+                if (at === null) {
+                    continue;
+                }
+                if (name === "bar") {
+                    at.style.width = value;
+                } else if (at.textContent !== value) {
+                    at.textContent = value;
+                }
+            }
+        }
+        // One view polls at a time: the one on the page takes the poll over from any drawn before it. It polls with no
+        // part running too, so a part started on the unit's screen or another browser is seen within 2 s. A view drawn
+        // before its page is shown (a page is read whole, then shown) takes it once shown; one never shown, never
+        const period = cal.state !== "idle" ? 500 : 2000;
+        const follow = () => {
+            if (box.isConnected && (calibrationOwner !== box || calibrationPeriod !== period)) {
+                stopCalibrationPoll();
+                calibrationOwner = box;
+                calibrationPeriod = period;
+                calibrationTimer = setInterval(refresh, period);
+            }
+        };
+        box.isConnected ? follow() : setTimeout(follow, 0);
+    };
+    const refresh = async () => {
+        if (pageShown !== page || (drawnKey !== null && !box.isConnected)) {
+            if (calibrationOwner === box || pageShown !== page) {
+                stopCalibrationPoll();
+            }
+            return;
+        }
+        const reply = await api("GET", CALIBRATION);
+        if (reply.ok && (drawnKey === null || unitStep !== reply.data.step)) {
+            // The scale's unit read with the first read and at each new step, not at every poll
+            unitStep = reply.data.step;
+            const scale = await api("GET", "/api/v1/scale");
+            if (scale.ok) {
+                scaleUnit = scale.data.unit === "gn" ? "gr" : (scale.data.unit || "");
+            }
+        }
+        if (reply.ok) {
+            draw(reply.data);
+        } else if (drawnKey === null) {
+            box.replaceChildren(element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
+        }
+        // A read that fails once something is shown keeps it: the link's banner says the unit was not reached
+        return reply.ok;
+    };
+    box.ready = refresh();      // its first read (true when it was read), which the page waits for: the cards are shown
+                                // with their records
+    return box;
+}
+
 async function drawSettingsPart(key, hooks) {
     const part = SETTINGS_PARTS.find((p) => p.key === key);
     const pane = element("section", {class: "detail"},
                          element("a", {href: "#settings", class: "back"}, "‹ Settings"),
                          element("h2", {}, part.label));
+    // The calibration read with the forms and shown with them, never filled in after them (what is under it would move)
+    const calibration = key === "calibration" ? drawCalibration() : null;
     const forms = [];
+    let failed = false;
     for (const path of part.paths) {
         const reply = await api("GET", path);
+        failed ||= !reply.ok;
         forms.push(reply.ok ? await drawForm(path, reply.data, hooks)
                             : element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
     }
     if (part.titles) {
         pane.append(drawSwitch(part, forms));
     }
+    if (calibration !== null) {
+        failed ||= !await calibration.ready;
+        pane.append(calibration);
+    }
+    pane.failed = failed;       // a part read again that failed is not shown: the one shown stays
     if (key === "gate") {
         // The gate's actions with its resource (README, "Handed on by ADR-010"); its Fitted, below, changes them
         const control = drawGateControl();
@@ -158,8 +555,10 @@ onUnit("event", (event) => {
 onUnit("afresh", () => pageShown === "settings" && route());
 
 PAGES.settings = {
+    drawing: 0,
     async enter(rest) {
         const page = $("page-settings");
+        const drawing = ++this.drawing;     // the latest read alone is shown: one that ends after a newer is dropped
         await readCarries();
         const all = await api("GET", "/api/v1/settings");
         const resources = all.ok ? all.data.resources : {};
@@ -169,9 +568,25 @@ PAGES.settings = {
             const first = SETTINGS_PARTS.find((p) => p.paths.some((path) => resources[path]));
             key = first ? first.key : null;
         }
-        page.dataset.open = key ? "part" : "list";
         const master = element("div", {class: "master"}, await drawSettingsList(resources, key));
-        page.replaceChildren(master);
+        if (drawing !== this.drawing) {
+            return;
+        }
+        // The part shown, read again (another client's write, a calibration kept): it stays as it is until the new is
+        // read whole, then the two are swapped, so nothing goes blank or moves meanwhile (web-ui-design, rule 17). A part
+        // newly asked for replaces the last at once, the list first, the part when it is read
+        const again = key !== null && page.dataset.key === key;
+        if (again && !all.ok) {
+            return;             // what is shown stays; the link's banner says the unit was not reached (rule 9)
+        }
+        const show = (...parts) => {
+            page.dataset.open = key ? "part" : "list";
+            page.dataset.key = key || "";
+            page.replaceChildren(...parts);
+        };
+        if (!again) {
+            show(master);
+        }
         if (key) {
             // A change shows in the list at once: its row's "Not stored" from the write's own reply, nothing read again
             const hooks = {
@@ -184,8 +599,14 @@ PAGES.settings = {
                 },
                 reload: () => route(),
             };
-            page.append(await drawSettingsPart(key, hooks));
+            const part = await drawSettingsPart(key, hooks);
+            if (drawing !== this.drawing || (again && part.failed)) {
+                return;
+            }
+            again ? show(master, part) : page.append(part);
         }
     },
-    leave() {},
+    leave() {
+        stopCalibrationPoll();
+    },
 };

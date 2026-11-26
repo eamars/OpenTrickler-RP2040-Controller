@@ -8,13 +8,15 @@ const POWDER_COLUMNS = [
     ["fine_kp", "Kp"], ["fine_ki", "Ki"], ["fine_kd", "Kd"],
 ];
 
+// The powders, each read whole where it could be; `failed` when any read failed
 async function readPowders() {
     const list = await api("GET", "/api/v1/powder_profiles");
     if (!list.ok) {
-        return [];
+        return Object.assign([], {failed: true});
     }
     const replies = await Promise.all(list.data.profiles.map((p) => api("GET", `/api/v1/powder_profiles/${p.id}`)));
-    return list.data.profiles.map((p, i) => Object.assign({id: p.id}, replies[i].ok ? replies[i].data : {name: p.name}));
+    const powders = list.data.profiles.map((p, i) => Object.assign({id: p.id}, replies[i].ok ? replies[i].data : {name: p.name}));
+    return Object.assign(powders, {failed: replies.some((reply) => !reply.ok)});
 }
 
 // features: 62
@@ -99,13 +101,17 @@ async function importPowder(id) {
 }
 
 PAGES.powders = {
+    drawing: 0,
     async enter(rest) {
         const page = $("page-powders");
+        const drawing = ++this.drawing;     // the latest read alone is shown: one that ends after a newer is dropped
         const [powders, charge] = await Promise.all([readPowders(), api("GET", "/api/v1/charge")]);
+        if (drawing !== this.drawing) {
+            return;
+        }
         const inUse = charge.ok ? charge.data.powder_profile : null;
         // Side by side, an empty pane says nothing: the powder in use is open (as the settings' first part)
         const chosen = /^\d+$/.test(rest) ? Number(rest) : (SPLIT.matches ? inUse : null);
-        page.dataset.open = chosen === null ? "list" : "part";
         const master = element("div", {class: "master"});
         // The tuning guide (features: 61 95): on GitHub
         const guide = element("p", {class: "guide"},
@@ -115,11 +121,26 @@ PAGES.powders = {
         const drawMaster = () => master.replaceChildren(drawPowderList(powders, inUse, chosen), drawPowderTable(powders, inUse, chosen),
                                                         guide);
         drawMaster();
-        page.replaceChildren(master);
+        // The powder shown, read again (its calibration kept, another client's write): it stays as it is until the new
+        // is read whole, then the two are swapped (web-ui-design, rule 17). A powder newly asked for replaces the last
+        // at once, the list first, the powder when it is read
+        const again = chosen !== null && page.dataset.chosen === String(chosen);
+        if (again && (powders.failed || !charge.ok)) {
+            return;             // what is shown stays; the link's banner says the unit was not reached (rule 9)
+        }
+        const show = (...parts) => {
+            page.dataset.open = chosen === null ? "list" : "part";
+            page.dataset.chosen = chosen === null ? "" : String(chosen);
+            page.replaceChildren(...parts);
+        };
+        if (!again) {
+            show(master);
+        }
         if (chosen === null) {
             return;
         }
         const reply = await api("GET", `/api/v1/powder_profiles/${chosen}`);
+        let failed = !reply.ok;
         // No title over the form: its first field is the powder's name
         const pane = element("section", {class: "detail"}, element("a", {href: "#powders", class: "back"}, "‹ Powders"));
         if (reply.ok) {
@@ -134,14 +155,25 @@ PAGES.powders = {
                 reload: () => route(),
             };
             pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, hooks));     // features: 63
-            const files = element("div", {class: "button-row"},
+            // ADR-009 step 1: this powder's calibration, its least speeds into the fields above once kept: its start
+            // among the powder's actions, its steps in the calibration's sheet over the page
+            const calibrate = element("button", {class: "ghost", type: "button"}, "Calibrate this powder");
+            const files = element("div", {class: "button-row"}, calibrate,
                                   element("button", {class: "ghost", type: "button", onclick: () => exportPowder(chosen)}, "Export this powder"),
                                   element("button", {class: "ghost", type: "button", onclick: () => importPowder(chosen)}, "Import into this powder"));
             pane.append(files);
+            const calibration = drawCalibration({profile: chosen, page: "powders", start: calibrate, saved: () => route()});
+            failed ||= !await calibration.ready;
+            pane.append(calibration);
         } else {
             pane.append(element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
         }
-        page.append(pane);
+        if (drawing !== this.drawing || (again && failed)) {
+            return;             // a newer read is shown, or this one failed and the powder shown stays
+        }
+        again ? show(master, pane) : page.append(pane);
     },
-    leave() {},
+    leave() {
+        stopCalibrationPoll();
+    },
 };

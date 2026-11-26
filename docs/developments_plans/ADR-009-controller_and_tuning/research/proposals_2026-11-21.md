@@ -2,7 +2,7 @@
 
 2026-11-21. Asked for by the owner: "I'd like you to make two proposals based on the knowledge and data to date, with confident ranking from high to med. Each proposal shall include the detailed procedure for both trickle control, as well as calibration routine. And remember, those proposals will be used on ANY opentrickler build/material/finish, and ANY powder, and ANY scale." And: "There are more than 7 scale to be supported, so I'm not planning to evaluate each of them ... the later calibration routine must account for that, and your simulation today should assume the inconsistent measurement lag subject to the weight change speed."
 
-**Neither proposal is approved.** Both were written as code and tried in the simulation (`tools/charge_sim/staged.py`), on the two records made from the bench's recordings and on four other scales that stand in for scales never measured. **Both have since thrown on the real unit, with AR2209** (the same afternoon; the next section). Every figure below says whether it is the bench's or the simulation's. `../progress.md` has the runs.
+**Neither proposal is approved.** Both were written as code and tried in the simulation (`tools/charge_sim/staged.py`), on the two records made from the bench's recordings and on four other scales that stand in for scales never measured. **Both have since thrown on the real unit, with AR2209** (the same afternoon; the next section). Every figure below says whether it is the bench's or the simulation's. `../legacy/progress.md` has the runs.
 
 ## After the bench trial (2026-11-21, afternoon): what stands, what fell, what changed
 
@@ -56,7 +56,7 @@ Proposal 2's first rest lay within a digit of its aim in 15 throws of 25, where 
 | Today's loop (fine gain 0.8, slow finish) | 79%, 20% | 15.3 s; 17.1 s | 15%, 85% | 10.6 s; 11.9 s |
 | **Proposal 1** | **94%, 5%** | 12.7 s; 21.6 s | **74%, 17%** | 16.6 s; 29.2 s |
 | **Proposal 2** | **89%, 11%** | 11.9 s; 17.8 s | **74%, 24%** | 13.0 s; 28.7 s |
-| The best a finish by small moves can do, from the bench's recorded nudges, no model (`../progress.md`) | 88 to 90%; 82 to 87% at waits of 2 to 4 s | | 80%; 74 to 78% | |
+| The best a finish by small moves can do, from the bench's recorded nudges, no model (`../legacy/progress.md`) | 88 to 90%; 82 to 87% at waits of 2 to 4 s | | 80%; 74 to 78% | |
 
 | Within 0.04 gr (the looser band, as a mode) | BM2: good, over | Time | AR2209: good, over | Time |
 |---|---|---|---|---|
@@ -299,7 +299,7 @@ The same with the band at 0.04 gr: the creep is twice as fast, since twice as mu
 
 ## 6. What the bench itself says, with no model
 
-| The bench found (`../progress.md`) | What rests on it |
+| The bench found (`../legacy/progress.md`) | What rests on it |
 |---|---|
 | Powder follows turns, not speed: one line through 348 trials, 0.757 gr a turn with AR2209; the same with BM2 | Counting powder in turns (2.1) |
 | What arrives after a stop is 1.4 s of the flow at the slowest flows and 0.6 s at the fastest | The lag as a table by flow |
@@ -325,7 +325,7 @@ The same with the band at 0.04 gr: the creep is twice as fast, since twice as mu
 - **Nothing from GRT or any table of powders.** Its densities do not give what a turn pours, and it holds no kernel size (`sources/grt_two_powders.md`).
 - **No PID.** The research said why on 2026-11-19 (`README.md`, point 3), and the bench did not change it. Today's loop on a scale twice as late: every throw over.
 
-## 9. What changes in the research's proposals of 2026-11-19 (`../README.md`, D1 to D7)
+## 9. What changes in the research's proposals of 2026-11-19 (`../legacy/README.md`, D1 to D7)
 
 - **D1 (one demand, shared):** kept in spirit, simpler in form: each tube has the same law on the same forecast room, with its own margin.
 - **D2 (the finish is nudges):** it is proposal 1, with the stop placed by the forecast and the moves measured. Proposal 2 puts a creep before it.

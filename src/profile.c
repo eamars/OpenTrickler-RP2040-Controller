@@ -14,7 +14,7 @@ eeprom_profile_data_t profile_data;
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
     .profiles[0] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "AR2208,gr",
 
         .coarse_kp = 0.025f,
@@ -30,7 +30,7 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 5.0f,
     },
     .profiles[1] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "AR2209,gr",
 
         .coarse_kp = 0.05f,
@@ -46,7 +46,7 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 2.0f,
     },
     .profiles[2] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "8208XBR,gr",
 
         .coarse_kp = 0.05f,
@@ -62,7 +62,7 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 5.0f,
     },
     .profiles[3] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Benchmark2,gr",
 
         .coarse_kp = 0.06f,
@@ -78,19 +78,19 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 5.0f,
     },
     .profiles[4] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile4",
     },
     .profiles[5] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile5",
     },
     .profiles[6] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile6",
     },
     .profiles[7] = {
-        .compatibility = 0,
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile7",
     },
 };
@@ -109,8 +109,8 @@ bool profile_data_is_saved(void) {
 
 /*
     A powder profile's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/powder_profiles/{id}). The
-    eight are one block in the EEPROM, the one chosen with them, so they share a save. Today's rev and
-    compatibility are used by nothing, and are not in the API.
+    eight are one block in the EEPROM, the one chosen with them, so they share a save. Today's rev and compatibility
+    are used by nothing, and are not in the API.
 */
 #define PROFILE_FIELD(member) SETTING_AT(profile_t, member)
 #define PROFILE_GAIN(field_name, field_label, member, field_about) \
@@ -139,6 +139,17 @@ static const setting_field_t profile_fields[] = {
                   "The fine motor's slowest while it pours; not above its maximum"),
     PROFILE_SPEED("fine_max_speed_rps", "Fine maximum speed", fine_max_flow_speed_rps,
                   "The fine motor's fastest while it pours; not above its Maximum speed in Settings, Motors"),
+    // ADR-009 step 2: the powder's calibration measures it; the charge's first throw on this powder forecasts from it
+    {.name = "fine_weight_per_turn", .label = "Fine weight a turn", .group = "Calibration",
+     .about = "The fine tube's weight a turn where it streams, kept by the powder's calibration: the charge forecasts "
+              "its first throws on this powder from it, until they give their own; null, never calibrated",
+     .type = SETTING_NUMBER, PROFILE_FIELD(fine_weight_per_turn), .unit = "weight", .min = 0.001f, .max = 100.0f,
+     .nullable = true, .null_held = 0.0f, .applies = "the next throw"},
+    {.name = "coarse_weight_per_turn", .label = "Coarse weight a turn", .group = "Calibration",
+     .about = "The coarse tube's weight a turn where it streams, kept by the powder's calibration; null, never "
+              "calibrated",
+     .type = SETTING_NUMBER, PROFILE_FIELD(coarse_weight_per_turn), .unit = "weight", .min = 0.001f, .max = 100.0f,
+     .nullable = true, .null_held = 0.0f, .applies = "the next throw"},
 };
 
 
@@ -158,11 +169,11 @@ static const char *profile_settings_check(const void *proposed, int32_t id, cons
     }
     if (profile->coarse_min_flow_speed_rps > profile->coarse_max_flow_speed_rps) {
         *field = "coarse_min_speed_rps";
-        return "coarse_min_speed_rps is above coarse_max_speed_rps";
+        return "Coarse minimum speed is above its maximum";
     }
     if (profile->fine_min_flow_speed_rps > profile->fine_max_flow_speed_rps) {
         *field = "fine_min_speed_rps";
-        return "fine_min_speed_rps is above fine_max_speed_rps";
+        return "Fine minimum speed is above its maximum";
     }
     return NULL;
 }
@@ -214,7 +225,11 @@ bool profile_data_init() {
 
     // Read profile index table
     memset(&profile_data, 0x0, sizeof(eeprom_profile_data_t));
-    is_ok = load_config(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data, sizeof(profile_data), EEPROM_PROFILE_DATA_REV);
+    // A header and eight powders: each powder of an earlier or a later version read for the fields it has
+    static const config_layout_t layout = {.header = offsetof(eeprom_profile_data_t, profiles),
+                                           .element = sizeof(profile_t), .count = MAX_PROFILE_CNT};
+    is_ok = load_config_layout(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data,
+                               sizeof(profile_data), &layout, EEPROM_PROFILE_DATA_REV);
 
     if (!is_ok) {
         printf("Unable to read profile data\n");
@@ -236,6 +251,11 @@ uint16_t profile_get_selected_idx() {
 
 profile_t * profile_get_selected() {
     return &profile_data.profiles[profile_get_selected_idx()];
+}
+
+
+profile_t * profile_get(uint16_t idx) {
+    return idx < MAX_PROFILE_CNT ? &profile_data.profiles[idx] : NULL;
 }
 
 

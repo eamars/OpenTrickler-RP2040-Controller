@@ -62,7 +62,8 @@ class Tube:
         speed shows in the reading, each release by an even draw from nothing to twice the mean. It is what
         arrives after a stop beyond the delay every recording shares, measured as seconds of the flow; it holds
         while the tube slows as at a stop, and a start is short by as much. Whether it is the powder's way to the
-        pan or the balance's averaging is not settled (progress.md, 2026-11-21): the reading is the same.
+        pan or the balance's averaging is not settled (ADR-009's legacy/progress.md, 2026-11-21): the reading is the
+        same.
     regularity: order of the gamma-distributed gaps between releases. 1 is a Poisson drip, higher is steadier.
     settle_s: time the bed takes to come out of its slow way of flowing. A tube that has just started, or is
         nudged, goes on releasing as its lowest speed does for about this long; 0 for at once. A tube that slows

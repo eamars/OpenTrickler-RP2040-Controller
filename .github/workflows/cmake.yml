@@ -39,6 +39,16 @@ jobs:
       if: steps.toolchain-cache.outputs.cache-hit != 'true'
       run: ./setup_toolchain.sh
 
+    # The firmware's own C that needs no unit, compiled for the runner and run (tests/host_test.py): the loader keeping
+    # an earlier version's settings (ADR-009, gate 2). The runner's gcc, as a PC's zig
+    - name: Host tests
+      run: python3 tests/host_test.py
+
+    # The stored records and their enums against v1.21, the release a unit updates from (tests/release_records.py):
+    # each record's v1.21 fields first in today's, each stored enum value meaning what it meant. Needs the tags (above)
+    - name: Stored records against v1.21
+      run: python3 tests/release_records.py
+
     # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
     # full install, the update images (the Pico W's for each slot), each named with the version,
     # manifest.json and SHA256SUMS. On every build, so every pull request shows the release it would make. On a tag

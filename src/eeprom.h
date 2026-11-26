@@ -21,6 +21,15 @@
 #define EEPROM_SERVO_GATE_CONFIG_BASE_ADDR     10 * 1024       // 10k
 #define EEPROM_UPDATE_CONFIG_BASE_ADDR         11 * 1024       // 11k: the update's channel and source (ADR-010)
 #define EEPROM_UPDATE_NOTE_BASE_ADDR           12 * 1024       // 12k: the trial's note and how the last update ended (ADR-008)
+                                                               // 13k to 20k and 22k: unused. ADR-009's first build
+                                                               // (never released, the branch adr009_controller) kept
+                                                               // each powder's calibration and the unit's record of
+                                                               // its scale there, and a bench unit may still hold
+                                                               // them: a module given these slots clears them first
+
+// Every record starts a slot of its own and is no longer than it: another version's record, shorter or longer, is
+// looked for within its slot (common.c, load_config)
+#define EEPROM_SLOT_SIZE                        1024
 
 // EEPROM save handler function
 typedef bool (*eeprom_save_handler_t)(void);

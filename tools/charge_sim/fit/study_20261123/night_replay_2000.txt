@@ -1,0 +1,17 @@
+--night: 2000 throws a series, sessions of 25, judged at each series' band; counted for 20 throws
+pico2w_ar2209_night: series                          rig good/over/median  sim good/over/median  verdict
+              abba/glide                       18.0 /  2.0 /  10.9 s   16.0 /  4.0 /  10.3 s  reproduced
+              abba/other                       14.0 /  5.0 /  13.7 s   16.9 /  3.1 /  11.7 s  missed: median
+              night/glide                      15.0 /  5.0 /  11.0 s   16.0 /  4.0 /  10.0 s  missed: median
+              night/other                      16.0 /  4.0 /  15.5 s   17.4 /  2.6 /  12.7 s  missed: median
+              coarse/glide                     16.0 /  4.0 /  11.2 s   16.4 /  3.6 /  10.4 s  missed: median
+              coarse/other                     19.0 /  1.0 /  14.8 s   16.9 /  3.0 /   9.5 s  missed: median
+              frame/glide                      19.0 /  1.0 /  11.4 s   16.4 /  3.5 /  10.1 s  missed: median
+              frame/other                      17.0 /  3.0 /  10.5 s   17.5 /  2.5 /   9.3 s  missed: median
+              ownstop/glide                    16.0 /  4.0 /  10.7 s   16.1 /  3.9 /  10.3 s  reproduced
+              ownstop/other                    15.0 /  5.0 /  12.1 s   15.1 /  4.9 /  12.3 s  reproduced
+              offer/glide                      15.0 /  4.0 /  10.9 s   15.8 /  4.1 /  10.3 s  reproduced
+              offer/other                      14.0 /  6.0 /   9.3 s   15.9 /  4.1 /   8.4 s  missed: median
+              offer2/glide                     19.0 /  1.0 /  11.2 s   15.8 /  4.2 /  10.1 s  missed: median
+              offer2/other                     15.0 /  5.0 /   8.2 s   15.9 /  4.1 /   8.1 s  reproduced
+pico2w_ar2209_night: 5 of 14 reproduced

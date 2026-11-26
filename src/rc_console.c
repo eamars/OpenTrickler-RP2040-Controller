@@ -40,11 +40,10 @@ static char rc_console_line[REMOTE_CONTROL_LINE_MAX + 1];
 static char rc_console_reply[RC_CONSOLE_REPLY_SIZE];
 
 
-// A command's lines before its reply, on the console as they come
-static void rc_console_write_line(const char *line, void *ctx) {
+// RTT drops a line that does not fit its buffer. Wait for the probe to make room, a little, so a snap's lines and the
+// reply after them all arrive; if it never does (no probe reading), the line is dropped as any log line would be
+static void rc_console_wait_room(const char *line) {
 #if LIB_PICO_STDIO_RTT
-    // RTT drops a line that does not fit its buffer. Wait for the probe to make room, a little, so a snap's
-    // lines all arrive; if it never does (no probe reading), the line is dropped as any log line would be
     for (int waited_ms = 0; waited_ms < RC_CONSOLE_WRITE_WAIT_MS; waited_ms += RC_CONSOLE_POLL_MS) {
         if (SEGGER_RTT_GetAvailWriteSpace(0) > strlen(line) + 1) {
             break;
@@ -52,12 +51,20 @@ static void rc_console_write_line(const char *line, void *ctx) {
         vTaskDelay(pdMS_TO_TICKS(RC_CONSOLE_POLL_MS));
     }
 #endif
+}
+
+
+// A command's lines before its reply, on the console as they come
+static void rc_console_write_line(const char *line, void *ctx) {
+    rc_console_wait_room(line);
     printf("%s\n", line);
 }
 
 
 static void rc_console_print_reply(void) {
-    // One printf per reply, so the line is not interleaved with log output
+    // One printf per reply, so the line is not interleaved with log output. After a command's lines it waits for room
+    // as they do: without, a reply after many lines was lost (a throw's rows, ADR-009's first build, 2026-11-23)
+    rc_console_wait_room(rc_console_reply);
     printf("%s\n", rc_console_reply);
 }
 

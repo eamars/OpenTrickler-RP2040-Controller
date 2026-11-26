@@ -10,11 +10,15 @@
 
 #define EEPROM_PROFILE_DATA_REV             1           // 16 bit
 
+/*
+    A powder, eight to the record (eeprom_profile_data_t, a header and an array: load_config_layout). A field is only
+    ever appended at its end, so each version reads the powders of an earlier or a later one (ADR-009, 2026-11-26)
+*/
 typedef struct
-{  
+{
     uint32_t rev;
-    uint32_t compatibility;
-    
+    uint32_t compatibility;     // as v1.2x stored it (its REST API's p1): kept, used by nothing, not in the API
+
     char name[PROFILE_NAME_MAX_LEN];
 
     float coarse_kp;
@@ -30,6 +34,11 @@ typedef struct
 
     float fine_min_flow_speed_rps;
     float fine_max_flow_speed_rps;
+
+    // Appended by ADR-009: each tube's weight a turn where it streams, measured by the powder's calibration; 0, not
+    // measured (null in the API: never calibrated). The fine tube's is step 2's seed
+    float fine_weight_per_turn;
+    float coarse_weight_per_turn;
 } profile_t;
 
 
@@ -53,6 +62,8 @@ bool profile_data_save();
 
 profile_t * profile_select(uint8_t idx);
 profile_t * profile_get_selected();
+// A profile by its index, the selection left as it is; NULL for no such profile
+profile_t * profile_get(uint16_t idx);
 uint16_t profile_get_selected_idx();
 // A profile's name, ended even when it was stored with none; NULL for no such profile. Good until the next call
 const char *profile_get_name(uint16_t idx);

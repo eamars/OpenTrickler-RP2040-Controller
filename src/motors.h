@@ -124,6 +124,7 @@ float motor_get_velocity(motor_select_t selected_motor);        // the speed now
 float motor_get_shaft_velocity(motor_select_t selected_motor);  // the same, in the motor's own rev/s, before the gear
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
 float get_motor_min_speed(motor_select_t selected_motor);
+float motor_get_acceleration(motor_select_t selected_motor);    // the ramp, in the trickler's rev/s each second
 void motor_enable(motor_select_t selected_motor, bool enable);
 const char * get_motor_select_string(motor_select_t selected_motor);
 

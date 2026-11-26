@@ -4,6 +4,7 @@
 #include <queue.h>
 #include <task.h>
 
+#include "calibration.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "jobs.h"
@@ -38,6 +39,9 @@ static void jobs_task(void *p) {
                 break;
             case ACTIVITY_UPDATE:
                 exit_form = update_mode_menu();
+                break;
+            case ACTIVITY_CALIBRATION:
+                exit_form = calibration_job_run();
                 break;
             default:
                 printf("Jobs: %s is no job\n", activity_name(job));

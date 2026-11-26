@@ -49,6 +49,43 @@ uint32_t software_crc32_continue(uint32_t crc, const void * data, size_t length)
  */
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation);
 
+/*
+ * A record that is a header and an array of elements (the powders, the motors): each element may grow at its own end
+ * (ADR-009, 2026-11-26). load_config_layout reads it as load_config does, and an earlier or a later version's record
+ * element by element: each element's part kept, the rest at the defaults. load_config is a plain record's: a struct
+ * that grows at its end only. Either way a field is only ever appended, never moved, removed or put to a new use
+ */
+/*
+ * A field of a record's earlier layout that is not a prefix of today's (a field inserted before the rule: never insert,
+ * always append): where it lay and its bytes then, where it lies and its bytes now
+ */
+typedef struct {
+    uint16_t was;
+    uint8_t was_size;
+    uint16_t now;
+    uint8_t now_size;
+} config_field_map_t;
+
+// A record's earlier layout, known by its stored size: each of its fields mapped into today's struct
+typedef struct {
+    uint16_t size;
+    const config_field_map_t *fields;
+    uint8_t field_count;
+} config_past_layout_t;
+
+typedef struct {
+    size_t header;      // the bytes before the array (offsetof the array), never changed; 0 for a plain record
+    size_t element;     // an element's bytes (sizeof); 0, a plain record with no array
+    size_t count;       // the elements
+    // A record whose history had an insertion (ADR-009's review, B1): the size it has been append-only from, below
+    // which a record found is read only as one of its known earlier layouts, field by field; 0, append-only always
+    size_t append_only_from;
+    const config_past_layout_t *past;
+    size_t past_count;
+} config_layout_t;
+bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
+                        const config_layout_t * layout, uint16_t rev_validation);
+
 /**
  * @brief Save configuration to persistent storage
  */
@@ -70,6 +107,13 @@ bool config_defaults_held(uint16_t addr);
 bool save_config_now(uint16_t addr, void * cfg, size_t size);
 // What the EEPROM holds of a record, its CRC checked; nothing written. False when it does not read
 bool config_read_stored(uint16_t addr, void * cfg, size_t size);
+/*
+ * What is stored of a part of a record (a powder of the eight, a motor of the two, or a whole record), as this version
+ * reads it: on an update's trial the write held, else the record read with its CRC checked (the review's S1: a raw
+ * read gave an earlier version's bytes at this version's offsets). False when no record read or stored at the start
+ * holds it, or it does not read
+ */
+bool config_read_part(uint16_t addr, void * out, size_t size);
 
 /**
  * @brief Whether the struct in RAM is what was last stored at that address, or read from it at the start: their

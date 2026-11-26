@@ -301,7 +301,11 @@ bool motor_config_init(void) {
     // Read motor config from EEPROM
     eeprom_motor_data_t eeprom_motor_data;
     memset(&eeprom_motor_data, 0x0, sizeof(eeprom_motor_data));
-    is_ok = load_config(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data, sizeof(eeprom_motor_data), EEPROM_MOTOR_DATA_REV);
+    // A header and two motors: each motor of an earlier or a later version read for the fields it has
+    static const config_layout_t layout = {.header = offsetof(eeprom_motor_data_t, motor_data),
+                                           .element = sizeof(motor_persistent_config_t), .count = 2};
+    is_ok = load_config_layout(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data,
+                               sizeof(eeprom_motor_data), &layout, EEPROM_MOTOR_DATA_REV);
     if (!is_ok) {
         printf("Unable to read motor configuration\n");
         return is_ok;
@@ -445,7 +449,7 @@ static const char *motor_settings_check(const void *proposed, int32_t id, const 
     const motor_persistent_config_t *config = proposed;
     if (config->min_speed_rps > config->max_speed_rps) {
         *field = "min_speed_rps";
-        return "min_speed_rps is above max_speed_rps";
+        return "Minimum speed is above the maximum speed";
     }
     return NULL;
 }
@@ -669,6 +673,17 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor) {
     }
 
     return 0;
+}
+
+
+// The ramp the motors task holds each motor to, in the trickler's own rev/s each second (after the gear), as the
+// charge controller counts the fine tube's turns from the speeds it asks (ADR-009, gate 3)
+float motor_get_acceleration(motor_select_t selected_motor) {
+    motor_config_t * motor_config = motor_get_config(selected_motor);
+    if (motor_config == NULL) {
+        return 0.0f;
+    }
+    return motor_config->persistent_config.angular_acceleration * motor_config->persistent_config.gear_ratio;
 }
 
 

@@ -1,0 +1,22 @@
+300 throws a case in sessions of 25, the measured scale; shares of the true weight at each case's own band
+rig              gr  controller                             good   over  under    mean     sd  median    95%
+pico2w_ar2209    10  glide, fast (0.04)                    89.0%  11.0%   0.0%  +0.004  0.036   10.1s  17.0s
+pico2w_ar2209    10  PID learnt, least 0.1 (the rig's)     85.3%  14.7%   0.0%  +0.015  0.060   11.9s  18.9s
+pico2w_ar2209    10  PID learnt, least 0.1, the unit's C   87.3%  12.7%   0.0%  +0.013  0.068   11.9s  19.6s
+pico2w_ar2209    10  PID learnt, least speed learnt        85.3%  14.7%   0.0%  +0.015  0.066   12.3s  21.5s
+pico2w_ar2209    10  PID learnt, least speed learnt, C     86.3%  13.3%   0.3%  +0.007  0.044   12.8s  21.8s
+pico2w_ar2209     5  glide, fast (0.04)                    91.3%   8.7%   0.0%  +0.003  0.041   18.6s  24.9s
+pico2w_ar2209     5  PID learnt, least 0.1 (the rig's)     86.3%  13.7%   0.0%  +0.017  0.091   10.7s  17.4s
+pico2w_ar2209     5  PID learnt, least 0.1, the unit's C   83.0%  17.0%   0.0%  +0.014  0.048   10.8s  17.2s
+pico2w_ar2209     5  PID learnt, least speed learnt        86.0%  14.0%   0.0%  +0.012  0.066   11.6s  20.6s
+pico2w_ar2209     5  PID learnt, least speed learnt, C     86.7%  13.3%   0.0%  +0.012  0.057   11.7s  18.6s
+pico2w_bm2       10  glide, fast (0.04)                    97.3%   2.7%   0.0%  -0.007  0.029    9.1s  12.8s
+pico2w_bm2       10  PID learnt, least 0.1 (the rig's)     96.7%   3.3%   0.0%  -0.001  0.030   15.5s  24.7s
+pico2w_bm2       10  PID learnt, least 0.1, the unit's C   94.3%   5.7%   0.0%  -0.000  0.030   15.4s  25.7s
+pico2w_bm2       10  PID learnt, least speed learnt        95.3%   4.7%   0.0%  -0.002  0.039   15.5s  23.5s
+pico2w_bm2       10  PID learnt, least speed learnt, C     95.0%   5.0%   0.0%  -0.003  0.030   15.6s  23.4s
+pico2w_bm2        5  glide, fast (0.04)                    98.7%   1.3%   0.0%  -0.009  0.022    8.7s  12.0s
+pico2w_bm2        5  PID learnt, least 0.1 (the rig's)     95.3%   4.7%   0.0%  +0.000  0.039   13.6s  20.8s
+pico2w_bm2        5  PID learnt, least 0.1, the unit's C   94.3%   5.7%   0.0%  -0.000  0.032   13.6s  19.6s
+pico2w_bm2        5  PID learnt, least speed learnt        95.7%   4.3%   0.0%  -0.002  0.042   13.7s  21.5s
+pico2w_bm2        5  PID learnt, least speed learnt, C     96.3%   3.7%   0.0%  -0.001  0.030   13.7s  21.2s

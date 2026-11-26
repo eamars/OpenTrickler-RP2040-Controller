@@ -25,6 +25,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools" / "remote_control"))
 import unit_api  # noqa: E402  (the client's folder, put on the path just above)
+from calibration_mock import PATH as CALIBRATION, CalibrationMock  # noqa: E402  (beside this file; ADR-009's mock)
 
 DATA = Path(__file__).resolve().with_name("web_test_data.json")
 MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web by scripts/web_build.py
@@ -147,6 +148,28 @@ class StandIn:
         self.held = 0                   # reads of the charge since its last step, while the cup is lifted and returned
         self.started_ms = time.monotonic() * 1000
         self.add_event("system", "started", firmware=replies["/api/v1"]["firmware"]["version"])
+        # ADR-009 step 1's calibration, its API provisional and the mock's alone until gate 3 makes the unit's
+        self.calibration = CalibrationMock(self.now_ms, lambda: self.replies["/api/v1/charge"]["powder_profile"],
+                                           self.powder_of, self.store_powder_speeds)
+        replies["/api/v1"]["resources"].append(
+            {"path": CALIBRATION, "methods": ["GET"], "about": "the calibration (ADR-009 step 1): the mock's alone"})
+
+    def powder_of(self, index):
+        """A powder's name (without the scale's unit after the comma) and its two least speeds; None for none."""
+        profile = self.replies.get(f"/api/v1/powder_profiles/{index}")
+        if profile is None:
+            return None
+        return profile["name"].split(",")[0], profile["fine_min_speed_rps"], profile["coarse_min_speed_rps"]
+
+    def store_powder_speeds(self, index, fine, coarse):
+        """A calibration's least speeds kept into the powder's record, as the unit stores them, or refused whole as the
+        profile's check refuses them (profile.c): None when kept, else why not."""
+        profile = self.replies[f"/api/v1/powder_profiles/{index}"]
+        for tube, least in (("coarse", coarse), ("fine", fine)):      # in the check's order
+            if least is not None and least > profile[f"{tube}_max_speed_rps"]:
+                return f"{tube.capitalize()} minimum speed is above its maximum"
+        profile.update(fine_min_speed_rps=fine, coarse_min_speed_rps=coarse)
+        return None
 
     def now_ms(self):
         return int(time.monotonic() * 1000 - self.started_ms)
@@ -264,6 +287,8 @@ class StandIn:
             return 200, self.networks()
         if path == SETUP:
             return 200, self.setup_reply()
+        if path.startswith(CALIBRATION):
+            return self.calibration.get(path)
         if path not in self.replies:
             return 404, error("not_found", "no such path on this build")
         reply = self.replies[path]
@@ -476,6 +501,8 @@ class StandIn:
         Returns:
             (status, reply).
         """
+        if path.startswith(CALIBRATION):
+            return self.calibration.write(method, path, body)
         if method == "POST" and path in SETUP_PATHS:
             return self.setup_act(path, body)
         if method == "PATCH" and path == SETUP:

@@ -97,6 +97,22 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
     - A heading says only what nothing above or under it says: a group named as its resource has no heading (the resource's own fields come first, unheaded); a field is not named as its part ("Make", not "Scale" under Scale); a form whose first field is the name has no title over it (a powder).
     - Read each heading top to bottom with what is around it: one word twice in a stack ("Scale", "SCALE", "Scale") is one too many.
     - **Why:** the owner, 2026-11-18, on the Settings page with its list: the side bar and the section title, "another case of duplicated information" (rule 14's one element for one piece of news). The part's name was said four times: the list's row, the title, the group, the field.
+17. **Nothing shifts: a control replaced by another keeps its place and size.**
+    - What a button starts shows where the button was (its Stop or its next key in the button's place, at the button's width and height), or in a sheet over the page when the job walks the person through steps (rule 18). A new card that appears above, pushing the page down, is a shift.
+    - A key that comes and goes (Start and Stop, Calibrate and Stop) is one slot that changes its words and colour, never two elements laid out apart; a slot that is sometimes empty keeps its room.
+    - Two actions that never both apply share one key: a page never offers Start and Stop at once (the owner, 2026-11-26: "For the web UI, given stop and start are mutually exclusive, they can share the same button (not refering to the implementation. This is from user's experiences perspective). I don't think at any time both button should be enabled.").
+    - A step with one key gives it the room the button had; colour still means what rule 5 says (a Stop is red wherever it is).
+    - **What a page shows stays until its new is whole.** A view read again (another client's write, a job's records kept) keeps what it shows until every read of the new one is done, then the two are swapped at once; only the latest read is shown. A read that fails keeps what is shown: the link's banner says the unit was not reached (rule 9). Only a view newly asked for may show its list before its part.
+    - **Why, for the reads:** the owner, 2026-11-25, on Settings going blank for a second or two after a calibration was kept: "it appears breaking the MVC guideline, that UI is bending on the data". A mark in a corner for the link was weighed and not added: the banner says it (rule 9); the owner chose "No corner mark".
+    - **Why:** the owner, 2026-11-25, at the bench, on the calibration's Stop (half the width of the Calibrate button it replaced, under a card that had pushed the page down): "the same design language should apply to the entire web frontend, that if a button is replaced by another feature then the attribute should stay, so the user will not see the shift of the element."
+
+18. **A job that walks the person through steps runs in a sheet over the page, a wizard.**
+    - A job that asks the person to act between its steps (the calibration: put the cup on, lift it, fill it, empty it) runs its steps in one sheet over the page, never in the page: opened by the job's button, and by itself while the job runs from elsewhere (the unit's screen, another browser); closed when the job ends, never by a tap beside it.
+    - One step at a time: the job's name small at the top, the step's words as the heading (what to do now), then its figure and its words; its keys at the sheet's foot, each in the same place and at the same size on every step (rule 17 inside the sheet: a lone key as tall as a pair's).
+    - A fixed size on anything wider than a phone, the whole screen on a phone; the page under it never scrolls meanwhile.
+    - Esc does the step's way out (Cancel, Stop, Discard), as clicking it would; nothing closes the sheet while its job runs.
+    - The page keeps what the job is about (its records, its start button); the sheet holds only the steps.
+    - **Why:** the owner, 2026-11-25: "For the web design, I think a popup dialog for each calibration item (like a wizard) works better than a random embedded element." Approved as drawn on the stand-in (ADR-009, `mockups/calibration_web_sheet.png`).
 
 ## This project's design language
 
@@ -106,6 +122,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 - **Accent:** one colour for the action that moves the job on (Start), red for Stop; state colours as rule 5.
 - **Faces:** the system's sans serif; figures tabular, bold; three sizes besides the figure (body 17 px, small 14 px, heading 20 px).
 - **Icons:** 24 px, a 2 px stroke, round ends, `currentColor`; one per navigation destination and per card title.
+- **Sheets:** one look for every dialog (`.sheet`: the card's colour, corners of 22 px, a dark backdrop, centred words, the safe key on the left): the cup's question and a confirmation sized to their words; a job's steps (rule 18) at a fixed size, `.sheet.wizard`.
 
 ## Process
 
