@@ -1817,6 +1817,11 @@ class Session:
                 continue
             writable = {field["name"] for field in resource["fields"] if field.get("access", "read_write") == "read_write"}
             body = {name: value for name, value in values.items() if name in writable}
+            names = {field["name"] for field in resource["fields"]}
+            left = sorted(name for name in values if name not in names and name != "saved")
+            if left:
+                # A later version's fields, which this unit does not have: left out, as the unit would ignore them
+                self.log.write("rc", f"settings: {path}: not this unit's, left out: {', '.join(left)}")
             status, reply = unit.request("PATCH", path, body)
             self.log.write("rc", f"settings: {path} written back, {len(body)} fields: {status}")
             if status != 200:
@@ -2599,7 +2604,7 @@ class Session:
             ("a JSON list", write(b"PATCH", leds, b"[1,2]"), 400),
             ("a field that is an object", write(b"PATCH", leds, b'{"led1_colour":{"r":1}}'), 400),
             ("a field given twice", write(b"PATCH", leds, b'{"pwm3_chain_count":2,"pwm3_chain_count":3}'), 400),
-            ("an unknown field", write(b"PATCH", leds, b'{"nope":1}'), 400),
+            ("an unknown field, ignored and said (a later version's)", write(b"PATCH", leds, b'{"nope":1}'), 200),
             ("saved, sent back with a GET's fields", write(b"PATCH", leds, b'{"saved":true}'), 400),
             ("a value of the wrong type", write(b"PATCH", leds, b'{"pwm3_chain_count":"2"}'), 400),
             ("a PATCH of text", write(b"PATCH", leds, b"{}", b"text/plain"), 415),
@@ -2656,6 +2661,17 @@ class Session:
                 json.loads(http_get(host, "api/v1/charge"))
             except (OSError, ValueError) as error:
                 self.fail(f"web_robust: the unit did not answer after \"{name}\": {error}")
+
+        # A write's names the resource does not have are ignored and said, its own written (the owner, 2026-11-26:
+        # a later version's copy restores onto this one)
+        leds_now = json.loads(http_get(host, "api/v1/settings/leds"))
+        count = leds_now["pwm3_chain_count"]
+        status, _, body, _ = raw_exchange(host, write(b"PATCH", leds, json.dumps(
+            {"pwm3_chain_count": count, "nope": 1, "later_field": 2}).encode()), timeout_s=3.0)
+        said = json.loads(body or b"{}").get("ignored") if status == 200 else None
+        self.log.write("rc", f"web_robust: a write with two unknown names: {status}, ignored {said}")
+        if status != 200 or said != ["nope", "later_field"]:
+            self.fail(f"web_robust: a write with two unknown names gave {status}, ignored {said}, not 200 and both")
 
         # The page's ETag: unchanged since, so 304 and no body
         status, headers, _, _ = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n")

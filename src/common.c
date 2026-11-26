@@ -129,7 +129,7 @@ uint32_t software_crc32(void * data, size_t length) {
     The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
     against it, so a write from the menu or the console counts as one from the web does. One entry an address.
 */
-#define CONFIG_STORED_MAX 16
+#define CONFIG_STORED_MAX 24        // every record: the modules' and the eight powders'
 static struct {
     uint16_t addr;
     uint32_t crc;
@@ -270,6 +270,25 @@ static size_t config_stored_size(const uint8_t * buf, size_t size) {
 }
 
 
+/*
+    The size a later version stored a record at, its fields appended after ours (the owner, 2026-11-26: forward
+    compatibility): the shortest size above `size`, within the record's slot, whose CRC32 the four bytes after it hold.
+    0 when none does. The CRC is carried from one size to the next, so the slot is read through once
+*/
+static size_t config_longer_size(const uint8_t * slot, size_t size) {
+    uint32_t crc = software_crc32_continue(0, slot, size);
+    for (size_t stored = size + 1; stored + sizeof(crc) <= EEPROM_SLOT_SIZE; stored += 1) {
+        crc = software_crc32_continue(crc, slot + stored - 1, 1);
+        uint32_t held;
+        memcpy(&held, slot + stored, sizeof(held));
+        if (crc == held) {
+            return stored;
+        }
+    }
+    return 0;
+}
+
+
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
     bool is_ok;
     uint32_t calculated_crc32;
@@ -336,6 +355,23 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
             free(buf);
             return save_config(addr, cfg, size);
         }
+    }
+
+    // A record a later version stored longer, fields appended after ours: ours read, the rest ignored. Nothing is
+    // written: the EEPROM keeps the later version's record until this one stores its own, which discards the rest
+    if (received_rev == 0 && calculated_crc32 != received_crc32 && size + sizeof(received_crc32) < EEPROM_SLOT_SIZE) {
+        uint8_t *slot = malloc(EEPROM_SLOT_SIZE);
+        size_t stored = slot != NULL && eeprom_read(addr, slot, EEPROM_SLOT_SIZE) ? config_longer_size(slot, size) : 0;
+        if (stored > 0) {
+            printf("Config: the record at 0x%04x was stored %u bytes long by a later version: its first %u read\n",
+                   addr, (unsigned) stored, (unsigned) size);
+            memcpy(cfg, slot, size);
+            config_stored_set(addr, software_crc32(cfg, size));
+            free(slot);
+            free(buf);
+            return true;
+        }
+        free(slot);
     }
 
     // We will validate if the rev (first 2 byte) is 0, AND CRC check matches. 

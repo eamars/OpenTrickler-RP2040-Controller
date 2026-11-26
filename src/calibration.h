@@ -63,7 +63,8 @@ typedef struct {
     calibration_speeds_record_t coarse;
     float was_fine_rps;         // the powder's least speeds before
     float was_coarse_rps;
-    float was_fine_per_turn;    // and its fine weight a turn (0: none)
+    float was_fine_per_turn;    // and its weights a turn (NAN: none)
+    float was_coarse_per_turn;
     char failure[CALIBRATION_FAILURE_LEN];  // what failed (failed); empty with none
 } calibration_status_t;
 

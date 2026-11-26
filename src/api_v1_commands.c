@@ -556,12 +556,16 @@ static void write_calibration(char *out, size_t room, size_t *len) {
         http_json_number(out, room, len, cal.coarse.least_rps, 4);
         http_json_raw(out, room, len, ",\"fine_weight_per_turn\":");
         http_json_number(out, room, len, cal.fine.stream_per_turn, 4);
+        http_json_raw(out, room, len, ",\"coarse_weight_per_turn\":");
+        http_json_number(out, room, len, cal.coarse.stream_per_turn, 4);
         http_json_raw(out, room, len, ",\"was\":{\"fine_min_speed_rps\":");
         http_json_float(out, room, len, cal.was_fine_rps);
         http_json_raw(out, room, len, ",\"coarse_min_speed_rps\":");
         http_json_float(out, room, len, cal.was_coarse_rps);
         http_json_raw(out, room, len, ",\"fine_weight_per_turn\":");
         http_json_float(out, room, len, cal.was_fine_per_turn);
+        http_json_raw(out, room, len, ",\"coarse_weight_per_turn\":");
+        http_json_float(out, room, len, cal.was_coarse_per_turn);
         http_json_raw(out, room, len, "},\"elapsed_s\":");
         http_json_number(out, room, len, cal.fine.seconds + cal.coarse.seconds, 4);
         http_json_raw(out, room, len, ",\"poured\":");
@@ -607,6 +611,8 @@ static void write_calibration(char *out, size_t room, size_t *len) {
     http_json_float(out, room, len, profile->coarse_min_flow_speed_rps);
     http_json_raw(out, room, len, ",\"fine_weight_per_turn\":");
     http_json_float(out, room, len, profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : NAN);
+    http_json_raw(out, room, len, ",\"coarse_weight_per_turn\":");
+    http_json_float(out, room, len, profile->coarse_weight_per_turn > 0.0f ? profile->coarse_weight_per_turn : NAN);
     http_json_raw(out, room, len, "}}}");
 }
 

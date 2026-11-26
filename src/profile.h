@@ -9,15 +9,17 @@
 #define MAX_PROFILE_CNT         8
 
 #define EEPROM_PROFILE_DATA_REV             1           // 16 bit
+#define PROFILE_RECORD_REV                  1           // never stored: a powder's record validates by its CRC
 
+/*
+    A powder: a record of its own in the EEPROM, a slot each from EEPROM_POWDER_BASE_ADDR (ADR-009, 2026-11-26), so a
+    field is appended at the record's end and an earlier or a later version reads the fields it knows (common.c).
+    Never a field put to a new use: a new one is appended
+*/
 typedef struct
-{  
-    uint32_t rev;
-    // The fine tube's weight a turn where it streams, measured by the powder's calibration (ADR-009, step 2's seed);
-    // 0, not measured. It takes the place of `compatibility`, used by nothing and 0 in every release: the record's
-    // size and offsets are as they were, and a stored profile reads 0 (null in the API: never calibrated)
-    float fine_weight_per_turn;
-    
+{
+    uint32_t rev;               // 0: the loader reads the first two bytes as an old revision (common.c)
+
     char name[PROFILE_NAME_MAX_LEN];
 
     float coarse_kp;
@@ -33,14 +35,18 @@ typedef struct
 
     float fine_min_flow_speed_rps;
     float fine_max_flow_speed_rps;
+
+    // Appended by ADR-009: each tube's weight a turn where it streams, measured by the powder's calibration; 0, not
+    // measured (null in the API: never calibrated). The fine tube's is step 2's seed
+    float fine_weight_per_turn;
+    float coarse_weight_per_turn;
 } profile_t;
 
 
+// The powder chosen, a record of its own at EEPROM_PROFILE_DATA_BASE_ADDR
 typedef struct {
     uint16_t profile_data_rev;
     uint16_t current_profile_idx;
-
-    profile_t profiles[MAX_PROFILE_CNT];
 } eeprom_profile_data_t;
 
 

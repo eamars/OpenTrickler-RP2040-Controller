@@ -529,6 +529,7 @@ static void run_powder(void) {
     status.was_fine_rps = profile->fine_min_flow_speed_rps;
     status.was_coarse_rps = profile->coarse_min_flow_speed_rps;
     status.was_fine_per_turn = profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : NAN;
+    status.was_coarse_per_turn = profile->coarse_weight_per_turn > 0.0f ? profile->coarse_weight_per_turn : NAN;
     activity_unlock();
     calibration_scale_record_t scale;
     scale_records(&scale);
@@ -593,6 +594,7 @@ uint8_t calibration_job_run(void) {
     status.was_fine_rps = NAN;
     status.was_coarse_rps = NAN;
     status.was_fine_per_turn = NAN;
+    status.was_coarse_per_turn = NAN;
     answer_given = ANSWER_NONE;
     bench_trouble[0] = '\0';
     running = true;
@@ -775,6 +777,11 @@ bool calibration_save(activity_by_t by) {
         if (why == NULL && !isnan(found.coarse.least_rps)) {
             snprintf(text, sizeof(text), "%.4f", (double) found.coarse.least_rps);
             why = settings_write_by(path, "coarse_min_speed_rps", text, by);
+        }
+        // The coarse tube's, measured by the same part (ADR-009, 2026-11-26)
+        if (why == NULL && isfinite(found.coarse.stream_per_turn) && found.coarse.stream_per_turn > 0.0f) {
+            snprintf(text, sizeof(text), "%.4f", (double) found.coarse.stream_per_turn);
+            why = settings_write_by(path, "coarse_weight_per_turn", text, by);
         }
         why = why != NULL ? why : settings_store_by(path, by);
     }

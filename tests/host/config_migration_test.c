@@ -28,6 +28,7 @@ typedef struct {
 } record_v2_t;
 
 static const record_v1_t stored_v1 = {.rev = 0, .a = 1.5f, .b = 2.5f};
+static const record_v1_t defaults_v1 = {.rev = 0, .a = 10.0f, .b = 20.0f};
 static const record_v2_t defaults_v2 = {.rev = 0, .a = 10.0f, .b = 20.0f, .c = -1.0f, .d = -1.0f};
 static int failures = 0;
 
@@ -99,6 +100,31 @@ int main(void) {
     size_t resets = config_write_held(reset, 4);
     check(resets == 0 && config_read_stored(ADDR, &read_back, sizeof(read_back)) &&
           v2_is(&read_back, 1.5f, 2.5f, -1.0f, -1.0f), "confirmed, it is written at the new size and no reset is said");
+
+    // A later version's record, its fields appended after ours (the owner, 2026-11-26: forward compatibility): ours
+    // read, the rest ignored, nothing written
+    record_v2_t later = {.rev = 0, .a = 7.0f, .b = 8.0f, .c = 9.0f, .d = 10.0f};
+    fake_eeprom_erase();
+    save_config_now(ADDR, &later, sizeof(later));
+    record_v1_t v1;
+    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1), REV);
+    check(ok && v1.rev == 0 && v1.a == 7.0f && v1.b == 8.0f, "a later version's longer record: our fields read");
+    check(config_read_stored(ADDR, &read_back, sizeof(read_back)) && v2_is(&read_back, 7.0f, 8.0f, 9.0f, 10.0f),
+          "nothing written: the later version's record is still whole");
+    check(config_is_saved(ADDR, &v1, sizeof(v1)), "and it counts as saved");
+
+    // Stored by this version, the rest is discarded: the later version reads ours, its own fields at their defaults
+    v1.a = 7.5f;
+    save_config(ADDR, &v1, sizeof(v1));
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    check(ok && v2_is(&v2, 7.5f, 8.0f, -1.0f, -1.0f), "stored by the earlier version, the later reads its fields back");
+
+    // A damaged longer record matches at no size: the defaults
+    fake_eeprom_erase();
+    save_config_now(ADDR, &later, sizeof(later));
+    fake_eeprom_bytes()[ADDR + 5] ^= 0x5A;
+    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1), REV);
+    check(ok && v1.a == 10.0f && v1.b == 20.0f, "a damaged longer record gets the defaults");
 
     printf("%s: %d failed\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;

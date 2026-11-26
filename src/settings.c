@@ -287,9 +287,10 @@ static void write_value(const setting_field_t *field, const uint8_t *base, char 
 }
 
 
-// Where a resource's part lies in the EEPROM: one of several ({id}) after the others
+// Where a resource's part lies in the EEPROM: one of several ({id}) after the others, or a record each a slot apart
 static uint16_t part_addr(const settings_resource_t *resource, int32_t id) {
-    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * resource->size : 0));
+    size_t stride = resource->stride > 0 ? resource->stride : resource->size;
+    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * stride : 0));
 }
 
 
@@ -337,7 +338,26 @@ typedef struct {
     const setting_field_t *field;
     char field_name[40];        // the request's, for a field that is none of the resource's
     char message[112];
+    char ignored[64];           // the names a write ignored, each ended by '\0' (forward compatibility)
+    uint8_t ignored_count;      // how many fit in it
+    bool ignored_more;          // and some did not
 } outcome_t;
+
+
+// A name the resource does not have, kept for the reply: a later version's field, or a typo the reply shows
+static void outcome_ignore(outcome_t *outcome, const char *name, size_t name_len) {
+    size_t used = 0;
+    for (uint8_t idx = 0; idx < outcome->ignored_count; idx += 1) {
+        used += strlen(outcome->ignored + used) + 1;
+    }
+    if (used + name_len + 1 > sizeof(outcome->ignored)) {
+        outcome->ignored_more = true;
+        return;
+    }
+    memcpy(outcome->ignored + used, name, name_len);
+    outcome->ignored[used + name_len] = '\0';
+    outcome->ignored_count += 1;
+}
 
 
 static void fail(outcome_t *outcome, int status, const char *code, const setting_field_t *field, const char *format,
@@ -597,10 +617,12 @@ static bool store(const settings_resource_t *resource, activity_by_t by) {
 /*
  * A write: the whole request checked on a copy of the struct, then only its fields written into the struct in RAM,
  * all under the activity lock, so no throw or job starts half way through it (activity.h). Refused whole, it
- * changes nothing.
+ * changes nothing. A name the resource does not have is ignored and said (ignore_unknown: the API's and the
+ * console's, so a later version's copy restores onto this one; the owner, 2026-11-26), or refused (the firmware's
+ * own writes: a name it does not have is its own mistake).
  */
 static void settings_patch(const settings_resource_t *resource, int32_t id, const http_json_member_t *members,
-                           size_t count, bool console, activity_by_t by, outcome_t *outcome) {
+                           size_t count, bool console, bool ignore_unknown, activity_by_t by, outcome_t *outcome) {
     memset(outcome, 0, sizeof(*outcome));
     outcome->status = 200;
     if (!activity_try_lock(SETTINGS_LOCK_WAIT_MS)) {
@@ -614,6 +636,7 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
     memcpy(proposed, live, resource->size);
     memcpy(before, live, resource->size);
     bool given[SETTINGS_FIELDS_MAX] = {false};
+    size_t given_count = 0;
 
     for (size_t idx = 0; idx < count; idx += 1) {
         const http_json_member_t *member = &members[idx];
@@ -623,6 +646,10 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
             fail(outcome, 400, "read_only", NULL, "saved is worked out, not written");
             strcpy(outcome->field_name, "saved");
             goto done;
+        }
+        if (field_idx < 0 && ignore_unknown) {
+            outcome_ignore(outcome, member->name, member->name_len);
+            continue;
         }
         if (field_idx < 0) {
             size_t name_len = member->name_len < sizeof(outcome->field_name) ? member->name_len :
@@ -641,6 +668,7 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
             goto done;
         }
         given[field_idx] = true;
+        given_count += 1;
     }
 
     if (resource->check != NULL) {
@@ -679,7 +707,7 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
             memcpy(live + field->offset, proposed + field->offset, field->size);
         }
     }
-    if (resource->apply != NULL && count > 0) {
+    if (resource->apply != NULL && given_count > 0) {
         resource->apply(before, id);
     }
     if (memcmp(before, live, resource->size) != 0) {
@@ -749,11 +777,36 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
 }
 
 
-static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id) {
+// A write's names ignored, as "ignored": [...] at the end of the resource's object; "..." last when some did not fit
+static void write_ignored(const outcome_t *outcome, char *out, size_t room, size_t *len) {
+    if (*len == 0 || !http_json_fits(room, *len) || out[*len - 1] != '}') {
+        return;
+    }
+    *len -= 1;
+    http_json_raw(out, room, len, ",\"ignored\":[");
+    const char *name = outcome->ignored;
+    for (uint8_t idx = 0; idx < outcome->ignored_count; idx += 1) {
+        http_json_raw(out, room, len, idx > 0 ? "," : "");
+        http_json_string(out, room, len, name);
+        name += strlen(name) + 1;
+    }
+    if (outcome->ignored_more) {
+        http_json_raw(out, room, len, outcome->ignored_count > 0 ? ",\"...\"" : "\"...\"");
+    }
+    http_json_raw(out, room, len, "]}");
+}
+
+
+// The resource as a GET gives it; after a write, with the names it ignored (outcome NULL: none)
+static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id,
+                           const outcome_t *outcome) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
     write_resource(resource, id, out, room, &len);
+    if (outcome != NULL && (outcome->ignored_count > 0 || outcome->ignored_more)) {
+        write_ignored(outcome, out, room, &len);
+    }
     if (!http_json_fits(room, len)) {
         http_server_reply_error(reply, 500, "failed", "the reply did not fit");
         return;
@@ -769,7 +822,7 @@ static void settings_get_handler(const http_server_request_t *request, http_serv
         http_server_reply_error(reply, 404, "not_found", "no such id");
         return;
     }
-    reply_resource(reply, resource, id);
+    reply_resource(reply, resource, id, NULL);
 }
 
 
@@ -788,12 +841,12 @@ static void settings_patch_handler(const http_server_request_t *request, http_se
         return;
     }
     outcome_t outcome;
-    settings_patch(resource, id, members, count, false, ACTIVITY_BY_API, &outcome);
+    settings_patch(resource, id, members, count, false, true, ACTIVITY_BY_API, &outcome);
     if (outcome.status != 200) {
         reply_outcome(reply, &outcome);
         return;
     }
-    reply_resource(reply, resource, id);
+    reply_resource(reply, resource, id, &outcome);
 }
 
 
@@ -1505,7 +1558,7 @@ const char *settings_write_by(const char *path, const char *name, const char *va
     http_json_member_t member = {.name = name, .name_len = strlen(name), .kind = HTTP_JSON_STRING,
                                  .value = value, .value_len = strlen(value)};
     outcome_t outcome;
-    settings_patch(resource, id, &member, 1, true, by, &outcome);
+    settings_patch(resource, id, &member, 1, true, false, by, &outcome);
     if (outcome.status != 200) {
         snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
         return settings_why;
@@ -1558,7 +1611,7 @@ const char *settings_write_and_store_by(const char *path, const char *const name
                                              .value_len = strlen(values[idx])};
     }
     outcome_t outcome;
-    settings_patch(resource, id, members, count, true, by, &outcome);
+    settings_patch(resource, id, members, count, true, false, by, &outcome);
     if (outcome.status != 200) {
         snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
         return settings_why;
@@ -1654,12 +1707,23 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
             args = skip_spaces(args + pair_len);
         }
         outcome_t outcome;
-        settings_patch(resource, id, members, count, true, ACTIVITY_BY_CONSOLE, &outcome);
+        settings_patch(resource, id, members, count, true, true, ACTIVITY_BY_CONSOLE, &outcome);
         if (outcome.status != 200) {
             const char *field_name = outcome.field != NULL ? outcome.field->name :
                                      outcome.field_name[0] ? outcome.field_name : "-";
             snprintf(reply, reply_size, "@err %s %s %s", outcome.code, field_name, outcome.message);
             return;
+        }
+        // The names it ignored, each as an "@ignored <name>" line, before the fields
+        const char *name = outcome.ignored;
+        for (uint8_t idx = 0; idx < outcome.ignored_count; idx += 1) {
+            char line[80];
+            snprintf(line, sizeof(line), "@ignored %s", name);
+            write(line, ctx);
+            name += strlen(name) + 1;
+        }
+        if (outcome.ignored_more) {
+            write("@ignored ...", ctx);
         }
     }
 
