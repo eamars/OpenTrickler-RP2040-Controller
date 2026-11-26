@@ -1156,3 +1156,31 @@ The product itself (`step2_variants.py --variants shipped shipped@target`, f2, 4
 **Read:** main's rule gives more good throws in every case and centres the mean; the SD is narrower on about half and wider on the rest (the night rig's coarse tube most). **The unders are by the true weight:** the stop's reading is within the band, and 1 to 4% land under it in truth because the scale's 0.02 step rounds the reading up at the stop. The unit's verdict is that reading, as main's is, so on the unit they count good. I wrote earlier this evening that no throw would end under; by the true weight that was wrong.
 
 **Not on a unit.** The next bench run's passes are rewritten to these figures (README).
+
+## 2026-11-26, 20:26 to 20:56: the bench run on 2.0.3-252 (main's stop, Ki out of the tuner), hands off
+
+**The owner:** "I hope you don't need my involvement until reaching the 600gr in the cup?"; then "Ready, cup empty". Run hands off: one throw a charge, the scale zeroed over the API between throws with the powder left in the cup (`tools/charge_sim/bench/record.py throws --rezero`), the tuner and the carry kept in RAM from charge to charge.
+
+**Steps 1 to 5 of "The next bench run"** had passed earlier this evening on 2.0.3-251 (`a37a2b1`): the settings copied, flashed and compared (the powders' 516-byte record kept), `web_robust`, `settings_roundtrip`, `menu_tour`, `reach`, `charge_cycle`, the scale part (both margins 0.02) and AR2209's powder part, each saved. Step 6's 14 throws then ran on the old stop at the target, landing +0.04 to +0.36, and are not counted.
+
+**On 2.0.3-252 (`dafd940`):** the settings copied (`logs/adr009/bench_1126n/before_flash_252`), flashed by the probe, the copy compared: equal. `menu_tour`: every page as its baseline but Settings › Calibration, which shows the cup's stored capacity (442.96 gr now, 249.65 gr when the baseline was saved): the unit's data, not this commit's, so the baseline is not saved again. `reach` and `charge_cycle` not run again, to keep the cup's room for throws.
+
+**A stall, and its mend.** After throw 12 the run waited 12 minutes: 0.12 gr landed after the zero (a fast throw's coarse tail), the charge waited for a zero it never saw, past the 0.10 the API's zero puts right while a charge waits, and `record.py` had no limit on that wait. I watched only for the tuner's line and missed it until the owner asked "Are you stuck?". Mended in `record.py`: a charge waiting for zero over 20 s is stopped, zeroed with no job and started again (it fired once in the 47 throws after). The run resumed from throw 13 with the cup's 121.5 gr counted (`--cup-holds`); the unit was not restarted, so the tuner's window carried on. The cup ledger has no row for the stopped run's end: its 121.5 gr are in the second run's count, not the ledger's.
+
+**59 real throws of 10 gr, AR2209, the tuner on** (`step2_windows.py --tolerance 0.03`, both sessions' logs):
+
+| Window | Gains | Good | Over | Under | Mean | SD | Median time | A good charge (counted, modelled) |
+|---|---|---|---|---|---|---|---|---|
+| 1 (the baseline) | kp 2, kd 10 (stored) | 36% | 64% | 0% | +0.088 | 0.120 | 3.72 s | 10.3 s, 17.6 s |
+| 2 | kp 1.33, kd 10 (trial, kept) | 44% | 48% | 8% | +0.037 | 0.050 | 5.03 s | 11.4 s, 13.8 s |
+| 3 (open, 9 throws) | kp 0.89, kd 10 (trial) | 67% | 33% | 0% | +0.011 | 0.023 | 6.51 s | 9.8 s, 9.5 s |
+
+- Every throw stopped by main's rule: the reading at −0.02, inside the band (a few at −0.04 and +0.02 to +0.06, a reading's step at the moment of the stop).
+- The tuner: window 1 `first window`, its trial kp 1.33 (the throws over on average); window 2 `kept` (modelled 13.8 s against 17.6 s), kp 1.3333 written into AR2209's profile and stored by `unit` (the event log; `GET /api/v1/powder_profiles/1`: `fine_kp` 1.3333, `fine_ki` 0 as it was, `fine_kd` 10); its next trial kp 0.89.
+- `step2_windows.py`: VERDICT PASS, 59 throws each on a carried weight a turn, every gains kept stored.
+- What it costs (`stats`, the Debug build): the tick 45 µs on average, 2,449 µs at most; a reading 1,871 µs on average, 8,685 at most; the heap's low mark 54,072 bytes; the job task's stack 2,008 bytes never touched; the Scale Task's 160 (the tap was on).
+
+**Against the passes written before it ran:** every throw on a carried weight a turn, the kept kp stored, a `Tuner:` line each window: pass. SD about 0.07 or less: window 2 0.050, window 3 0.023: pass (window 1, the stored gains, 0.120). Mean 0 to +0.04: window 2 +0.037, window 3 +0.011: pass. Some 6 to 9 s a throw: window 2 5.0 s, window 3 6.5 s: quicker than written. **No under by the unit's verdict: failed, 2 of 59** (throws 33 and 40, 9.960 at the verdict; a third, throw 25 of the second run, was good at the verdict and −0.04 at rest). Each stopped at −0.02 and the reading then fell a digit. With a tolerance of 0.03 on a scale of 0.02 steps the band holds three readings (−0.02, 0, +0.02), and main's rule stops on the lowest, so one digit down after the stop is an under. Main's loop does the same. The twin's 2 to 3% under by the true weight was this; I had argued at 20:00 that the unit's own verdict would not show it, and it does.
+- **The cup's lift (3b): not seen.** The hands-off run stops each charge itself, so no charge waited on "Remove Cup". Left for a charge with a hand at the cup.
+
+Logs: `logs/rc/20261126_202818_adr009_step2_252.log`, `logs/rc/20261126_204324_adr009_step2_252b.log`; frames and runs under `logs/adr009/`. The cup holds 593.2 gr at the end.

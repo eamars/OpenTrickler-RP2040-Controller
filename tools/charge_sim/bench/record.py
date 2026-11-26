@@ -49,6 +49,7 @@ BACKOFF_TURNS = 0.25
 CHARGE_EXIT, CHARGE_WAIT_FOR_ZERO, CHARGE_WAIT_FOR_COMPLETE = 0, 1, 2
 CHARGE_WAIT_FOR_CUP_REMOVAL, CHARGE_WAIT_FOR_CUP_RETURN = 3, 4
 FINE_STOP_THRESHOLD_GR = 0.03
+ZERO_WAIT_MOST_S = 20.0        # a charge waiting for zero longer than this is zeroed again (throws --rezero)
 CUP_MOST_POUR = None           # the run's most pour, given at the command line: the real cup is checked first
 CUP_EMPTIED = None             # the owner's words that the cup was emptied, given at the command line, or None
 ELF = None                     # the image on the unit, when it is not the board's own build folder's
@@ -340,8 +341,21 @@ class Bench:
         self.start_charge(unit, target, profile)
         samples, done, poured, last_state, pending, stopped_at = [], 0, cup_holds, None, False, None
         limit = time.monotonic() + count * 180.0
+        zeroing_since = None
         while done < count and time.monotonic() < limit:
             sample = self.state()
+            # Powder landing after the zero (a fast throw's coarse tail) leaves the charge waiting for a zero it never
+            # sees, past what the API's zero puts right while it waits (2026-11-26, throw 13 on 2.0.3-252): the
+            # charge stopped, the scale zeroed with no job (taken whatever the pan holds), and started again
+            zeroing_since = (zeroing_since or time.monotonic()) if sample["charge"] == CHARGE_WAIT_FOR_ZERO else None
+            if rezero and zeroing_since is not None and time.monotonic() - zeroing_since > ZERO_WAIT_MOST_S:
+                print(f"the charge waited {ZERO_WAIT_MOST_S:.0f} s for zero at {sample['weight']:+.3f}: zeroed again",
+                      flush=True)
+                self.end_charge()
+                self.zero_scale(unit)
+                self.start_charge(unit, target, profile)
+                zeroing_since, last_state, pending = None, None, False
+                continue
             if sample["charge"] == CHARGE_EXIT and last_state not in (None, CHARGE_EXIT):
                 print("the charge ended at the unit")
                 self.charging = False
