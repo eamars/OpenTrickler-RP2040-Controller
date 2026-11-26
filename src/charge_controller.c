@@ -536,6 +536,11 @@ void charge_controller_resume(charge_controller_t *controller, double now_ms) {
     controller->last_tick_s = now;
     controller->fine_speed = 0.0;
     controller->first_sample = true;
+    // The motors stood through the pause: a back-off under way is over
+    if (controller->backoff_on) {
+        controller->coarse_rps = 0.0;
+        controller->backoff_on = false;
+    }
 }
 
 
