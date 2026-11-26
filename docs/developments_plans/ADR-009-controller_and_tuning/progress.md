@@ -1066,3 +1066,16 @@ The owner's direction (after 15:18): keep the coarse PID and tune it under the e
 **Read:** tuning the coarse kp for speed under the existing tuner gains nothing from sane settings: below about 0.03 the coarse PID asks only its least speed on a 10 gr charge, and the steps the search can tell apart are within a window's noise; the speed-ups that exist (kp 0.1 and up) overshoot a larger charge. What the tuner can do is protection: a wild coarse kp brought down in the first window.
 
 **The bound's limit:** a coarse kp at the bound (0.053 here; the shipped AR2209 default is 0.05) is sound at 10 and 30 gr (+0.060, SD 0.088; +0.068, 0.077, 5.6 s against 6.6) and **not at 60 gr** (+0.109, SD 0.172, worst +1.26, 5.0 s, against the bench's 0.02: +0.060, 0.065, +0.27, 10.2 s). The overshoot grows with the charge: a bound sound to 60 gr is about half (0.2 by it, kp 0.026), which would also bring down the shipped AR2209 and Benchmark2 defaults (0.05, 0.06) where cheaper at the user's charge. Put to the owner; nothing built.
+
+## 2026-11-26, 15:42 to 16:13: the coarse kp put right in the tuner's first window (built, no unit)
+
+**The owner** (after 15:42): "Protection, bound 0.4"; the independent review after this work.
+
+**Built:**
+- **The tuner's first window puts the coarse kp right too** (`charge_tuner.c`, `step2_tuner.Tuner.put_right`): where kp x the powder's coarse weight a turn (step 1's, `coarse_weight_per_turn`) x the scale's middle lag is above 0.4 (`CHARGE_TUNER_COARSE_GAIN_MOST`, `COARSE_GAIN_MOST`), it is tried at 0.4 with the fine gains put right, as one trial kept only if cheaper. Never moved up, and moved nowhere else: every other window is thrown on the kept coarse kp. With no coarse weight a turn (never calibrated) it is left as it is.
+- **The charge mode carries it** (`charge_mode.cpp`): the throw's coarse kp is the tuner's, the profile's with the tuner off; a kept coarse kp that moved is written into the powder's `coarse_kp` with the fine gains and stored (`by` unit); a change of the profile's coarse kp starts the tuner afresh, as its fine gains do. The console's `Tuner: coarse kp ...` line says what the window did to it.
+- `auto_tune`'s description says so, in the table and in api_v1.md.
+- **Checked:** `tests/step2_sim.py` with a new start, the bench's gains with a coarse kp of 0.2 (`bench wild coarse`), the C tuner given the coarse kp, step 1's coarse weight a turn and its own next coarse kp, judged against the Python window for window: VERDICT PASS, the same steps on every rig and start; from the wild coarse kp it ended at 0.050 to 0.062 on the healthy rigs, and stayed 0.2 with an empty fine hopper (every throw short, so the gains put right were never cheaper). Pico 2 W: flash 55.44%, RAM 56.25%; no new warning.
+- **On the twin** (`step2_coarse_tuner_study.py`, 15:42): from the bench's 0.02, the same as before; from 0.2, 30 gr +0.047, SD 0.059, none of 600 over, against +14.5 every throw. A coarse kp at the bound is sound to 30 gr and wider at 60 gr (SD 0.17, worst +1.26), as the shipped AR2209 default (0.05) already is.
+
+**Not on a unit.** Its proof there: a powder calibrated (its coarse weight a turn kept), a coarse kp set high on it, the first window's `Tuner:` lines showing it tried at the bound and kept.

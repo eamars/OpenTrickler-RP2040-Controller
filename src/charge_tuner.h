@@ -24,7 +24,11 @@
  * braking times step 1's weight a turn and middle lag is a number with no unit (the bench's 1.3, the owner's 0.5), so
  * out of CHARGE_TUNER_GAIN_LOW to CHARGE_TUNER_GAIN_HIGH it is brought to CHARGE_TUNER_GAIN_AIM: grains' gains on a scale
  * in grams (0.08), a gram's in grains (20), an absurd kp; and an integral term is taken out, as on the forecast the
- * error never changes sign before the stop, so it only adds overshoot. Everything is in RAM: a
+ * error never changes sign before the stop, so it only adds overshoot. The same window puts the coarse kp right too
+ * (the owner, 2026-11-26: "use and tune PID ... tune under the existing framework"): kp x step 1's coarse weight a turn
+ * x the middle lag, a number with no unit, above CHARGE_TUNER_COARSE_GAIN_MOST is brought down to it; never up (tuned
+ * up on the twin it gained no time from the shipped gains, and a wild one took a 30 gr charge 14.5 gr past). The coarse
+ * kp is moved nowhere else. Everything is in RAM: a
  * start of the unit begins afresh from the profile's gains. What is stored into the profile is the kept gains alone.
  */
 #include <stdbool.h>
@@ -34,6 +38,7 @@
 #define CHARGE_TUNER_GAIN_LOW 0.2
 #define CHARGE_TUNER_GAIN_HIGH 5.0
 #define CHARGE_TUNER_GAIN_AIM 1.0
+#define CHARGE_TUNER_COARSE_GAIN_MOST 0.4
 
 typedef enum {
     CHARGE_TUNER_THROWING = 0,          // the window is not full yet
@@ -73,6 +78,9 @@ typedef struct {
     int resting;
     double k;                           // the weight a turn the braking is reckoned with; 0, none known
     double lag;                         // step 1's middle lag, s, for the gains put right; 0, none known
+    double base_coarse_kp;              // the kept coarse kp
+    double coarse_put_right;            // the coarse kp the gains put right are thrown with
+    double coarse_k;                    // step 1's coarse weight a turn; 0, none known
 } charge_tuner_t;
 
 #ifdef __cplusplus
@@ -82,13 +90,14 @@ extern "C" {
 void charge_tuner_init(charge_tuner_t *tuner, double tolerance);
 
 /*
- * A throw thrown on kp, kd and ki: its final weight less the target, and its time to the stop; k, the weight a turn
- * the forecast carries now, and lag, step 1's middle lag (0 when none). When it closes a window, the gains the next
- * window is thrown on go into next_kp, next_kd and next_ki and the step taken is returned; else CHARGE_TUNER_THROWING,
- * and they are the gains thrown
+ * A throw thrown on the fine kp, kd and ki and the coarse kp: its final weight less the target, and its time to the
+ * stop; k, the weight a turn the forecast carries now, coarse_k, step 1's coarse weight a turn, and lag, step 1's
+ * middle lag (0 when none). When it closes a window, the gains the next window is thrown on go into next_kp, next_kd,
+ * next_ki and next_coarse_kp and the step taken is returned; else CHARGE_TUNER_THROWING, and they are the gains thrown
  */
-charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double lag,
-                                       double error, double time_s, double *next_kp, double *next_kd, double *next_ki);
+charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double coarse_kp,
+                                       double k, double coarse_k, double lag, double error, double time_s,
+                                       double *next_kp, double *next_kd, double *next_ki, double *next_coarse_kp);
 
 #ifdef __cplusplus
 }

@@ -288,7 +288,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
 | `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
 | `cup_weight` | number or null | weight | 0 to 10,000; null: never calibrated. The empty cup's weight (ADR-009, step 1). The charge takes the cup as lifted once the reading is half of it below zero; 10, as before, when null (ADR-009, 2026-11-26) | now | new |
-| `auto_tune` | boolean | | true by default. After each window of 25 throws the fine Kp and Kd move toward quicker throws within the tolerance, better ones kept into the powder's profile, stored, their writes `by` unit; off, the profile is never changed (ADR-009, step 2) | the next throw | new |
+| `auto_tune` | boolean | | true by default. After each window of 25 throws the fine Kp and Kd move toward quicker throws within the tolerance, better ones kept into the powder's profile, stored, their writes `by` unit; in the first window a coarse Kp whose gain (Kp x the powder's `coarse_weight_per_turn` x the scale's middle lag) is above 0.4 is tried at 0.4, and kept the same way (ADR-009, 2026-11-26); off, the profile is never changed (ADR-009, step 2) | the next throw | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 

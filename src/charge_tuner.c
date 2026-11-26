@@ -92,11 +92,12 @@ static double cost(const charge_tuner_t *tuner, const double *errors, const doub
 
 
 // The window's throws are the kept gains' own
-static void keep(charge_tuner_t *tuner, double kp, double kd, double ki) {
+static void keep(charge_tuner_t *tuner, double kp, double kd, double ki, double coarse_kp) {
     tuner->has_base = true;
     tuner->base_kp = kp;
     tuner->base_kd = kd;
     tuner->base_ki = ki;
+    tuner->base_coarse_kp = coarse_kp;
     memcpy(tuner->pool_errors, tuner->window_errors, sizeof(tuner->window_errors));
     memcpy(tuner->pool_times, tuner->window_times, sizeof(tuner->window_times));
     tuner->pool_count = CHARGE_TUNER_WINDOW;
@@ -192,9 +193,10 @@ static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, doub
 }
 
 
-// The kept gains put right, true when they need it: the steady gain into range by the weight a turn and the lag, and
-// the integral term off (step2_tuner.Tuner.put_right)
-static bool put_right(const charge_tuner_t *tuner, double *kp, double *kd, double *ki) {
+// The kept gains put right, true when they need it: the steady gain into range by the weight a turn and the lag, the
+// integral term off, and the coarse kp down to CHARGE_TUNER_COARSE_GAIN_MOST by step 1's coarse weight a turn and the
+// lag, into coarse_put_right (step2_tuner.Tuner.put_right)
+static bool put_right(charge_tuner_t *tuner, double *kp, double *kd, double *ki) {
     *kp = tuner->base_kp;
     *kd = tuner->base_kd;
     *ki = 0.0;
@@ -205,7 +207,12 @@ static bool put_right(const charge_tuner_t *tuner, double *kp, double *kd, doubl
             *kp = CHARGE_TUNER_GAIN_AIM * hold / (tuner->k * tuner->lag);
         }
     }
-    return *kp != tuner->base_kp || tuner->base_ki != 0.0;
+    tuner->coarse_put_right = tuner->base_coarse_kp;
+    if (tuner->coarse_k > 0.0 && tuner->lag > 0.0 &&
+        tuner->base_coarse_kp * tuner->coarse_k * tuner->lag > CHARGE_TUNER_COARSE_GAIN_MOST) {
+        tuner->coarse_put_right = CHARGE_TUNER_COARSE_GAIN_MOST / (tuner->coarse_k * tuner->lag);
+    }
+    return *kp != tuner->base_kp || tuner->base_ki != 0.0 || tuner->coarse_put_right != tuner->base_coarse_kp;
 }
 
 
@@ -220,10 +227,10 @@ static charge_tuner_step_t next_trial(charge_tuner_t *tuner, charge_tuner_step_t
 }
 
 
-static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, double ki, double *next_kp,
-                                 double *next_kd, double *next_ki) {
+static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, double ki, double coarse_kp,
+                                 double *next_kp, double *next_kd, double *next_ki) {
     if (!tuner->has_base) {
-        keep(tuner, kp, kd, ki);
+        keep(tuner, kp, kd, ki, coarse_kp);
         tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
         if (put_right(tuner, next_kp, next_kd, next_ki)) {
             tuner->putting_right = true;
@@ -248,7 +255,7 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
     if (tuner->putting_right) {
         tuner->putting_right = false;
         if (trial_cost < base_cost) {
-            keep(tuner, kp, kd, ki);
+            keep(tuner, kp, kd, ki, coarse_kp);
             tuner->factor = FIRST_FACTOR;
             tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
             return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd, next_ki);
@@ -256,7 +263,7 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
         return next_trial(tuner, CHARGE_TUNER_AS_THEY_WERE, next_kp, next_kd, next_ki);
     }
     if (trial_cost < base_cost) {
-        keep(tuner, kp, kd, ki);
+        keep(tuner, kp, kd, ki, coarse_kp);
         tuner->factor = FIRST_FACTOR;
         return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd, next_ki);
     }
@@ -264,10 +271,14 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
 }
 
 
-charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double lag,
-                                       double error, double time_s, double *next_kp, double *next_kd, double *next_ki) {
+charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double coarse_kp,
+                                       double k, double coarse_k, double lag, double error, double time_s,
+                                       double *next_kp, double *next_kd, double *next_ki, double *next_coarse_kp) {
     if (k > 0.0) {
         tuner->k = k;
+    }
+    if (coarse_k > 0.0) {
+        tuner->coarse_k = coarse_k;
     }
     if (lag > 0.0) {
         tuner->lag = lag;
@@ -278,9 +289,13 @@ charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double 
     *next_kp = kp;
     *next_kd = kd;
     *next_ki = ki;
+    *next_coarse_kp = coarse_kp;
     if (tuner->window_count < CHARGE_TUNER_WINDOW) {
         return CHARGE_TUNER_THROWING;
     }
     tuner->window_count = 0;
-    return judge(tuner, kp, kd, ki, next_kp, next_kd, next_ki);
+    charge_tuner_step_t step = judge(tuner, kp, kd, ki, coarse_kp, next_kp, next_kd, next_ki);
+    // The coarse kp is moved by the gains put right alone: every other window is thrown on the kept one
+    *next_coarse_kp = tuner->putting_right ? tuner->coarse_put_right : tuner->base_coarse_kp;
+    return step;
 }

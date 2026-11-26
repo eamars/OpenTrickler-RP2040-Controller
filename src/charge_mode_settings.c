@@ -99,7 +99,8 @@ static const setting_field_t charge_fields[] = {
     // ADR-009 step 2, gate 3: the auto-tuner's switch
     {.name = "auto_tune", .label = "Auto-tune", .group = "Tuning",
      .about = "After each window of 25 throws the fine Kp and Kd move toward quicker throws within the tolerance, "
-              "better ones kept into the powder's profile; off, the profile is never changed",
+              "better ones kept into the powder's profile; a coarse Kp so high its powder overshoots is brought down "
+              "once; off, the profile is never changed",
      .type = SETTING_BOOLEAN, CHARGE_FIELD(auto_tune), .applies = "the next throw"},
 };
 

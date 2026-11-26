@@ -54,7 +54,8 @@ PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes
 # The gains thrown from: the owner's Pico W's (gate 1's twin), the bench's stored profile (gate 4's baseline), and the
 # bench's with an integral term put in by mistake and with kp a hundredth (the tuner's first trial puts both right)
 STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH, "bench ki": dataclasses.replace(BENCH, fine_ki=0.1),
-          "bench slow": dataclasses.replace(BENCH, fine_kp=0.02)}
+          "bench slow": dataclasses.replace(BENCH, fine_kp=0.02),
+          "bench wild coarse": dataclasses.replace(BENCH, coarse_kp=0.2)}
 
 
 class Channel(ctypes.Structure):
@@ -111,7 +112,7 @@ def load_library() -> ctypes.CDLL:
                                ("lib_charge_state", [p, pd, pd, pi, pi, pi], i), ("lib_charge_starved", [p], i),
                                ("lib_charge_verdict_after_s", [p], d), ("lib_charge_at_rest", [p, d], None),
                                ("lib_charge_carried", [p, pd], i), ("lib_tuner_new", [d], p),
-                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, d, d, pd, pd, pd], i)):
+                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, d, d, d, d, pd, pd, pd, pd], i)):
         getattr(lib, name).argtypes = args
         getattr(lib, name).restype = result
     return lib
@@ -301,30 +302,34 @@ def tuner_case(job: tuple) -> dict:
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         next_kp, next_kd, next_ki = ctypes.c_double(), ctypes.c_double(), ctypes.c_double()
+        next_coarse_kp = ctypes.c_double()
         k = controller.carried() or 0.0
         lag = statistics.median(lag for _, lag in records.lag)
-        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, profile.fine_ki, k, lag,
-                                   result.true_error, result.elapsed_s, ctypes.byref(next_kp), ctypes.byref(next_kd),
-                                   ctypes.byref(next_ki))
+        coarse_k = records.coarse_gr_turn or 0.0
+        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, profile.fine_ki, profile.coarse_kp, k,
+                                   coarse_k, lag, result.true_error, result.elapsed_s, ctypes.byref(next_kp),
+                                   ctypes.byref(next_kd), ctypes.byref(next_ki), ctypes.byref(next_coarse_kp))
         if len(errors) < step2_tuner.WINDOW:
             if step != 0 and mismatch is None:
                 mismatch = f"window {windows}: the C closed a window early"
             continue
         thrown = (profile.fine_kp, profile.fine_kd)
-        profile, note = tuner(profile, errors, times, k=k, lag=lag)
+        profile, note = tuner(profile, errors, times, k=k, lag=lag, coarse_k=coarse_k)
         errors, times = [], []
         said = STEPS.get(step, ("none",))
         apart = (abs(next_kp.value - profile.fine_kp) > CLOSE_KP * profile.fine_kp
                  or abs(next_kd.value - profile.fine_kd) > CLOSE_KP * max(profile.fine_kd, 1.0)
-                 or abs(next_ki.value - profile.fine_ki) > CLOSE_KP * max(profile.fine_ki, 1.0))
+                 or abs(next_ki.value - profile.fine_ki) > CLOSE_KP * max(profile.fine_ki, 1.0)
+                 or abs(next_coarse_kp.value - profile.coarse_kp) > CLOSE_KP * profile.coarse_kp)
         if mismatch is None and (not any(word in note for word in said) or apart):
             mismatch = (f"window {windows} (kp {thrown[0]:.4f}, kd {thrown[1]:.1f}): Python {note!r} to kp "
-                        f"{profile.fine_kp:.6f}, kd {profile.fine_kd:.3f}; the C {said[0]!r} to kp {next_kp.value:.6f}, "
-                        f"kd {next_kd.value:.3f}")
+                        f"{profile.fine_kp:.6f}, kd {profile.fine_kd:.3f}, coarse kp {profile.coarse_kp:.5f}; the C "
+                        f"{said[0]!r} to kp {next_kp.value:.6f}, kd {next_kd.value:.3f}, coarse kp "
+                        f"{next_coarse_kp.value:.5f}")
         windows += 1
     lib.lib_tuner_free(c_tuner)
     return {"rig": rig_name, "start": start, "windows": windows, "kp": profile.fine_kp, "kd": profile.fine_kd,
-            "ki": profile.fine_ki, "mismatch": mismatch}
+            "ki": profile.fine_ki, "coarse_kp": profile.coarse_kp, "mismatch": mismatch}
 
 
 def main() -> int:
@@ -332,8 +337,9 @@ def main() -> int:
     parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS) + [EMPTY_HOPPER])
     parser.add_argument("--sessions", type=int, default=2, help="sessions of 25 throws a rig, judged and alone")
     parser.add_argument("--tuner-throws", type=int, default=300)
-    parser.add_argument("--starts", nargs="+", default=["owner", "bench", "bench ki", "bench slow"],
-                        help="owner, bench, bench ki, bench slow, or a step2_tuner start")
+    parser.add_argument("--starts", nargs="+", default=["owner", "bench", "bench ki", "bench slow",
+                                                        "bench wild coarse"],
+                        help="owner, bench, bench ki, bench slow, bench wild coarse, or a step2_tuner start")
     args = parser.parse_args()
     build_library()
     room = ctypes.c_int()
@@ -381,7 +387,8 @@ def main() -> int:
         for case in pool.map(tuner_case, jobs):
             said = case["mismatch"] or "the same steps"
             print(f"  {case['rig']:36s} from {case['start']:8s} {case['windows']} windows, kp {case['kp']:.3f}, "
-                  f"kd {case['kd']:.0f}" + (f", ki {case['ki']:g}" if case["ki"] else "") + f": {said}")
+                  f"kd {case['kd']:.0f}" + (f", ki {case['ki']:g}" if case["ki"] else "") +
+                  f", coarse kp {case['coarse_kp']:.4f}: {said}")
             if case["mismatch"]:
                 failures.append(f"{case['rig']} from {case['start']}: {case['mismatch']}")
     for failure in failures[:20]:

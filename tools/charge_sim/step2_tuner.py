@@ -91,6 +91,12 @@ AXES = {"kp": ("gain",), "kp+kd": ("gain", "braking")}
 # GAIN_AIM, an integral term taken out with it; kept only if cheaper, as any trial
 GAIN_RANGE = (0.2, 5.0)
 GAIN_AIM = 1.0
+# The coarse kp put right too (2026-11-26: the owner, "use and tune PID ... tune under the existing framework"): its
+# gain kp x step 1's coarse weight a turn x the middle lag, a number with no unit, at most COARSE_GAIN_MOST. Above it the
+# coarse tube's powder still in the air at its stop takes the throw past the target, and more so the larger the charge
+# (step2_coarse_tuner_study.py: a coarse kp of 0.2, +14.5 at 30 gr; at the bound, sound to 30 gr). Only brought down,
+# never up: tuned up, the coarse kp gained no time from the shipped gains
+COARSE_GAIN_MOST = 0.4
 
 
 def braking(kd: float, k: float) -> float:
@@ -133,6 +139,7 @@ class Tuner:
         self.resting = 0
         self.k = None               # the weight a turn the braking is reckoned with (the carried one)
         self.lag = None             # step 1's middle lag, s
+        self.coarse_k = None        # step 1's coarse weight a turn, for the coarse kp put right
         self.putting_right = False  # the window being thrown is the gains put right (into range, ki 0)
 
     @property
@@ -151,8 +158,9 @@ class Tuner:
 
     def put_right(self):
         """The base's gains put right, or None when they need nothing: the steady gain into range by the weight a
-        turn and the lag (GAIN_RANGE), and the integral term off (it only adds overshoot on the forecast, whose error
-        never changes sign before the stop)."""
+        turn and the lag (GAIN_RANGE), the integral term off (it only adds overshoot on the forecast, whose error
+        never changes sign before the stop), and the coarse kp down to COARSE_GAIN_MOST by step 1's coarse weight a
+        turn and the lag."""
         base = self.base
         kp = base.fine_kp
         if self.k and self.lag:
@@ -160,18 +168,24 @@ class Tuner:
             gain = kp / hold * self.k * self.lag
             if not GAIN_RANGE[0] <= gain <= GAIN_RANGE[1]:
                 kp = GAIN_AIM * hold / (self.k * self.lag)
-        if kp == base.fine_kp and base.fine_ki == 0.0:
+        coarse_kp = base.coarse_kp
+        if self.coarse_k and self.lag and coarse_kp * self.coarse_k * self.lag > COARSE_GAIN_MOST:
+            coarse_kp = COARSE_GAIN_MOST / (self.coarse_k * self.lag)
+        if kp == base.fine_kp and base.fine_ki == 0.0 and coarse_kp == base.coarse_kp:
             return None
-        return dataclasses.replace(base, fine_kp=kp, fine_ki=0.0)
+        return dataclasses.replace(base, fine_kp=kp, fine_ki=0.0, coarse_kp=coarse_kp)
 
-    def __call__(self, profile, errors: list, times: list, k: float = None, lag: float = None):
+    def __call__(self, profile, errors: list, times: list, k: float = None, lag: float = None,
+                 coarse_k: float = None):
         """The profile's next gains from the window just thrown on `profile`, and what was done, in words. k: the
         weight a turn the braking is reckoned with, needed with the axes "kp+kd"; lag: step 1's middle lag, for the
-        gains put right."""
+        gains put right; coarse_k: step 1's coarse weight a turn, for the coarse kp put right."""
         if k is not None and k > 0.0:
             self.k = k
         if lag is not None and lag > 0.0:
             self.lag = lag
+        if coarse_k is not None and coarse_k > 0.0:
+            self.coarse_k = coarse_k
         if self.base is None:
             self.keep(profile, errors, times)
             self.direction = self.missing_way(errors)
