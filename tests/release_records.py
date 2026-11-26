@@ -1,7 +1,7 @@
 """The stored records and their enums against v1.21, the release a unit updates from (ADR-009, 2026-11-26).
 
 The owner: "NEVER INSERT, always append for EEPROM record", and compatibility "only back track to v1.21". The shared
-migration (src/common.c, load_config) reads an earlier record as the start of today's, so it is right only where every
+migration (src/services/storage/common.c, load_config) reads an earlier record as the start of today's, so it is right only where every
 change since v1.21 was an append; and a stored enum's value read from v1.21 must still mean what v1.21 meant. Checked
 here, from the sources (v1.21's by its tag, today's on disk):
 - each stored struct's fields at v1.21 (type and name, in order) are the first fields of today's; a record whose history
@@ -24,27 +24,27 @@ RELEASE = "v1.21"
 
 # The stored structs, by their header: the records and the structs inside them
 RECORDS = {
-    "eeprom_charge_mode_data_t": "src/charge_mode.h",
-    "eeprom_scale_data_t": "src/scale.h",
-    "scale_lag_point_t": "src/scale.h",
-    "eeprom_motor_data_t": "src/motors.h",
-    "motor_persistent_config_t": "src/motors.h",
-    "eeprom_neopixel_led_metadata_t": "src/neopixel_led.h",
-    "mini_12864_module_config_t": "src/mini_12864_module.h",
-    "eeprom_profile_data_t": "src/profile.h",
-    "profile_t": "src/profile.h",
-    "eeprom_servo_gate_config_t": "src/servo_gate.h",
-    "eeprom_wireless_metadata_t": "src/wireless.h",
-    "eeprom_update_config_t": "src/update_poll.h",
+    "eeprom_charge_mode_data_t": "src/services/charge/include/charge_mode.h",
+    "eeprom_scale_data_t": "src/services/scale/include/scale.h",
+    "scale_lag_point_t": "src/services/scale/include/scale.h",
+    "eeprom_motor_data_t": "src/services/motors/include/motors.h",
+    "motor_persistent_config_t": "src/services/motors/include/motors.h",
+    "eeprom_neopixel_led_metadata_t": "src/services/leds/include/neopixel_led.h",
+    "mini_12864_module_config_t": "src/ui/mini_12864/include/mini_12864_module.h",
+    "eeprom_profile_data_t": "src/services/profile/include/profile.h",
+    "profile_t": "src/services/profile/include/profile.h",
+    "eeprom_servo_gate_config_t": "src/services/servo_gate/include/servo_gate.h",
+    "eeprom_wireless_metadata_t": "src/services/wireless/include/wireless.h",
+    "eeprom_update_config_t": "src/services/update_fetch/include/update_poll.h",
 }
 # Records whose history had an insertion before the rule, and where they read v1.21's layout field by field
 PAST_LAYOUTS = {
-    "eeprom_charge_mode_data_t": "src/charge_mode_layout.c (v1.19 and v2.0.0 inserted fields; ADR-009's review, B1)",
+    "eeprom_charge_mode_data_t": "src/services/charge/charge_mode_layout.c (v1.19 and v2.0.0 inserted fields; ADR-009's review, B1)",
 }
 # Stored enum values whose meaning changed since v1.21, each with what closes it. Empty since main's v1.21 merge
 # (#137, 2026-11-26) gave the scale driver's 9 back to FA-E/EN and moved the simulated scale to 100 (ADR-009's review, B2)
 KNOWN_OPEN = {}
-HEADERS = sorted({path for path in RECORDS.values()} | {"src/common.h"})
+HEADERS = sorted({path for path in RECORDS.values()} | {"src/services/storage/include/common.h"})
 
 
 def source(path: str, tag: str = None) -> str:
@@ -52,7 +52,8 @@ def source(path: str, tag: str = None) -> str:
     if tag is None:
         file = REPO / path
         return file.read_text(encoding="utf-8", errors="replace") if file.exists() else ""
-    run = subprocess.run(["git", "-C", str(REPO), "show", f"{tag}:{path}"], capture_output=True, text=True,
+    # A release from before ADR-006 has every file in one flat src/
+    run = subprocess.run(["git", "-C", str(REPO), "show", f"{tag}:src/{Path(path).name}"], capture_output=True, text=True,
                          encoding="utf-8", errors="replace")
     return run.stdout if run.returncode == 0 else ""
 
@@ -119,7 +120,7 @@ def main() -> int:
             failures.append(f"{name}: {RELEASE}'s field {at} ({then[at] if at < len(then) else '-'}) is "
                             f"{now[at] if at < len(now) else 'gone'} now: a field inserted, moved or changed")
     # Every eeprom_*_t struct in src's headers is a record listed here
-    for header in sorted((REPO / "src").glob("*.h")):
+    for header in sorted((REPO / "src").glob("*/*/**/*.h")):
         for name in re.findall(r"\}\s*(eeprom_\w+_t)\s*;", without_comments(header.read_text(encoding="utf-8",
                                                                                             errors="replace"))):
             if name not in RECORDS:

@@ -51,8 +51,8 @@ function(ot_module)
     if (arg_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "ot_module: not an argument of idf_component_register: ${arg_UNPARSED_ARGUMENTS}")
     endif()
-    # A module's name is its folder's. Until every module has a folder (ADR-006, gate 2) the two tried in gate 1 lie
-    # in src/ together, and say their names
+    # A module's name is its folder's. Until every module has a build file in its folder (ADR-006, gate 3) the two
+    # tried in gate 1 are made from src/CMakeLists.txt, and say their names
     if (DEFINED OT_MODULE_NAME)
         set(name ${OT_MODULE_NAME})
     else()

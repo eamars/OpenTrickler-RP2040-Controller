@@ -47,7 +47,7 @@ PARTS = (
     ("FreeRTOS", re.compile(r"^library/FreeRTOS-Kernel/")),
     ("Trinamic", re.compile(r"^library/Trinamic-library/")),
     ("Pico SDK", re.compile(r"pico-sdk/")),
-    ("Web pages", re.compile(r"^src/rest_endpoints")),
+    ("Web pages", re.compile(r"^src/web/api/rest_endpoints")),
     ("HTTP server", re.compile(r"^src/http_rest")),
     ("Application", re.compile(r"^src/")),
 )

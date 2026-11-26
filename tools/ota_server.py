@@ -51,7 +51,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_ROOT = REPO / "logs" / "ota_server" / "releases"
 DEFAULT_CERT_DIR = REPO / "logs" / "ota_server" / "certs"
-# The name a unit asks before its stored source (src/update_poll.c, UPDATE_POLL_BENCH_HOST)
+# The name a unit asks before its stored source (src/services/update_fetch/update_poll.c, UPDATE_POLL_BENCH_HOST)
 BENCH_NAME = "opentrickler-update.local"
 
 # Long enough for a handshake at the Debug build's -O0 on the Pico 2 W (148 s, 2026-11-17)

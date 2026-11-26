@@ -85,7 +85,7 @@ BOARDS = {
         "target": "target/rp2040.cfg", "build": "build_w", "cores": ["rp2040.core0", "rp2040.core1"],
         "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
         "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
-        # Its flash layout (ADR-004, src/update_boot.h): our bootloader at the start, slot A after it, slot B after
+        # Its flash layout (ADR-004, src/platform/rp2/include/update_boot.h): our bootloader at the start, slot A after it, slot B after
         # A. A full install writes the bootloader and slot A's image (built with APP_SLOT=A)
         "layout": {"first": "bootloader.bin", "slot_a": 0x10004000, "slot_b": 0x10102000, "flash_bytes": 0x200000},
         # What a watchdog restart keeps and a power cut clears: the watchdog's eight scratch registers
@@ -99,12 +99,12 @@ BOARDS = {
         "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
         "reset": ["mww 0x400d801c 0", "mww 0x40018008 0x01fffff3", "mww 0x400d8000 0x80000000"],
         "step_status": {"coarse": 0x40028018, "fine": 0x40028040},
-        # Its flash layout (ADR-004, targets/pico2_w_partition_table.json): the ROM's partition table at the start,
+        # Its flash layout (ADR-004, src/boards/pico2_w/pico2_w_partition_table.json): the ROM's partition table at the start,
         # slot A after it, slot B after A. The image is written as its .bin into a slot, not by its ELF, which is
         # linked at the start of flash, where the ROM maps the slot it boots
         "layout": {"first": "partition_table.bin", "slot_a": 0x10002000, "slot_b": 0x101C2000, "flash_bytes": 0x400000},
         # What a watchdog restart keeps and a power cut clears: the watchdog's eight scratch registers and the power
-        # manager's, where the update's note lives (src/update_slots_rp2350.c)
+        # manager's, where the update's note lives (src/platform/rp2/update_slots_rp2350.c)
         "power_scratch": [0x400D800C, 0x401000B0],
     },
 }
@@ -842,7 +842,7 @@ def read_manifest(source):
 
 def block_version(elf):
     """
-    The version in an image's metadata block (ADR-004), read from the .bin beside its ELF as src/picobin_image.c reads
+    The version in an image's metadata block (ADR-004), read from the .bin beside its ELF as src/platform/rp2/picobin_image.c reads
     it: the first block within the first 4 KB, then the block loop, the last image definition's version. picotool's
     `info` does not read an RP2040 image that does not start at the start of flash, as a Pico W slot's does.
 

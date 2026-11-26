@@ -41,7 +41,7 @@ set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
 set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
 set(LVGL_DIRECTORY "${CMAKE_SOURCE_DIR}/library/lvgl")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
-set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
+set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/src/boards/common")
 
 # Append compiler flags
 SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall")
@@ -52,8 +52,12 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wa
 # Application
 add_executable("${TARGET_NAME}")
 
-# Include source
-include_directories(${SRC_DIRECTORY})
+# Our own code (ADR-006, gate 2): src/<layer>/<module>/, a module's headers for others in its include/. Until
+# each module is built on its own (gate 3) every module's include/ is on the one include path, as all of src/ was;
+# a header a module keeps to itself lies beside its sources and is found from there
+file(GLOB OT_INCLUDE_DIRS LIST_DIRECTORIES true ${SRC_DIRECTORY}/*/*/include)
+list(APPEND OT_INCLUDE_DIRS ${SRC_DIRECTORY}/platform/include ${SRC_DIRECTORY}/boards/common)
+include_directories(${OT_INCLUDE_DIRS})
 
 # Pull in FreeRTOS. Its location is given, not searched for: upstream's import file (V11.3.3), left to search,
 # finds the kernel as the SDK's sibling on its first pass and stops there with that pass's path to the RP2350 port,
@@ -62,12 +66,13 @@ include_directories(${SRC_DIRECTORY})
 set(FREERTOS_KERNEL_PATH ${FREERTOS_SRC_DIRECTORY})
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
-# LVGL, configured by src/lv_conf.h. Every source is compiled; what lv_conf.h switches off compiles to nothing.
+# LVGL, configured by the view's lv_conf.h (src/ui/view_12864/include). Every source is compiled; what lv_conf.h switches off compiles to nothing.
 # At -Os in every build, as the owner decided after ADR-010's gate 1: code nobody steps through, and at -O0 the
 # Pico W's image did not fit its slot
 file(GLOB_RECURSE LVGL_SOURCES ${LVGL_DIRECTORY}/src/*.c)
 add_library(lvgl STATIC ${LVGL_SOURCES})
-target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTORY} ${SRC_DIRECTORY})
+target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTORY}
+                           ${SRC_DIRECTORY}/ui/view_12864/include)
 target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
 target_compile_options(lvgl PRIVATE -Os)
 
@@ -78,9 +83,9 @@ include(${CMAKE_SOURCE_DIR}/cmake/ot_module.cmake)
 add_subdirectory(${SRC_DIRECTORY})
 
 # Collect all source files
-file(GLOB SRC ${SRC_DIRECTORY}/*.c 
-              ${SRC_DIRECTORY}/*.cpp)
-# But those a module builds (ADR-006, gate 1: two modules tried where their files lie, the rest as before)
+file(GLOB SRC ${SRC_DIRECTORY}/*/*/*.c
+              ${SRC_DIRECTORY}/*/*/*.cpp)
+# But those a module builds (ADR-006, gate 1: two modules tried, the rest one program until gate 3)
 get_property(OT_MODULE_SOURCES GLOBAL PROPERTY OT_MODULE_SOURCES)
 list(REMOVE_ITEM SRC ${OT_MODULE_SOURCES})
 
@@ -88,7 +93,7 @@ list(REMOVE_ITEM SRC ${OT_MODULE_SOURCES})
 # a second way, and the unit reports each by name (the index's `features`). On by default on both boards
 option(FEATURE_SERVO_GATE "The servo gate: its module, its settings, its menu page and its API" ON)
 if (NOT FEATURE_SERVO_GATE)
-    list(REMOVE_ITEM SRC ${SRC_DIRECTORY}/servo_gate.c)
+    list(REMOVE_ITEM SRC ${SRC_DIRECTORY}/services/servo_gate/servo_gate.c)
 endif()
 message(STATUS "Features: servo_gate=${FEATURE_SERVO_GATE}")
 
@@ -98,7 +103,6 @@ target_sources("${TARGET_NAME}" PUBLIC
 )
 
 # Include additional headers
-target_include_directories("${TARGET_NAME}" PUBLIC ${CMAKE_SOURCE_DIR}/targets)
 if (FEATURE_SERVO_GATE)
     target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=1)
 else()
@@ -125,7 +129,7 @@ target_link_libraries("${TARGET_NAME}"
     # flash_safe_execute(): flash written with the other core held off it, as the ROM's confirmation of an image
     # does (ADR-004)
     pico_flash
-    # mbedTLS, with src/mbedtls_config.h: the SHA-256 an image is checked by before it is tried (ADR-004), and the
+    # mbedTLS, with the boards' mbedtls_config.h: the SHA-256 an image is checked by before it is tried (ADR-004), and the
     # TLS client the update's poll and download fetch by (ADR-010, gate 5; https_client.c)
     pico_mbedtls
 )
@@ -156,17 +160,17 @@ set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
 # the kernel stays at the build's own level, the one third-party code stepped through
 file(GLOB_RECURSE THIRD_PARTY_OS_SOURCES ${PICO_SDK_PATH}/lib/lwip/src/*.c ${PICO_SDK_PATH}/lib/cyw43-driver/src/*.c
      ${PICO_SDK_PATH}/src/*.c)
-# In the image only: the Pico W's bootloader (targets/flash_layout.cmake) compiles the SDK's sources at the build's own
+# In the image only: the Pico W's bootloader (src/boards/common/flash_layout.cmake) compiles the SDK's sources at the build's own
 # level, as ADR-004 proved it
 set_source_files_properties(${THIRD_PARTY_OS_SOURCES} PROPERTIES
                             COMPILE_OPTIONS "$<$<STREQUAL:$<TARGET_PROPERTY:NAME>,${TARGET_NAME}>:-Os>")
 
-# The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/github_roots.pem). A test build
+# The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/services/update_fetch/github_roots.pem). A test build
 # (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),
 # two of the same kinds, so a fetch on the bench holds what a user's does (ADR-008: with all four, 3.3 KB more); no
 # other build does, and a test build reaches no GitHub, as the bench rules ask
 option(HTTPS_TEST_CA "Test build only: trust the local OTA server's test roots in place of GitHub's" OFF)
-set(HTTPS_CA_FILES ${SRC_DIRECTORY}/github_roots.pem)
+set(HTTPS_CA_FILES ${SRC_DIRECTORY}/services/update_fetch/github_roots.pem)
 if (HTTPS_TEST_CA)
     set(HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
                        ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
@@ -233,7 +237,7 @@ endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # The flash layout and the image's metadata block (ADR-004)
-include(${CMAKE_SOURCE_DIR}/targets/flash_layout.cmake)
+include(${SRC_DIRECTORY}/boards/common/flash_layout.cmake)
 
 # Generate extra outputs
 pico_add_extra_outputs("${TARGET_NAME}")

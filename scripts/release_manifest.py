@@ -42,7 +42,7 @@ def named_file(text):
 def block_version(data):
     """
     An update image's block version (ADR-004), as the unit gives its own in GET /api/v1/update (`running.block`):
-    276.210 is "1.20.210". Read as src/picobin_image.c reads it: the first block within the first 4 KB, then the
+    276.210 is "1.20.210". Read as src/platform/rp2/picobin_image.c reads it: the first block within the first 4 KB, then the
     block loop, the last image definition's version. The unit decides "newer" by this, before it fetches the image.
 
     Args:

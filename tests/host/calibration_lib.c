@@ -1,5 +1,5 @@
 /*
- * The calibration's method (src/calibration_method.c) as a library for the PC, so the simulation can run the
+ * The calibration's method (src/services/calibration_method/calibration_method.c) as a library for the PC, so the simulation can run the
  * firmware's own C (tests/calibration_sim.py): each entry point exported under its own name.
  */
 #include "calibration_method.h"

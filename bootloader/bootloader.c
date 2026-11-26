@@ -1,5 +1,5 @@
 /*
- * The RP2040's bootloader (ADR-004): at the start of flash, before slot A and slot B (src/update_boot.h). It reads
+ * The RP2040's bootloader (ADR-004): at the start of flash, before slot A and slot B (src/platform/rp2/include/update_boot.h). It reads
  * both slots' metadata blocks, picks the image to boot by the RP2350 ROM's rules, and jumps into it. It never writes
  * flash, and with no image to boot it starts the USB loader, so a unit with nothing to run shows up as a drive
  * without BOOTSEL. It is changed only by USB, so it does only this. No RTOS, no stdio, one core.

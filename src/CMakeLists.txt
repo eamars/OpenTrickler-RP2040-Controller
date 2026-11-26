@@ -1,8 +1,8 @@
 # Generate PIO headers into each board's own build folder, not src/generated: pioasm writes a different
 # header for each chip (PIO version 0 on the RP2040, 1 on the RP2350), and a header shared by both builds
 # is reused by whichever board builds second (ADR-001, F7)
-pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio)
-pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio)
+pico_generate_pio_header(app ${SRC_DIRECTORY}/platform/rp2/ws2812.pio)
+pico_generate_pio_header(app ${SRC_DIRECTORY}/platform/rp2/stepper.pio)
 
 # The headers that stay in src/generated (version, pages). It was on the include path only as a side effect
 # of the PIO headers' OUTPUT_DIR
@@ -14,8 +14,8 @@ find_package (Python COMPONENTS Interpreter REQUIRED)
 # Generate HTML header
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
 
-# The portal (ADR-008, gate 3): src/web joined, trimmed and gzipped by web_build.py into a header the firmware serves
-file(GLOB WEB_SOURCES ${SRC_DIRECTORY}/web/*)
+# The portal (ADR-008, gate 3): src/web/api/portal joined, trimmed and gzipped by web_build.py into a header the firmware serves
+file(GLOB WEB_SOURCES ${SRC_DIRECTORY}/web/api/portal/*)
 add_custom_target(
     generate_web_portal_header ALL
     DEPENDS "${SRC_DIRECTORY}/generated/web_portal.gz.h"
@@ -50,19 +50,19 @@ add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
 target_include_directories(app_version PUBLIC ${SRC_DIRECTORY}/generated)
 add_library(ot::version ALIAS app_version)
 
-# ADR-006, gate 1: the build's mechanics tried on two modules, where their files lie. Each names itself, since they
-# share this folder until gate 2 gives every module its own; and each gets all of src/ as its include path, so
+# ADR-006, gate 1: the build's mechanics tried on two modules. Each names itself and is made here, until gate 3 gives
+# every module a build file of its own in its folder; and each gets every module's include/ as its include path, so
 # nothing is refused yet between our own files
 #   - fault_handler: one function, called by nothing of ours, in place of the SDK's weak isr_hardfault. It is in
 #     the image only if the module is linked whole
 #   - events: a service on FreeRTOS and the SDK, with other modules' headers and a generated one
 set(OT_MODULE_NAME fault_handler)
-ot_module(SRCS fault_handler.c
-          PRIV_INCLUDE_DIRS ${SRC_DIRECTORY}
+ot_module(SRCS platform/rp2/fault_handler.c
+          PRIV_INCLUDE_DIRS ${OT_INCLUDE_DIRS}
           PRIV_REQUIRES freertos rp2_sdk)
 set(OT_MODULE_NAME events)
-ot_module(SRCS events.c
-          INCLUDE_DIRS ${SRC_DIRECTORY}
+ot_module(SRCS services/events/events.c
+          INCLUDE_DIRS ${OT_INCLUDE_DIRS}
           PRIV_REQUIRES freertos rp2_sdk version)
 unset(OT_MODULE_NAME)
 

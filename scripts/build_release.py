@@ -29,7 +29,7 @@ BUILDS = [
 
 def build(build_dir, board, flags, build_type):
     """
-    One build, configured afresh so the image's block carries this commit's version (targets/flash_layout.cmake).
+    One build, configured afresh so the image's block carries this commit's version (src/boards/common/flash_layout.cmake).
 
     Args:
         build_dir: its folder.

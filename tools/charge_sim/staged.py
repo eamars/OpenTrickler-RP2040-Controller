@@ -571,7 +571,7 @@ def pid_law_from(cal: Calibration, fine_kp: float = 0.8, fine_ki: float = 0.0, f
 def profile_pid(limits: Limits = None, coarse_kp: float = 0.05, coarse_kd: float = 0.3, fine_kp: float = 0.8,
                 fine_kd: float = 15.0) -> PidLaw:
     """The PID law on a powder profile's own gains, within the user's limits: the learnt source's speed law (F.4).
-    By default the firmware's default AR2209 profile (`src/profile.c`, profile 1)."""
+    By default the firmware's default AR2209 profile (`src/services/profile/profile.c`, profile 1)."""
     limits = limits or sim_limits()
     return PidLaw(coarse_kp=coarse_kp, coarse_ki=0.0, coarse_kd=coarse_kd, coarse_min_rps=limits.coarse_least,
                   coarse_max_rps=limits.coarse_most, fine_kp=fine_kp, fine_ki=0.0, fine_kd=fine_kd,

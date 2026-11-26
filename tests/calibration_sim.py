@@ -1,4 +1,4 @@
-"""The firmware's calibration method (src/calibration_method.c) run on the simulation, beside the PC's (calibration.py).
+"""The firmware's calibration method (src/services/calibration_method/calibration_method.c) run on the simulation, beside the PC's (calibration.py).
 
 ADR-009, gate 3, with no unit: the C is compiled for this PC as a library (tests/host/calibration_lib.c; the host's
 compiler as tests/host_test.py finds it). Each part is run twice for each seed:
@@ -21,6 +21,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+# The firmware's module with the method, free of the chip (ADR-006)
+METHOD = REPO / "src" / "services" / "calibration_method"
 sys.path.insert(0, str(REPO / "tools" / "charge_sim"))
 sys.path.insert(0, str(REPO / "tests"))
 
@@ -80,8 +82,9 @@ def build_library() -> ctypes.CDLL:
     out = REPO / "build_host"
     out.mkdir(exist_ok=True)
     library = out / ("calibration_lib.dll" if os.name == "nt" else "calibration_lib.so")
-    command = compiler() + ["-shared", "-std=c11", "-Wall", "-O1", "-fPIC", "-I", str(REPO / "src"),
-                            str(REPO / "tests" / "host" / "calibration_lib.c"), str(REPO / "src" / "calibration_method.c"),
+    command = compiler() + ["-shared", "-std=c11", "-Wall", "-O1", "-fPIC",
+                            "-I", str(METHOD / "include"),
+                            str(REPO / "tests" / "host" / "calibration_lib.c"), str(METHOD / "calibration_method.c"),
                             "-o", str(library)]
     built = subprocess.run(command, capture_output=True, text=True)
     if built.returncode != 0:

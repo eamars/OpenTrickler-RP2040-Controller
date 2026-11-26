@@ -3,7 +3,7 @@
 
 /*
  * The RP2040's boot path (ADR-004), shared by its bootloader (bootloader/bootloader.c) and the firmware
- * (update_slots_rp2040.c). The slots' places come from targets/flash_layout.cmake, given to both as definitions.
+ * (update_slots_rp2040.c). The slots' places come from src/boards/common/flash_layout.cmake, given to both as definitions.
  *
  * The rules are the RP2350 ROM's: of the two slots, the good image with the higher version boots; an image marked
  * try-before-you-buy boots only when the running image asks for a trial, once; the bootloader arms the watchdog
@@ -17,7 +17,7 @@
 #include "hardware/regs/addressmap.h"
 
 #ifndef UPDATE_SLOT_A_OFFSET
-#error "UPDATE_SLOT_A_OFFSET, UPDATE_SLOT_B_OFFSET and UPDATE_SLOT_SIZE come from targets/flash_layout.cmake"
+#error "UPDATE_SLOT_A_OFFSET, UPDATE_SLOT_B_OFFSET and UPDATE_SLOT_SIZE come from src/boards/common/flash_layout.cmake"
 #endif
 
 #define UPDATE_BOOT_SCRATCH_TRY 0

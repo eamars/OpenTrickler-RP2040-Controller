@@ -16,10 +16,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 HOST = REPO / "tests" / "host"
 OUT = REPO / "build_host"
+# The firmware's headers (ADR-006, gate 2): each module's include/ folder. Gate 4 takes them from the modules' own
+# build files instead
+FIRMWARE_INCLUDES = [arg for folder in sorted((REPO / "src").glob("*/*/include")) for arg in ("-I", str(folder))]
 
 # Each test: its C file, and the firmware's sources and the host's own it is built with
 TESTS = {
-    "config_migration_test": ["src/common.c", "src/charge_mode_layout.c", "tests/host/fake_eeprom.c"],
+    "config_migration_test": ["src/services/storage/common.c", "src/services/charge/charge_mode_layout.c", "tests/host/fake_eeprom.c"],
 }
 
 
@@ -48,7 +51,7 @@ def main() -> int:
     failed = []
     for name, sources in TESTS.items():
         exe = OUT / (name + (".exe" if os.name == "nt" else ""))
-        command = cc + ["-std=c11", "-Wall", "-O1", "-I", str(HOST / "stubs"), "-I", str(HOST), "-I", str(REPO / "src"),
+        command = cc + ["-std=c11", "-Wall", "-O1", "-I", str(HOST / "stubs"), "-I", str(HOST)] + FIRMWARE_INCLUDES + [
                         str(HOST / (name + ".c"))] + [str(REPO / source) for source in sources] + ["-o", str(exe), "-lm"]
         build = subprocess.run(command, capture_output=True, text=True)
         if build.returncode != 0:

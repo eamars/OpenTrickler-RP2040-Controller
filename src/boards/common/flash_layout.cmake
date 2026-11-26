@@ -42,9 +42,9 @@ if (PICO_RP2350)
     # flash, where the ROM maps whichever slot it boots, and the linker refuses one larger than a slot
     set(APP_FLASH_ORIGIN 0x10000000)
     set(APP_FLASH_LENGTH 1792K)
-    set(APP_PARTITION_TABLE_JSON "${CMAKE_SOURCE_DIR}/targets/pico2_w_partition_table.json")
+    set(APP_PARTITION_TABLE_JSON "${SRC_DIRECTORY}/boards/pico2_w/pico2_w_partition_table.json")
 
-    configure_file("${CMAKE_SOURCE_DIR}/targets/flash_region.ld.in" "${CMAKE_BINARY_DIR}/flash_region/pico_flash_region.ld")
+    configure_file("${SRC_DIRECTORY}/boards/common/flash_region.ld.in" "${CMAKE_BINARY_DIR}/flash_region/pico_flash_region.ld")
     pico_add_linker_script_override_path("${TARGET_NAME}" "${CMAKE_BINARY_DIR}/flash_region" FILES pico_flash_region.ld)
 
     # The image sealed with its SHA-256, checked before an image is booted on trial (whether the ROM checks it at
@@ -62,7 +62,7 @@ if (PICO_RP2350)
     )
     add_custom_target(partition_table ALL DEPENDS "${CMAKE_BINARY_DIR}/partition_table.bin")
 elseif (PICO_RP2040)
-    # Pico W: our bootloader at the start of flash, then slot A and slot B (src/update_boot.h). The RP2040 runs an
+    # Pico W: our bootloader at the start of flash, then slot A and slot B (src/platform/rp2/include/update_boot.h). The RP2040 runs an
     # image only where it was linked, so an image is linked for one slot: APP_SLOT. A full install is slot A's
     # The bootloader measured 6.4 KB (2026-11-16): 16 KB for it, and 1,016 KB for each slot
     set(UPDATE_LAYOUT_DEFINITIONS UPDATE_SLOT_A_OFFSET=0x4000 UPDATE_SLOT_B_OFFSET=0x102000 UPDATE_SLOT_SIZE=0xFE000)
@@ -78,7 +78,7 @@ elseif (PICO_RP2040)
     endif()
     set(APP_FLASH_LENGTH 1016K)
     message("Linked for slot ${APP_SLOT} at ${APP_FLASH_ORIGIN}")
-    configure_file("${CMAKE_SOURCE_DIR}/targets/flash_region.ld.in" "${CMAKE_BINARY_DIR}/flash_region/pico_flash_region.ld")
+    configure_file("${SRC_DIRECTORY}/boards/common/flash_region.ld.in" "${CMAKE_BINARY_DIR}/flash_region/pico_flash_region.ld")
     pico_add_linker_script_override_path("${TARGET_NAME}" "${CMAKE_BINARY_DIR}/flash_region" FILES pico_flash_region.ld)
     # The metadata block the RP2350's ROM reads, off by default on the RP2040, and the image sealed with its SHA-256
     target_compile_definitions("${TARGET_NAME}" PRIVATE PICO_CRT0_INCLUDE_PICOBIN_IMAGE_TYPE_ITEM=1
@@ -86,8 +86,8 @@ elseif (PICO_RP2040)
     pico_hash_binary("${TARGET_NAME}")
 
     # The bootloader: the start of flash, 16 KB at most; its boot2 is the board's
-    add_executable(bootloader "${CMAKE_SOURCE_DIR}/bootloader/bootloader.c" "${SRC_DIRECTORY}/picobin_image.c")
-    target_include_directories(bootloader PRIVATE "${SRC_DIRECTORY}")
+    add_executable(bootloader "${CMAKE_SOURCE_DIR}/bootloader/bootloader.c" "${SRC_DIRECTORY}/platform/rp2/picobin_image.c")
+    target_include_directories(bootloader PRIVATE "${SRC_DIRECTORY}/platform/rp2/include")
     target_compile_definitions(bootloader PRIVATE ${UPDATE_LAYOUT_DEFINITIONS})
     target_link_libraries(bootloader pico_runtime hardware_resets hardware_sync hardware_watchdog pico_bootrom)
     target_link_options(bootloader PRIVATE -Wl,--gc-sections -Wl,--print-memory-usage)
@@ -95,7 +95,7 @@ elseif (PICO_RP2040)
     pico_minimize_runtime(bootloader)
     set(APP_FLASH_ORIGIN 0x10000000)
     set(APP_FLASH_LENGTH 16K)
-    configure_file("${CMAKE_SOURCE_DIR}/targets/flash_region.ld.in"
+    configure_file("${SRC_DIRECTORY}/boards/common/flash_region.ld.in"
                    "${CMAKE_BINARY_DIR}/bootloader_flash_region/pico_flash_region.ld")
     pico_add_linker_script_override_path(bootloader "${CMAKE_BINARY_DIR}/bootloader_flash_region"
                                          FILES pico_flash_region.ld)

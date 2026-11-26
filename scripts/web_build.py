@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SOURCES = REPO / "src" / "web"
+SOURCES = REPO / "src" / "web" / "api" / "portal"
 # The script's parts, joined in this order: the shared part first, the start last
 SCRIPTS = ["common.js", "stream.js", "trickler.js", "form.js", "settings.js", "powders.js", "unit.js", "update.js", "setup.js", "main.js"]
 
@@ -76,7 +76,7 @@ def write_header(path, page):
     """
     packed = gzip.compress(page.encode("utf-8"), compresslevel=9, mtime=0)
     rows = [", ".join(f"0x{byte:02x}" for byte in packed[at:at + 16]) for at in range(0, len(packed), 16)]
-    text = ("// Made by scripts/web_build.py from src/web (ADR-008, gate 3): the portal, gzipped. Do not edit\n"
+    text = ("// Made by scripts/web_build.py from src/web/api/portal (ADR-008, gate 3): the portal, gzipped. Do not edit\n"
             "#ifndef WEB_PORTAL_GZ_H_\n#define WEB_PORTAL_GZ_H_\n\n#include <stddef.h>\n#include <stdint.h>\n\n"
             f"static const uint8_t web_portal_gz[{len(packed)}] = {{\n    " + ",\n    ".join(rows) + "\n};\n"
             f"static const size_t web_portal_gz_len = {len(packed)};\n\n#endif  // WEB_PORTAL_GZ_H_\n")
