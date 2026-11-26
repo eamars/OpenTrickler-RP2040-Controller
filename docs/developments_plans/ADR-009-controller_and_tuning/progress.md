@@ -1288,3 +1288,9 @@ At the owner's word ("Bench ready"). The settings copied (`logs/adr009/settings_
 ## 2026-11-27, 01:50: step 2 signed off (the owner)
 
 The owner skipped the cup's lift on the unit (3b), and accepted the three questions left for step 2's sign-off as they stand ("I'd accept all three"): the tuner's 10 s limit on a window's median throw time, which counts the whole throw (the coarse tube's part too: about 4.7 s of 42.5 gr, whose median on kp 0.89 was 10.2 s, so at that weight the tuner would prefer the quicker kp 1.33 at 9.3 s); the tuner trading narrow hand-tuned gains' spread for time; N16, step 1's weights carrying no unit. Steps 8 and 9 of the bench run, optional, not run. Next, the owner: "move on to Pico W build and optimization".
+
+## 2026-11-27, 01:55 to 02:20: the Pico W's image fitted (built, no unit)
+
+**The owner:** "move on to Pico W build and optimization". Built at this branch's head (2.0.3-259): the image 1,024.6 KB of its slot's 1,016 KB (10,344 bytes over; 1,008 on 2026-11-26, the tuner's and the screen's work since), RAM 99.7% at link time. Third-party code at `-O0` was the most of it: lwIP 140.0 KB, the Pico SDK 61.2, FreeRTOS 31.6, the cyw43 driver's code (beside its firmware) some 18 (`tools/size_report.py`).
+
+**Measured** (AGENTS.md's first remedy, third-party code at `-Os`): lwIP alone 956.9 KB (94%); all of it 899.9 KB (89%). **The owner chose all of it but FreeRTOS's kernel.** Built (`CMakeLists.txt`, every build, both boards): lwIP, the cyw43 driver and the Pico SDK's own sources at `-Os`, beside LVGL and mbedTLS (ADR-010). The Pico W 911.6 KB (90%, 104 KB free), RAM 251.5 KB (98%); the Pico 2 W 898.5 KB (50%; 55.55% before), RAM 56%. No new warning on either board. Not yet on a unit.
