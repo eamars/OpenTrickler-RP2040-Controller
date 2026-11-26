@@ -50,6 +50,12 @@ It is the proof of ADR-006. A seam with one platform behind it is a guess.
 **From the code**
 - Settings are in the EEPROM on the controller board. A controller that changes its module keeps its EEPROM, so the settings follow if both chips read the same layout (ADR-006).
 
+**Handed on by ADR-006** (2026-11-27, Draft; ADR-006 builds none of this, the owner: "For ADR-006 I don't want to include ADR-007 changes")
+- Every module is a folder whose build file makes one call, `ot_module`, with the arguments of ESP-IDF's `idf_component_register` and no others. Here the call gets its ESP-IDF branch, which passes them on, as LVGL's own build does; and an `idf.py` project whose component folders are ADR-006's layer folders. A module's name is its folder's, no two the same, as ESP-IDF needs.
+- `platform/esp32s3/` behind ADR-006's interfaces, and `boards/esp32s3_pico/`: its pins, its modules, each module's optimisation, and ESP-IDF's own settings (sdkconfig) in place of `FreeRTOSConfig.h`, `lwipopts.h` and `mbedtls_config.h`.
+- Stored enums are written as fixed-width types by ADR-006, so a record's bytes no longer hang on an enum's size (one byte with the Pico's compiler; four with ESP-IDF's, as far as is known, not checked). Whatever else the two compilers lay out apart is checked here: every record's size and offsets, by both.
+- ADR-006's PC build is the modules' second build before this one.
+
 ## Ideas
 
 - **The pins first.** Before any code: on the board, with a meter and one small test program, show that GPIO33 to 37 work as plain pins and what sits on pin 35. If 33 to 37 are not free, the port needs a different module or a changed controller board, and the owner decides.
