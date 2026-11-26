@@ -59,6 +59,7 @@ class Records:
     fine_least_rps: float
     coarse_least_rps: float
     fine_gr_turn: float = None  # the powder part's own fine weight a turn where it streams (the prime's); None: not kept
+    coarse_gr_turn: float = None    # the coarse tube's, measured by the same part; kept by no firmware yet (a study's)
 
 
 def records_of(rig, seed: int) -> Records:
@@ -72,7 +73,8 @@ def records_of(rig, seed: int) -> Records:
     report = calibration.scale_part(TwinBench(rig, seed), calibration.Cup())
     return Records(settle_s=report.records.get("settle_s", 1.0), lag=tuple(report.records.get("lag", ((1.0, 0.8),))),
                    fine_least_rps=least["fine"], coarse_least_rps=least["coarse"],
-                   fine_gr_turn=stream["fine"] if stream["fine"] and stream["fine"] > 0.0 else None)
+                   fine_gr_turn=stream["fine"] if stream["fine"] and stream["fine"] > 0.0 else None,
+                   coarse_gr_turn=stream["coarse"] if stream["coarse"] and stream["coarse"] > 0.0 else None)
 
 
 def lag_at(lag: tuple, flow: float) -> float:

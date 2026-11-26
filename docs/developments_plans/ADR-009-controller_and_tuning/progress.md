@@ -977,3 +977,32 @@ The other rigs the same way: the aim-off centres the mean (to +0.01 to +0.04) an
 - The threshold's job: room for what a well-behaved coarse tube still has in the air at its stop (at its least, 0.16 rev/s x 10.4 gr a turn x some 0.55 s, about 0.9 gr) and the fine tube's powder in the air then; past that it only hands work to the fine tube. At the bench's kp, 5 to 7 narrowed the SD (0.100 to 0.063 at 10 gr, 0.086 to 0.057 at 30 gr) for 0.6 and 1.5 s more a throw; 9 gained nothing; 3 was over (+0.39). On big kernels (`+big_kernel`) the threshold changed nothing (SD 0.19 to 0.25: the fine tube's lumps decide it).
 
 **Mine now: the PID first, into its safe range; then the threshold, for spread against time.** The threshold cannot stand in for the PID. Both could come from step 1, which measures the coarse tube's weight a turn and the lag: a coarse kp put right as the fine one is (`8806f78`), and a threshold from the coarse tube's air at its least. Not built: the owner's.
+
+## 2026-11-26, 14:01: the coarse tube is for speed (the owner); the coarse tube capped by its counted turns (the twin, no unit)
+
+**The owner:** "The coarse trickler should tune for speed, not accuracy. as long as it does not overshoot beyond the stop threshold by miles then the output is acceptable." Before the coarse tube stops, both tubes pour and the coarse tube brings in the bulk, for speed; after it stops, the fine tube pours the rest, for speed and accuracy. "Therefore based on its operating mode, Coarse trickler should find its balance to the stop threshold, with overshoot permitted as long as under the stop threshold by safe margin."
+
+**Read here as:** the coarse tube is judged by its time, on one condition: what it pours lands under the target by a safe margin, so the fine tube always has its finish.
+
+**Today's coarse PID cannot meet that at every charge** (the grid of 13:33): what it has in the air at its stop grows with the charge, so a kp quick at one charge overshoots a larger one. Coarse kp 0.1 at threshold 5 is 2.4 s at 10 gr (+0.135) and +2.3 gr at 30 gr. A tuner for the coarse kp would settle on one charge's kp.
+
+**The coarse tube capped by its counted turns** (`step2_coarse_study.py`, class `Capped`, `--capped`; `step2.py`'s records now carry step 1's coarse weight a turn, which step 1 measures and the firmware drops). Each coarse turn is counted as the fine tube's parcels are: turned out at the motor's speed, due on the scale after the lag at its flow, at step 1's coarse weight a turn. The coarse tube's speed is held under least + room / (its weight a turn x the lag). The room is the target less a margin, less the reading, the fine tube's unseen powder and the coarse tube's. It runs at its most until what it has turned out fills the room, then slows, and stops as today when the reading reaches its stop point. Its kp no longer matters: kp 0.2 and 1 gave the same at 30 and 60 gr. It needs no unit: the weight a turn and the lag are step 1's, in the scale's own numbers; the margin is a share of the user's threshold.
+- **A first try, with the room taken from the reading alone, failed** as today's PID does (+12.8 at 30 gr): at its most the coarse tube has some 27 gr in the air before the scale shows any of it. The turns must be counted.
+- **Margin half the threshold (2.5 of 5), on f2,** the bench's fine gains, no tuner, 2 x 40 throws, the last 35 judged, against today's (kp 0.02, threshold 5):
+
+| Charge | Time | SD | Mean | Worst |
+|---|---|---|---|---|
+| 10 gr | 2.7 s (5.0) | 0.085 (0.100) | +0.106 (+0.062) | +0.37 (+0.68) |
+| 30 gr | 3.1 s (6.6) | 0.132 (0.086) | +0.118 (+0.099) | +0.77 (+0.33) |
+| 60 gr | 4.7 s (10.2) | 0.084 (0.065) | +0.094 (+0.060) | +0.37 (+0.27) |
+
+- **Big kernels** (`+big_kernel`): 4.9, 4.7, 5.5 s against 6.0, 8.3, 10.2; SD 0.227, 0.268, 0.242 against 0.194, 0.249, 0.291.
+- **A margin of a quarter of the threshold** is quicker still (2.2, 2.3, 2.9 s) but +0.39 and +0.38 over on average at 30 and 60 gr: too thin.
+- **Step 1's coarse weight a turn wrong by 15%:** taken light, the coarse tube lands nearer the target, +0.16, +0.28, +0.28 on average, worst +0.67, in 2.0 to 2.7 s; taken heavy, slower (3.7, 3.4, 5.5 s) and tighter. It fails towards over by a fraction, not by grams.
+- **The fine tube's forecast counting the coarse tube's unseen powder too** (`shared`): mixed, not taken. At threshold 7 the narrowest of all (SD 0.051, 0.052, 0.051 in 5.6, 6.8, 7.1 s); at threshold 5 slower (5.7, 4.1, 4.8 s) and no narrower.
+- The sheet `research/step2_twin_coarse_f2.png` has it as its fourth column (12 throws a panel, the last 8 drawn: illustration; the grid above is the record).
+
+**Mine: build the counted cap on the coarse tube, its margin half the threshold**: the owner's coarse tube for speed, its landing bounded at any charge, with nothing to tune. It answers the owner's question of 13:33 too: with the cap, neither the coarse kp nor the threshold is tuned for speed. The threshold and its margin say where the coarse tube hands over.
+- **What it needs:** step 1's coarse weight a turn stored (measured today and dropped; its place in the profile's struct is a layout question, the owner's), the coarse turns counted in `charge_controller.c` as the fine tube's, the cap, and the margin (half the threshold fixed, or a setting).
+- **Not built: the owner's.** It is a forecast on the coarse tube, which the owner kept off on 2026-11-25, 18:05. The reason then was that while both tubes turn the readings cannot tell their weights apart. This cap learns nothing from the throw's readings: it takes step 1's figure.
+- **Its proof is on the unit:** the twin's coarse tube pours evenly; a real one's lumps and a lot's change are what the 15% trial stands in for.
