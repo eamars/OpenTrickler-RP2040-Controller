@@ -137,6 +137,8 @@ def run(job: tuple) -> tuple:
         controller.profile = profile
         result = step2.throw_one(session, controller, case.target, profile.fine_stop_threshold)
         out.append((result.true_error, result.elapsed_s, "starved" if controller.starved else result.verdict))
+        if controller.starved:
+            continue            # as the unit: a starved throw ends on a fault, before the tuner is fed
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         if tuner is not None and len(errors) == step2_tuner.WINDOW:

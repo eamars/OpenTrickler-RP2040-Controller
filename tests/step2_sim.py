@@ -299,6 +299,9 @@ def tuner_case(job: tuple) -> dict:
     for _ in range(throws):
         controller.profile = profile
         result = step2.throw_one(session, controller, TARGET, profile.fine_stop_threshold)
+        if controller.starved:
+            # As the unit: a starved throw ends the charge on a fault, before the tuner is fed (charge_mode.cpp)
+            continue
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         next_kp, next_kd, next_ki = ctypes.c_double(), ctypes.c_double(), ctypes.c_double()
