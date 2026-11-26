@@ -197,6 +197,9 @@ bool charge_controller_start(charge_controller_t *controller, charge_room_t *roo
 
 
 static double forecast(const charge_controller_t *controller) {
+    if (!controller->config.forecast) {
+        return controller->reading;
+    }
     return controller->reading + (controller->k_known ? controller->k * controller->unseen : 0.0);
 }
 
@@ -418,7 +421,7 @@ static void backoff(charge_controller_t *controller, double now_ms) {
 // raised the reading by less than CHARGE_STARVED_SHARE of what they carry (step2.Step2.starving). Each window judged
 // once
 static bool starving(charge_controller_t *controller) {
-    if (controller->coarse_moves || !controller->k_known || controller->k <= 0.0) {
+    if (!controller->config.forecast || controller->coarse_moves || !controller->k_known || controller->k <= 0.0) {
         return false;
     }
     double shown = controller->turned_total - controller->unseen;
@@ -503,7 +506,7 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
     double asked = config->fine.kp * error + config->fine.ki * controller->fine_integral + config->fine.kd * derivative;
     double least = config->fine.least_rps;
     double top = config->fine.most_rps;
-    if (controller->k_known && controller->k > 0.0) {
+    if (config->forecast && controller->k_known && controller->k > 0.0) {
         // No more powder in the air than the room left
         double lag = lag_at(config, controller->fine_speed * controller->k);
         top = fmin(top, least + fmax(0.0, error) / (controller->k * lag));

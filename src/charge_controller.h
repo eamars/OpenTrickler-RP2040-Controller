@@ -66,6 +66,9 @@ typedef struct {
     float fine_weight_per_turn;         // step 1's, the powder's calibration: with nothing carried the forecast
                                         // starts from it; 0, none (ADR-009, 2026-11-26: without it a fast profile
                                         // never teaches one)
+    bool forecast;                      // the charge settings' switch: the PID on the forecast, its speed cap and the
+                                        // starved stop; off, the PID on the reading, as main's loop (the owner,
+                                        // 2026-11-27). The weight a turn is learned either way, for the tuner
 } charge_config_t;
 
 // A parcel of the fine tube's turns: when it began, from the throw's start, and how long it lasted

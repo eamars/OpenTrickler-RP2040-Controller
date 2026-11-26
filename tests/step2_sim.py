@@ -6,6 +6,9 @@ it). Three runs on the twin's rigs:
 - the controller, judged: step2.py's Step2 throws on the twin and drives it; the C is given the same calls (each
   millisecond's tick and each reading) and must ask the same speeds and stop at the same millisecond; at each throw's
   rest both carry its own weight a turn, which must agree;
+- the controller with the forecast off (its default, the owner, 2026-11-27), judged against main's loop
+  (legacy_pid.py) the same way, on the starts with no integral term (the C holds its integral at the speed limits,
+  main's does not: kept on with the switch, the owner, 2026-11-27);
 - the controller, alone: the C throws on the twin itself, as the charge mode will on a unit, its sessions summed up
   beside the Python's on the same seeds. Printed, not judged: the plant follows the C's own speeds;
 - the tuner, judged: step2_tuner.py's Tuner, on the rule gate 1 passed with (a lower cost is enough: z 0), tunes the
@@ -32,7 +35,7 @@ import rigs  # noqa: E402
 import step2  # noqa: E402
 import step2_tuner  # noqa: E402
 from host_test import compiler  # noqa: E402
-from legacy_pid import AR2209_PICOW_168  # noqa: E402
+from legacy_pid import AR2209_PICOW_168, LegacyPid  # noqa: E402
 from step2_variants import BENCH  # noqa: E402
 from throw import Session  # noqa: E402
 from workers import Workers  # noqa: E402
@@ -70,21 +73,23 @@ class Config(ctypes.Structure):
                 ("backoff_enable", ctypes.c_bool), ("backoff_turns", ctypes.c_float), ("backoff_rps", ctypes.c_float),
                 ("settle_s", ctypes.c_float), ("lag_count", ctypes.c_int),
                 ("lag_flow_per_s", ctypes.c_float * LAG_POINTS), ("lag_s", ctypes.c_float * LAG_POINTS),
-                ("acceleration_rps2", ctypes.c_float), ("fine_weight_per_turn", ctypes.c_float)]
+                ("acceleration_rps2", ctypes.c_float), ("fine_weight_per_turn", ctypes.c_float),
+                ("forecast", ctypes.c_bool)]
 
 
-def config_of(profile, records, acceleration_rps2: float) -> Config:
-    """The C's config from the Python's profile and step 1's records."""
+def config_of(profile, records, acceleration_rps2: float, forecast: bool = True) -> Config:
+    """The C's config from the Python's profile and step 1's records; the forecast off, the fine tube's least the
+    profile's, as main's loop has it."""
     lag = list(records.lag)[:LAG_POINTS]
     flows = (ctypes.c_float * LAG_POINTS)(*[flow for flow, _ in lag])
     lags = (ctypes.c_float * LAG_POINTS)(*[seconds for _, seconds in lag])
     return Config(Channel(profile.coarse_kp, profile.coarse_ki, profile.coarse_kd, profile.coarse_min_rps,
                           profile.coarse_max_rps),
-                  Channel(profile.fine_kp, profile.fine_ki, profile.fine_kd, records.fine_least_rps,
-                          profile.fine_max_rps),
+                  Channel(profile.fine_kp, profile.fine_ki, profile.fine_kd,
+                          records.fine_least_rps if forecast else profile.fine_min_rps, profile.fine_max_rps),
                   profile.coarse_stop_threshold, profile.fine_stop_threshold, profile.backoff_enable, profile.backoff_turns,
                   profile.backoff_speed_rps, records.settle_s, len(lag), flows, lags, acceleration_rps2,
-                  records.fine_gr_turn if PRODUCT["seed"] and records.fine_gr_turn else 0.0)
+                  records.fine_gr_turn if PRODUCT["seed"] and records.fine_gr_turn else 0.0, forecast)
 
 
 def python_controller(profile, records, rig):
@@ -179,8 +184,9 @@ class CController:
 class Paired:
     """The Python's Step2 driving the twin, the C given the same calls: each call's answers compared."""
 
-    def __init__(self, python, c: CController):
+    def __init__(self, python, c: CController, k: bool = True):
         self.python, self.c = python, c
+        self.k = k                      # the weights a turn compared too: main's loop has none
         self.calls = 0
 
     def start(self, target: float, now_ms: float) -> None:
@@ -200,13 +206,14 @@ class Paired:
         rate = max(abs(py.coarse_rps - c.coarse_rps), abs(py.fine_rps - c.fine_rps))
         throw["rate"] = max(throw["rate"], rate)
         c_k = c.state()["k"]
-        if (py.k is None) != (c_k is None):
+        py_k = py.k if self.k else c_k
+        if (py_k is None) != (c_k is None):
             throw["k_diff"] = float("inf")
-        elif py.k is not None:
-            throw["k_diff"] = max(throw["k_diff"], abs(py.k - c_k) / py.k)
+        elif py_k is not None:
+            throw["k_diff"] = max(throw["k_diff"], abs(py_k - c_k) / py_k)
         if throw["first"] is None and (rate > CLOSE_RPS or throw["k_diff"] > CLOSE_K):
             throw["first"] = f"at {now_ms:.0f} ms: speeds {py.coarse_rps:.5f}/{py.fine_rps:.5f} against " \
-                             f"{c.coarse_rps:.5f}/{c.fine_rps:.5f}, k {py.k} against {c_k}"
+                             f"{c.coarse_rps:.5f}/{c.fine_rps:.5f}, k {py_k} against {c_k}"
         self.calls += 1
 
     def on_tick(self, now_ms: float) -> None:
@@ -242,29 +249,32 @@ def calibrated_on(rig_name: str) -> str:
 
 
 def judged_session(job: tuple) -> list:
-    """One session of the Python's throws, the C given the same calls: a dict a throw."""
-    rig_name, records, seed, start = job
+    """One session of the Python's throws, the C given the same calls: a dict a throw. The forecast off, the Python is
+    main's loop, which has no weight a turn, no verdict's wait of its own and no starved stop."""
+    rig_name, records, seed, start, forecast = job
     rig = rigs.get_rig(rig_name)
     profile = STARTS[start]
     lib = load_library()
-    python = python_controller(profile, records, rig)
-    c = CController(lib, config_of(profile, records, rig.acceleration_rps2))
-    paired = Paired(python, c)
+    python = python_controller(profile, records, rig) if forecast else LegacyPid(profile)
+    c = CController(lib, config_of(profile, records, rig.acceleration_rps2, forecast))
+    paired = Paired(python, c, k=forecast)
     session = Session(rig, seed)
     out = []
     for _ in range(step2.THROWS_PER_SESSION):
-        after = python.verdict_after_s
+        after = python.verdict_after_s if forecast else c.verdict_after_s
         result = session.throw(paired, TARGET, profile.fine_stop_threshold, verdict_after_s=after)
-        python.at_rest(result.reading)
         c.at_rest(result.reading)
-        py_k, c_k = python.carried(), c.carried()
+        c_k = c.carried()
+        if forecast:
+            python.at_rest(result.reading)
+        py_k = python.carried() if forecast else c_k
         throw = dict(paired.throw)
         throw["verdict_after"] = abs(after - c.verdict_after_s)
         throw["carried"] = (0.0 if py_k is None and c_k is None else
                             float("inf") if (py_k is None) != (c_k is None) else abs(py_k - c_k) / py_k)
         throw.update(c.state())
         throw["timeout"] = result.verdict == "timeout"
-        throw["starved"] = (python.starved, c.starved)
+        throw["starved"] = (python.starved if forecast else False, c.starved)
         out.append(throw)
     return out
 
@@ -357,28 +367,33 @@ def main() -> int:
     with Workers() as pool:
         calibrated = [calibrated_on(rig) for rig in args.rigs]
         made = dict(zip(args.rigs, pool.map(step2.rig_records, calibrated)))
-        print("The controller, judged: the C given the Python's calls on the Python's throws")
-        for rig_name in args.rigs:
-            jobs = [(rig_name, made[rig_name], 5000 + s, start) for s in range(args.sessions)
-                    for start in args.starts if start in STARTS]
-            throws = [t for batch in pool.map(judged_session, jobs) for t in batch]
-            same_stop = sum(t["py_stop"] == t["c_stop"] for t in throws)
-            worst_rate = max(t["rate"] for t in throws)
-            worst_k = max(t["k_diff"] for t in throws)
-            worst_carry = max(t["carried"] for t in throws)
-            most = max(t["parcels"] for t in throws)
-            rows = max(t["rows"] for t in throws)
-            cut = sum(t["cut"] for t in throws)
-            starved = sum(t["starved"][0] for t in throws)
-            print(f"  {rig_name:36s} {len(throws)} throws: the same stop {same_stop}, starved {starved} (the C alike), "
-                  f"speeds within {worst_rate:.1e} "
-                  f"rev/s, k within {worst_k:.1e}, carried within {worst_carry:.1e}; room: {most} parcels, {rows} "
-                  f"readings; the own's room passed in {cut}")
-            for n, t in enumerate(throws):
-                if (t["py_stop"] != t["c_stop"] or t["first"] or t["carried"] > CLOSE_K or t["verdict_after"] > 1e-6
-                        or t["starved"][0] != t["starved"][1]):
-                    failures.append(f"{rig_name} throw {n}: stop {t['py_stop']} against {t['c_stop']} ms; "
-                                    f"{t['first'] or ''} carried {t['carried']:.1e}, cut {t['cut']}")
+        runs = [("The controller, judged: the C given the Python's calls on the Python's throws", True, args.rigs,
+                 [start for start in args.starts if start in STARTS]),
+                ("The forecast off, judged: the C given main's loop's calls on its throws", False,
+                 [rig for rig in args.rigs if rig != EMPTY_HOPPER],
+                 [start for start in args.starts if start in STARTS and not STARTS[start].fine_ki])]
+        for title, forecast, run_rigs, run_starts in runs:
+            print(title)
+            for rig_name in run_rigs:
+                jobs = [(rig_name, made[rig_name], 5000 + s, start, forecast) for s in range(args.sessions)
+                        for start in run_starts]
+                throws = [t for batch in pool.map(judged_session, jobs) for t in batch]
+                same_stop = sum(t["py_stop"] == t["c_stop"] for t in throws)
+                worst_rate = max(t["rate"] for t in throws)
+                worst_k = max(t["k_diff"] for t in throws)
+                worst_carry = max(t["carried"] for t in throws)
+                most = max(t["parcels"] for t in throws)
+                rows = max(t["rows"] for t in throws)
+                cut = sum(t["cut"] for t in throws)
+                starved = sum(t["starved"][0] for t in throws)
+                print(f"  {rig_name:36s} {len(throws)} throws: the same stop {same_stop}, starved {starved} "
+                      f"(the C alike), speeds within {worst_rate:.1e} rev/s, k within {worst_k:.1e}, carried within {worst_carry:.1e}; room: {most} parcels, {rows} "
+                      f"readings; the own's room passed in {cut}")
+                for n, t in enumerate(throws):
+                    if (t["py_stop"] != t["c_stop"] or t["first"] or t["carried"] > CLOSE_K or t["verdict_after"] > 1e-6
+                            or t["starved"][0] != t["starved"][1]):
+                        failures.append(f"{rig_name} throw {n}: stop {t['py_stop']} against {t['c_stop']} ms; "
+                                        f"{t['first'] or ''} carried {t['carried']:.1e}, cut {t['cut']}")
         print("The controller, alone: the C throwing on the twin, the Python on the same seeds (printed)")
         for rig_name in args.rigs:
             for start in [s for s in args.starts if s in STARTS]:

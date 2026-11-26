@@ -102,6 +102,12 @@ static const setting_field_t charge_fields[] = {
               "quicker ones, better ones kept into the powder's profile; a coarse Kp so high its powder overshoots is "
               "brought down once; off, the profile is never changed",
      .type = SETTING_BOOLEAN, CHARGE_FIELD(auto_tune), .applies = "the next throw"},
+    // ADR-009 step 2: the forecast's switch (the owner, 2026-11-27)
+    {.name = "forecast", .label = "Forecast", .group = "Tuning",
+     .about = "The fine trickler steers on the reading and the powder still falling, held slow enough that what is "
+              "falling never passes the target, and a throw whose powder stops coming ends on a fault; off, it "
+              "steers on the reading alone",
+     .type = SETTING_BOOLEAN, CHARGE_FIELD(forecast), .applies = "the next throw"},
 };
 
 

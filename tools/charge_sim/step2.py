@@ -71,7 +71,7 @@ def records_of(rig, seed: int) -> Records:
         least[tube] = report.records.get("least_rps", limits[0])
         stream[tube] = report.records.get("stream_gr_turn")
     report = calibration.scale_part(TwinBench(rig, seed), calibration.Cup())
-    return Records(settle_s=report.records.get("settle_s", 1.0), lag=tuple(report.records.get("lag", ((1.0, 0.8),))),
+    return Records(settle_s=report.records.get("settle_s", 0.2), lag=tuple(report.records.get("lag", ((1.0, 0.8),))),
                    fine_least_rps=least["fine"], coarse_least_rps=least["coarse"],
                    fine_gr_turn=stream["fine"] if stream["fine"] and stream["fine"] > 0.0 else None,
                    coarse_gr_turn=stream["coarse"] if stream["coarse"] and stream["coarse"] > 0.0 else None)

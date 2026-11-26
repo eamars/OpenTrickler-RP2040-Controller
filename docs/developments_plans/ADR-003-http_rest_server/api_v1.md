@@ -280,7 +280,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `zero_mean_margin` | number | weight | 0 to 1 *p*. Written with `steady_sd_margin` by the scale's calibration. The cup counts as lifted once the readings are steady and their mean 10 of it below zero (ADR-009, 2026-11-26) | now | `c8` (`set_point_mean_margin`) |
 | `decimal_places` | choice | | 2, 3 | now. A change keeps the charge's target as a weight, and is refused (400 `out_of_range`) when the target cannot be shown at the new decimals (review D2) | `c9` (an index) |
 | `coarse_stop_gate_ratio` | number or null | | 0 to 1; null: the gate is not moved | now | `c13` (-1 for not moved) |
-| `coarse_stop_backoff_enable` | boolean | | | now | `c14` |
+| `coarse_stop_backoff_enable` | boolean | | false by default: v1.21 had no back-off (ADR-009, 2026-11-27) | now | `c14` |
 | `coarse_stop_backoff_turns` | number | turns | 0.125 to 2 *p*, step 0.125 | now | `c15` |
 | `coarse_stop_backoff_speed_rps` | number | rev/s | 0 to 100; 0 is the coarse motor's minimum speed; used up to its `max_speed_rps` | now | `c16` |
 | `precharge_enable` | boolean | | | now | `c10` |
@@ -289,7 +289,8 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
 | `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
 | `cup_weight` | number or null | weight | 0 to 10,000; null: never calibrated. The empty cup's weight (ADR-009, step 1). Not used by the charge's test of a lifted cup (see `zero_mean_margin`) | now | new |
-| `auto_tune` | boolean | | true by default. After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then quicker ones, better ones kept into the powder's profile, stored, their writes `by` unit; at the first window's end a coarse Kp whose gain (Kp x the powder's `coarse_weight_per_turn` x the scale's middle lag) is above 0.4 is tried at 0.4 through the second window with the fine gains put right, and kept the same way (ADR-009, 2026-11-26); off, the profile is never changed (ADR-009, step 2) | the next throw | new |
+| `auto_tune` | boolean | | false by default (ADR-009, 2026-11-27). After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then quicker ones, better ones kept into the powder's profile, stored, their writes `by` unit; at the first window's end a coarse Kp whose gain (Kp x the powder's `coarse_weight_per_turn` x the scale's middle lag) is above 0.4 is tried at 0.4 through the second window with the fine gains put right, and kept the same way (ADR-009, 2026-11-26); off, the profile is never changed (ADR-009, step 2) | the next throw | new |
+| `forecast` | boolean | | false by default (ADR-009, 2026-11-27). On: the fine trickler's PID steers on the reading and the powder still falling, held slow enough that what is falling never passes the target, and a throw whose fine powder stops coming ends on the fault "Fine: no powder". Off: the PID on the reading alone, as main's loop (its integral still held at the speed limits) | the next throw | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 

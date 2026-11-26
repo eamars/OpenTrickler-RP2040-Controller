@@ -1261,3 +1261,22 @@ The unit restarted, so the tuner began from the profile's kp 0.8889, kd 10; 10 t
 Good 5, over 5, under 0; mean +0.016. Times 9.6, 9.8, 11.2, 9.6, 9.8, 12.3, 16.1, 12.8, 10.2, 10.3 s (median about 10.2 s; the coarse tube about 4.7 s of each). In 9 throws of 10 the reading at the stop was −0.02 (main's rule stops on the band's lowest reading), and about 2.2 digits landed after it on average, so the finals sit at +0.02 to +0.04, on the band's upper edge: what lands after the stop, not the gains, holds the pass rate at about half to two thirds.
 
 **The owner accepted this result** (2026-11-27). Left: the cup's lift seen on the unit (3b), steps 8 and 9 of the bench run (optional), the 10 s limit settled before release, the Pico W.
+
+## 2026-11-27, 01:00 to 01:45: the new features off by default (built, no unit)
+
+**The owner's question:** other than the auto-tuner, which functions on by default could change the trickle against main's plain PID? Read in the code against main's charge loop and v1.21's (`git show v1.21:src/charge_mode.cpp`): the forecast, its speed cap and the starved stop, all on by themselves once a weight a turn is known (from step 1, or learned from the throws even uncalibrated); the integral held at the speed limits (only with a Ki; every default profile, v1.21's too, has none). Against v1.21 besides: the coarse back-off, which v1.21 did not have and a migrated record took on (2.0.0's default); the motors' ramp (ADR-012: the same acceleration, but v1.21's charge loop stood still while a motor ramped); the verdict read after 1.8 s uncalibrated (1.0 s settle and 0.8 s lag) against v1.21's 1 s; the test of a lifted cup at 10 zero margins (0.2 gr) against v1.21's 10.
+
+**The owner's decisions:** a unit updated from v1.21 trickles as it did, a new feature switched on by the user:
+- `auto_tune` off by default;
+- `forecast`, a new switch beside it (Tuning), off by default: the forecast, its speed cap and the starved stop;
+- the coarse back-off off by default;
+- the verdict read after 1 s uncalibrated (the settle default 0.2 s); once the scale is calibrated, its own lag and settle time;
+- kept as they are: the integral hold, the motors' ramp, the test of a lifted cup. A cup weight of 10 by default was asked about: the cup's weight is no part of the lift test (half of it, tried first, waited for ever with a lighter cup), and with steady readings both tests pass on the same reading for any cup over 10 in the scale's unit; v1.21's never saw a cup under 10 g on a scale in grams.
+
+**Built:**
+- `forecast` appended to the charge record after `auto_tune`, aligned to 4 so it starts past the old struct's tail padding: the record 76 bytes to 80, the field at 76 (gdb on the Pico 2 W's ELF); a record stored before it is found at 76 and the field takes its default. In the settings table (group Tuning, "the next throw"), on the screen's Charge page beside Auto-tune, and in api_v1.md.
+- `charge_controller.c`: with the switch off the PID's error is the reading's, no speed cap, no starved stop; the weight a turn is still learned and carried, for the tuner's braking.
+- The defaults: `auto_tune` false, `forecast` false, `coarse_stop_backoff_enable` false, `CHARGE_DEFAULT_SETTLE_S` 0.2 (the twin's `records_of` the same).
+- `tests/step2_sim.py`: a second judged run, the C with the forecast off given main's loop's calls (`legacy_pid.py`), on the starts with no Ki.
+
+**Checked:** `step2_sim` VERDICT PASS: the forecast off, 800 throws on four rigs from four starts, the same stop on every one and the speeds within 3e-8 rev/s of main's loop; the forecast on, 1,250 throws as before, and the tuner's 25 cases the same steps. `host_test` VERDICT PASS (v1.21's charge record read, the new fields at their defaults: the back-off, the tuner and the forecast off); `release_records` VERDICT PASS; Pico 2 W built. Not yet on the unit.

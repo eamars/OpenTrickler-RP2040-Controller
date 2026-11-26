@@ -47,7 +47,7 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .set_point_sd_margin = 0.02,
     .set_point_mean_margin = 0.02,
     .coarse_stop_gate_ratio = 0,   // NEW
-    .coarse_stop_backoff_enable = true,
+    .coarse_stop_backoff_enable = false,    // v1.21 had none: a new feature is switched on (the owner, 2026-11-27)
     .coarse_stop_backoff_turns = 0.25f,
     .coarse_stop_backoff_speed_rps = 1.0f,
     .decimal_places = DP_2,
@@ -67,7 +67,10 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .cup_capacity = -1.0f,
     .cup_weight = -1.0f,
 
-    .auto_tune = true,
+    // ADR-009 step 2's two switches, off: a unit from v1.21 trickles as it did until the user turns them on (the owner,
+    // 2026-11-27)
+    .auto_tune = false,
+    .forecast = false,
 };
 
 // Configures
@@ -177,8 +180,9 @@ static uint32_t charge_tick_count = 0;
 static uint32_t charge_reading_count = 0;
 static size_t charge_heap_low = SIZE_MAX;
 
-// Step 1's scale never calibrated: the defaults the simulation takes where a part was never run (step2.py)
-#define CHARGE_DEFAULT_SETTLE_S 1.0f
+// Step 1's scale never calibrated: the defaults the simulation takes where a part was never run (step2.py). The
+// verdict is read after the slowest lag and the settle time, so uncalibrated 1 s, as v1.21 (the owner, 2026-11-27)
+#define CHARGE_DEFAULT_SETTLE_S 0.2f
 #define CHARGE_DEFAULT_LAG_FLOW 1.0f
 #define CHARGE_DEFAULT_LAG_S 0.8f
 
@@ -252,6 +256,7 @@ static void charge_step2_configure(profile_t * profile) {
     }
     config->acceleration_rps2 = motor_get_acceleration(SELECT_FINE_TRICKLER_MOTOR);
     config->fine_weight_per_turn = profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : 0.0f;
+    config->forecast = data->forecast;
     charge_kp_thrown = charge_kp;
     charge_kd_thrown = charge_kd;
     charge_coarse_kp_thrown = charge_coarse_kp;

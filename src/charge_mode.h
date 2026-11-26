@@ -51,9 +51,13 @@ typedef struct {
     // end: an earlier version's record is kept by load_config (ADR-009, gate 2)
     float cup_capacity;
     float cup_weight;
-    // The auto-tuner's switch (ADR-009 step 2, gate 3), on by default. Appended at the end: an earlier version's record
-    // is kept by load_config, this field its default
+    // The auto-tuner's switch (ADR-009 step 2, gate 3), off by default (the owner, 2026-11-27). Appended at the end: an
+    // earlier version's record is kept by load_config, this field its default
     bool auto_tune;
+    // The forecast's switch (ADR-009 step 2, the owner, 2026-11-27), off by default: the forecast, its speed cap and
+    // the starved stop. Appended at the end, past the struct's old tail padding (auto_tune's three bytes): a record
+    // stored before it is 76 bytes, found at that size, and this field takes its default
+    bool forecast __attribute__((aligned(4)));
 } eeprom_charge_mode_data_t;
 
 typedef struct {

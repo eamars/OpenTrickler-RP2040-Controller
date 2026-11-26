@@ -200,13 +200,14 @@ static void charge_record(void) {
     static eeprom_charge_mode_data_t defaults;
     memset(&defaults, 0, sizeof(defaults));
     defaults.coarse_stop_threshold = 5.0f;
-    defaults.coarse_stop_backoff_enable = true;
+    defaults.coarse_stop_backoff_enable = false;
     defaults.coarse_stop_backoff_turns = 0.25f;
     defaults.coarse_stop_backoff_speed_rps = 1.0f;
     defaults.precharge_time_ms = 1000;
     defaults.cup_capacity = -1.0f;
     defaults.cup_weight = -1.0f;
-    defaults.auto_tune = true;
+    defaults.auto_tune = false;
+    defaults.forecast = false;
 
     // v1.21's record as its own build laid it out, each field a value of its own
     uint8_t v121[52];
@@ -238,9 +239,9 @@ static void charge_record(void) {
           colour_of(&charge.neopixel_over_charge_colour) == 0x00778899u &&
           colour_of(&charge.neopixel_not_ready_colour) == 0x00aabbccu,
           "v1.21's charge record: every field it had read from its own place");
-    check(charge.coarse_stop_backoff_enable && charge.coarse_stop_backoff_turns == 0.25f &&
+    check(!charge.coarse_stop_backoff_enable && charge.coarse_stop_backoff_turns == 0.25f &&
           charge.coarse_stop_backoff_speed_rps == 1.0f && charge.cup_capacity == -1.0f && charge.cup_weight == -1.0f &&
-          charge.auto_tune, "the fields v2 added at their defaults");
+          !charge.auto_tune && !charge.forecast, "the fields v2 added at their defaults: the new features off");
     static eeprom_charge_mode_data_t back;
     check(config_read_stored(CHARGE_ADDR, &back, sizeof(back)) && memcmp(&back, &charge, sizeof(back)) == 0,
           "and stored at this version's size");
