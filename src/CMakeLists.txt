@@ -46,6 +46,25 @@ add_custom_command(
     COMMENT "Generating version"
 )
 add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
+# A module that reads the version requires it by name, and so waits for version.h to be made (ADR-006)
+target_include_directories(app_version PUBLIC ${SRC_DIRECTORY}/generated)
+add_library(ot::version ALIAS app_version)
+
+# ADR-006, gate 1: the build's mechanics tried on two modules, where their files lie. Each names itself, since they
+# share this folder until gate 2 gives every module its own; and each gets all of src/ as its include path, so
+# nothing is refused yet between our own files
+#   - fault_handler: one function, called by nothing of ours, in place of the SDK's weak isr_hardfault. It is in
+#     the image only if the module is linked whole
+#   - events: a service on FreeRTOS and the SDK, with other modules' headers and a generated one
+set(OT_MODULE_NAME fault_handler)
+ot_module(SRCS fault_handler.c
+          PRIV_INCLUDE_DIRS ${SRC_DIRECTORY}
+          PRIV_REQUIRES freertos rp2_sdk)
+set(OT_MODULE_NAME events)
+ot_module(SRCS events.c
+          INCLUDE_DIRS ${SRC_DIRECTORY}
+          PRIV_REQUIRES freertos rp2_sdk version)
+unset(OT_MODULE_NAME)
 
 
 # The menu's fonts, made from the BDF files in fonts/ (ADR-010): one family, Helvetica, in three sizes, as the owner

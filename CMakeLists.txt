@@ -12,6 +12,13 @@ message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
 set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 
+# The console (ADR-001): stdio over RTT, read through a debug probe. Never on UART0, the scale's port. Chosen here
+# for every target, not on the image alone (pico_enable_stdio_rtt() and the like): the SDK's libraries give a target
+# the headers of the console it chose, and a module is a target of its own (ADR-006)
+set(PICO_STDIO_RTT 1)
+set(PICO_STDIO_UART 0)
+set(PICO_STDIO_USB 0)
+
 # Include the Pico SDK
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 
@@ -64,12 +71,18 @@ target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTOR
 target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
 target_compile_options(lvgl PRIVATE -Os)
 
+# The firmware's modules (ADR-006): ot_module(), and the image linking each whole
+include(${CMAKE_SOURCE_DIR}/cmake/ot_module.cmake)
+
 # Pull in src
 add_subdirectory(${SRC_DIRECTORY})
 
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c 
               ${SRC_DIRECTORY}/*.cpp)
+# But those a module builds (ADR-006, gate 1: two modules tried where their files lie, the rest as before)
+get_property(OT_MODULE_SOURCES GLOBAL PROPERTY OT_MODULE_SOURCES)
+list(REMOVE_ITEM SRC ${OT_MODULE_SOURCES})
 
 # What a build carries (ADR-008, gate 2; ADR-005's feature table): a feature is in the build or out of it, never built
 # a second way, and the unit reports each by name (the index's `features`). On by default on both boards
@@ -117,6 +130,19 @@ target_link_libraries("${TARGET_NAME}"
     pico_mbedtls
 )
 
+# Third-party code as a module sees it (ADR-006): its include paths and no source, under ESP-IDF's names for what
+# both platforms have, so a module's REQUIRES line is the same under ESP-IDF. The real libraries, which carry their
+# sources, are linked once, above.
+#   - rp2_sdk is the Pico SDK itself. Every module that requires it is one gate 7 has still to free of the chip.
+#   - lwip carries the radio's driver too (cyw43), until gate 7 puts it behind the network's interface.
+ot_third_party(rp2_sdk pico_stdlib hardware_pio hardware_spi hardware_i2c hardware_pwm pico_flash)
+ot_third_party(freertos FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+ot_third_party(lwip pico_cyw43_arch_lwip_sys_freertos pico_lwip_freertos pico_lwip_mdns)
+ot_third_party(mbedtls pico_mbedtls)
+ot_third_party(lvgl lvgl)
+ot_image_settings("${TARGET_NAME}")
+ot_link_modules("${TARGET_NAME}")
+
 # SHA-256 optimised: at the build's -O0 an image's check took 5 s on the Pico W, and the web server, whose task it
 # runs in, answered nothing meanwhile (ADR-004). It is third-party code nobody steps through
 set_source_files_properties("${PICO_SDK_PATH}/lib/mbedtls/library/sha256.c" PROPERTIES COMPILE_OPTIONS "-O2")
@@ -162,10 +188,7 @@ target_include_directories("${TARGET_NAME}" PRIVATE ${CMAKE_BINARY_DIR}/https)
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 
-# The console (ADR-001): stdio over RTT, read through a debug probe. Never on UART0, the scale's port
-pico_enable_stdio_rtt("${TARGET_NAME}" 1)
-pico_enable_stdio_uart("${TARGET_NAME}" 0)
-pico_enable_stdio_usb("${TARGET_NAME}" 0)
+# The console (ADR-001) is chosen above, before the SDK starts: stdio over RTT
 target_compile_definitions("${TARGET_NAME}" PRIVATE
     # A failed assert() enters the USB loader in place of a breakpoint; that resets PIO, so the steps stop
     PICO_ENTER_USB_BOOT_ON_EXIT=1
