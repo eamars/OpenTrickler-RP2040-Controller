@@ -72,9 +72,9 @@ def screens():
 
     # --- Where it is
     p = Panel(); m.title(p, "OpenTrickler")
-    m.rows(p, [("Calibrate this unit", "", True), ("Charge", "", True), ("Purge", "", False), ("Wi-Fi", "", True)], 0,
+    m.rows(p, [("Charge", "", True), ("Calibrate this unit", "", True), ("Purge", "", False), ("Wi-Fi", "", True)], 0,
            total=5)
-    add(p, "Main menu: offered until calibrated")
+    add(p, "Main menu: the offer, under Charge")
 
     p = Panel(); m.title(p, "Settings", back=True)
     m.rows(p, [("Calibration", "", True), ("Scale", "", True), ("Charge", "", True), ("Display", "", True)], 0,
@@ -82,8 +82,13 @@ def screens():
     add(p, "Settings: Calibration, kept for good")
 
     p = Panel(); m.title(p, "Calibration", back=True)
-    m.rows(p, [("Cup", "541.48 gr", True), ("Scale", "Not done", True), ("Powder", "AR2209", True)], 1)
+    m.rows(p, [("Cup", "541.48 gr", True), ("Scale", "Not done", True), ("Powder", "", True)], 1)
     add(p, "Calibration: three parts, each alone")
+
+    p = Panel(); m.title(p, "Powder", back=True)
+    m.rows(p, [("AR2208", "", False), ("AR2209", "", False), ("8208", "", False), ("Benchmark2", "", False)], 1,
+           total=8)
+    add(p, "Powder: the eight, the charge's focused")
 
     # --- The cup
     p = Panel(); m.title(p, "Cup")
@@ -95,16 +100,6 @@ def screens():
     m.figure(p, "0.00", "gr")
     m.softkeys(p, "Cancel", "", focus="left")
     add(p, "Every part: zeroed with the empty cup")
-
-    p = Panel(); m.title(p, "Lift the cup")
-    m.figure(p, "0.00", "gr"); m.context(p, "Its weight is read")
-    m.softkeys(p, "Cancel", "", focus="left")
-    add(p, "Cup: lifted, the reading falls by its weight")
-
-    p = Panel(); m.title(p, "Put the cup back")
-    m.figure(p, "-444.91", "gr"); m.context(p, "The cup weighs 444.91 gr")
-    m.softkeys(p, "Cancel", "", focus="left")
-    add(p, "Cup: its weight found, back on the pan")
 
     p = Panel(); fill_job(p, "0.00")
     add(p, "Fill: the knob pours, the click is Full")
@@ -169,6 +164,11 @@ def screens():
     p = Panel(); m.title(p, "AR2209", back=True)
     m.dense(p, POWDER_RESULT, at="end")
     add(p, "Powder: Save at the end")
+
+    p = Panel(); m.title(p, "Calibration")
+    p.text(m.TEXT, 0, 34, "Discard what was found?", align="center")
+    m.softkeys(p, "Cancel", "Discard", focus="left")
+    add(p, "Result: Back asks first, Cancel focused")
 
     p = Panel(); m.title(p, "AR2209", back=True)
     m.dense(p, POWDER_NOT_FOUND, at="end")

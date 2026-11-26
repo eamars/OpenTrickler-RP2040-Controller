@@ -160,6 +160,13 @@ function calibrationSheet() {
                 out.click();
             }
         });
+        // A browser may close it on Esc all the same (one with no click on the page yet): while its part runs it opens
+        // again, so a step with no way out by Esc (the result) is not left unseen
+        sheet.addEventListener("close", () => {
+            if (sheet.dataset.running === "yes") {
+                sheet.showModal();
+            }
+        });
         document.body.append(sheet);
     }
     return sheet;
@@ -360,7 +367,13 @@ function drawCalibration(options = {}) {
             if (result.failure) {
                 note(`${result.failure}.`);
             }
-            actions(out("Discard", "ghost", stop),
+            // Discard asks first, in the screen's words, and Esc does not discard: it is no way out here (the PR's
+            // review, U3)
+            actions(button("Discard", "ghost", async () => {
+                        if (await confirmAction("Discard what was found?", "", "Discard", "Cancel", true)) {
+                            stop();
+                        }
+                    }),
                     button(cal.part === "scale" ? "Keep" : "Save", "action go",
                            () => send("POST", `${CALIBRATION}/save`, {}, "Not kept")));
             break;
@@ -426,11 +439,15 @@ function drawCalibration(options = {}) {
                                powder: `Calibrate ${cal.profile_name}`}[cal.part];
                 sheet.replaceChildren(element("h2", {id: "calibration-sheet-title", class: "sheet-title"}, title),
                                       jobCard(cal));
+                sheet.dataset.running = "yes";
                 if (!sheet.open) {
                     sheet.showModal();
                 }
-            } else if (sheet.open) {
-                sheet.close();
+            } else {
+                sheet.dataset.running = "";
+                if (sheet.open) {
+                    sheet.close();
+                }
             }
         }
         if (running) {

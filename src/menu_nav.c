@@ -96,6 +96,7 @@ struct menu_page {
     const menu_row_t *rows;
     uint8_t row_count;
     bool cancel_first;      // a dialog that destroys: it opens with Cancel focused
+    int (*focus_now)(void); // the shown row it opens on; NULL: the first that does something
 };
 
 typedef enum {
@@ -198,6 +199,10 @@ static void push_page(const menu_page_t *page) {
             frame->focus = (int8_t) idx;
             break;
         }
+    }
+    if (page->focus_now != NULL) {
+        int focus = page->focus_now();
+        frame->focus = (int8_t) (focus >= 0 && focus < count ? focus : frame->focus);
     }
     // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel. The set-up's softkeys
     // follow its stage (menu_nav_refresh)
@@ -1356,12 +1361,13 @@ static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "setti
                                                .row_count = ROW_COUNT(rows_factory_reset),
                                                .cancel_first = true};
 
-// ADR-009 step 1: the calibration, its three parts each started alone from its row (Settings > Calibration)
-static void calibration_start_row(calibration_part_t part) {
+// ADR-009 step 1: the calibration, its three parts each started alone from its row (Settings > Calibration); a
+// powder's part for the profile given (-1: none)
+static void calibration_start_row(calibration_part_t part, int profile) {
     if (motors_fault_shown("Calibration")) {
         return;
     }
-    if (calibration_request_start(part, -1, ACTIVITY_BY_BUTTON) == CALIBRATION_START_DRIVER_FAULT) {
+    if (calibration_request_start(part, profile, ACTIVITY_BY_BUTTON) == CALIBRATION_START_DRIVER_FAULT) {
         push_message(motors_get_fault(), "Calibration", "cannot start");
     }
 }
@@ -1369,20 +1375,35 @@ static void calibration_start_row(calibration_part_t part) {
 
 static void act_calibrate_cup(const menu_row_t *row) {
     (void) row;
-    calibration_start_row(CALIBRATION_PART_CUP);
+    calibration_start_row(CALIBRATION_PART_CUP, -1);
 }
 
 
 static void act_calibrate_scale(const menu_row_t *row) {
     (void) row;
-    calibration_start_row(CALIBRATION_PART_SCALE);
+    calibration_start_row(CALIBRATION_PART_SCALE, -1);
 }
 
+
+// The powders' page (the PR's review, U4): the eight by name, the charge's focused first; a click calibrates the one
+// chosen and leaves the charge's own as it is
+static const menu_row_t rows_calibration_powder[MAX_PROFILE_CNT];
 
 static void act_calibrate_powder(const menu_row_t *row) {
-    (void) row;
-    calibration_start_row(CALIBRATION_PART_POWDER);
+    calibration_start_row(CALIBRATION_PART_POWDER, (int) (row - rows_calibration_powder));
 }
+
+#define POWDER_NAME(n) static const char *powder_name_##n(void) { return profile_get_name(n); }
+POWDER_NAME(0) POWDER_NAME(1) POWDER_NAME(2) POWDER_NAME(3) POWDER_NAME(4) POWDER_NAME(5) POWDER_NAME(6) POWDER_NAME(7)
+#define POWDER_ROW(n) {.label = "", .kind = ROW_ACTION, .act = act_calibrate_powder, .label_now = powder_name_##n}
+static const menu_row_t rows_calibration_powder[MAX_PROFILE_CNT] = {
+    POWDER_ROW(0), POWDER_ROW(1), POWDER_ROW(2), POWDER_ROW(3), POWDER_ROW(4), POWDER_ROW(5), POWDER_ROW(6),
+    POWDER_ROW(7),
+};
+static const menu_page_t page_calibration_powder = {.id = "settings/calibration/powder", .title = "Powder",
+                                                    .rows = rows_calibration_powder,
+                                                    .row_count = ROW_COUNT(rows_calibration_powder),
+                                                    .focus_now = powder_current};
 
 
 static void value_cup_capacity(const menu_row_t *row, char *out, size_t room) {
@@ -1404,12 +1425,6 @@ static void value_scale_calibrated(const menu_row_t *row, char *out, size_t room
 }
 
 
-static void value_selected_powder(const menu_row_t *row, char *out, size_t room) {
-    (void) row;
-    snprintf(out, room, "%s", profile_get_name(profile_get_selected_idx()));
-}
-
-
 // Offered on the main menu until the cup and the scale are calibrated
 static bool calibration_offered(void) {
     return charge_mode_config.eeprom_charge_mode_data.cup_capacity < 0.0f ||
@@ -1420,10 +1435,25 @@ static bool calibration_offered(void) {
 static const menu_row_t rows_calibration[] = {
     {.label = "Cup", .kind = ROW_ACTION, .act = act_calibrate_cup, .value = value_cup_capacity},
     {.label = "Scale", .kind = ROW_ACTION, .act = act_calibrate_scale, .value = value_scale_calibrated},
-    {.label = "Powder", .kind = ROW_ACTION, .act = act_calibrate_powder, .value = value_selected_powder},
+    {.label = "Powder", .kind = ROW_PAGE, .page = &page_calibration_powder},
 };
 static const menu_page_t page_calibration = {.id = "settings/calibration", .title = "Calibration",
                                              .rows = rows_calibration, .row_count = ROW_COUNT(rows_calibration)};
+
+// At a calibration's result, Back asks first: Cancel goes back to the result as it was, Discard stops the job
+static void act_calibration_discard(const menu_row_t *row) {
+    (void) row;
+    activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
+}
+
+static const menu_row_t rows_calibration_discard[] = {
+    {.label = "Discard what was found?", .kind = ROW_INFO},
+    {.label = "Discard", .kind = ROW_ACTION, .act = act_calibration_discard},
+};
+static const menu_page_t page_calibration_discard = {.kind = PAGE_DIALOG, .id = "calibration/discard",
+                                                     .title = "Calibration", .rows = rows_calibration_discard,
+                                                     .row_count = ROW_COUNT(rows_calibration_discard),
+                                                     .cancel_first = true};
 
 static const menu_row_t rows_settings[] = {
     {.label = "Calibration", .kind = ROW_PAGE, .page = &page_calibration},
@@ -1451,8 +1481,9 @@ static const menu_row_t rows_main[] = {
     {.label = "Set up this unit", .kind = ROW_PAGE, .page = &page_setup, .shown = setup_offered},
     {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
      .shown = shown_update_found},
-    {.label = "Calibrate this unit", .kind = ROW_PAGE, .page = &page_calibration, .shown = calibration_offered},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge},
+    // Under Charge, so a unit from v1.21 still opens on Charge (the PR's review, U5)
+    {.label = "Calibrate this unit", .kind = ROW_PAGE, .page = &page_calibration, .shown = calibration_offered},
     {.label = "Purge", .kind = ROW_ACTION, .act = act_cleanup_start},
     {.label = "Wi-Fi", .kind = ROW_PAGE, .page = &page_wifi},
     {.label = "Settings", .kind = ROW_PAGE, .page = &page_settings},
@@ -1462,13 +1493,13 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
-    &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_scale, &page_charge_settings,
+    &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_calibration_powder, &page_scale, &page_charge_settings,
     &page_display,
 #if FEATURE_SERVO_GATE
     &page_gate,
 #endif
     &page_motors, &page_firmware,
-    &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
+    &page_factory_reset, &page_calibration_discard, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 
@@ -1970,7 +2001,13 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
     const char *answer = NULL;
     const char *label = calibration_answer_label(&cal, &answer);
     if (key == MENU_KEY_BACK) {
-        activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
+        // At the result, what was found is asked about before it is thrown away (the PR's review, U3); else a stop
+        if (cal.step == CALIBRATION_STEP_RESULT) {
+            push_page(&page_calibration_discard);
+        }
+        else {
+            activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
+        }
         return;
     }
 
