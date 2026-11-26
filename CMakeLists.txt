@@ -130,7 +130,10 @@ set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
 # the kernel stays at the build's own level, the one third-party code stepped through
 file(GLOB_RECURSE THIRD_PARTY_OS_SOURCES ${PICO_SDK_PATH}/lib/lwip/src/*.c ${PICO_SDK_PATH}/lib/cyw43-driver/src/*.c
      ${PICO_SDK_PATH}/src/*.c)
-set_source_files_properties(${THIRD_PARTY_OS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
+# In the image only: the Pico W's bootloader (targets/flash_layout.cmake) compiles the SDK's sources at the build's own
+# level, as ADR-004 proved it
+set_source_files_properties(${THIRD_PARTY_OS_SOURCES} PROPERTIES
+                            COMPILE_OPTIONS "$<$<STREQUAL:$<TARGET_PROPERTY:NAME>,${TARGET_NAME}>:-Os>")
 
 # The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/github_roots.pem). A test build
 # (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),
