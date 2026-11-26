@@ -2604,17 +2604,21 @@ bool menu_nav_goto(const char *id) {
     if (wanted == NULL || menu_nav_in_job()) {
         return false;
     }
+    // A page no row opens sits over the page it is opened from: a start's acknowledgement, a result's discard
+    const menu_page_t *under = wanted == &page_ack_charge ? &page_charge :
+                               wanted == &page_ack_cleanup ? &page_main :
+                               wanted == &page_calibration_discard ? &page_calibration : NULL;
     const menu_page_t *path[MENU_FRAMES_MAX];
     int depth = 0;
-    frame_depth = 0;
-    if (wanted == &page_ack_charge || wanted == &page_ack_cleanup) {
-        // A start's acknowledgement sits over the page it starts from
-        page_path(&page_main, wanted == &page_ack_charge ? &page_charge : &page_main, path, &depth);
+    // No way to it, or no room for it: the menu stays where it is, never left with no page
+    if (!page_path(&page_main, under != NULL ? under : wanted, path, &depth) ||
+        (under != NULL && depth >= MENU_FRAMES_MAX)) {
+        return false;
+    }
+    if (under != NULL) {
         path[depth++] = wanted;
     }
-    else {
-        page_path(&page_main, wanted, path, &depth);
-    }
+    frame_depth = 0;
     for (int idx = 0; idx < depth; idx += 1) {
         push_page(path[idx]);
     }
