@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Draft** 2026-11-13, written again with the owner 2026-11-26 and 27, and revised later on the 27th after a second agent's review on main and the owner's direction on what later builds may add or leave out. Not approved. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C; a base build that carries everything of today, cut so that a later build adds or leaves out a part without touching what is shared. Nothing a user sees changes, and nothing of ADR-007 or of any other build is built here.
+Status: **Open** 2026-11-27: gate 1 approved by the owner ("Approve"), the gates after it not yet. Drafted 2026-11-13, written again with the owner 2026-11-26 and 27, and revised later on the 27th after a second agent's review on main and the owner's direction on what later builds may add or leave out. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C; a base build that carries everything of today, cut so that a later build adds or leaves out a part without touching what is shared. Nothing a user sees changes, and nothing of ADR-007 or of any other build is built here.
 
 ## What we want
 
@@ -47,6 +47,10 @@ Status: **Draft** 2026-11-13, written again with the owner 2026-11-26 and 27, an
   2. "Supporting different trickler controller, like the future thrower/per kernel basis trickler (not rotary tube design). This would be different firmware build, for a soft ware switch to change the mode depending on the available FLASH space." Read here as: a build of its own where both do not fit, and one build with both and a stored switch where they do. To confirm (below, "To settle").
   3. "ESP32 support. which means discarding bsp and platform for Pico, and only include ESP IDF library for ESP32, but sharing the same application layer code."
   4. "More??" The agent's candidates are under [More lines](#more-lines-the-agents-candidates), for the owner to strike or add to.
+
+**2026-11-27, the approval**
+- Gate 1 approved, alone: "Approve." Gate 2 waits for the layout and for the Pico 2 W's runs ADR-009 handed on; the later gates for what is under "To settle".
+- "I don't expect other agents to work in parallel so you don't need an isolated worktree."
 
 ## Why here
 
