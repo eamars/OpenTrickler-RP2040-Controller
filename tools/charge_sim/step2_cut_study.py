@@ -31,7 +31,8 @@ from step2_variants import BENCH
 from throw import Session
 from workers import Workers
 
-STOPS = {"forecast": ("forecast", "none"), "reading": ("reading", "none"), "reading+aim": ("reading", "median"),
+STOPS = {"forecast": ("forecast", "none"), "reading": ("reading", "none"), "threshold": ("threshold", "none"),
+         "reading+aim": ("reading", "median"),
          "reading+whole": ("reading", "whole"), "none": ("none", "none")}
 STARTS = {"bench": BENCH, "owner": AR2209_PICOW_168}
 RIGS = ("pico2w_ar2209_f2", "pico2w_ar2209_f2+fine_by_speed", "pico2w_ar2209_night", "pico2w_bm2")

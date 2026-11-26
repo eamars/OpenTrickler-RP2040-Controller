@@ -129,7 +129,7 @@ def run(job: tuple) -> tuple:
         records = dataclasses.replace(records, fine_gr_turn=records.fine_gr_turn * case.seed)
     session = Session(rig, seed)
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=case.seed is not None,
-                             hold="none", cut="reading")
+                             hold="none", cut="threshold")
     tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="modelled") if case.tuned \
         else None
     out, errors, times = [], [], []

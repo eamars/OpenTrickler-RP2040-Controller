@@ -201,6 +201,13 @@ static double forecast(const charge_controller_t *controller) {
 }
 
 
+// The throw's end, main's rule: the reading less than the fine threshold under the target (charge_mode.cpp's loop
+// before ADR-009). The PID still aims at the target itself
+static bool reached(const charge_controller_t *controller) {
+    return controller->target - controller->reading < controller->config.fine_threshold;
+}
+
+
 static void stop(charge_controller_t *controller) {
     controller->fine_rps = 0.0;
     controller->coarse_rps = 0.0;
@@ -242,8 +249,9 @@ void charge_controller_tick(charge_controller_t *controller, double now_ms) {
         controller->quiet_known = true;
         controller->quiet_at_s = now + lag_most(config) + config->settle_s;
     }
-    // The stop, once the reading reaches the target, below the coarse tube's threshold: never cut on the forecast
-    if (!controller->coarse_moves && controller->fine_rps > 0.0 && controller->reading >= controller->target) {
+    // The stop, once the reading is within the fine threshold under the target (main's rule), below the coarse tube's
+    // threshold: never cut on the forecast
+    if (!controller->coarse_moves && controller->fine_rps > 0.0 && reached(controller)) {
         stop(controller);
     }
 }
@@ -481,9 +489,9 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
     }
 
     // The fine tube: the profile's PID on the forecast's error, within its envelope; stopped by the reading alone, so
-    // past the forecast's target it creeps at its least until the reading shows the target
+    // past the forecast's target it creeps at its least until the reading is within the threshold
     double error = controller->target - forecast(controller);
-    if (!controller->coarse_moves && controller->reading >= controller->target) {
+    if (!controller->coarse_moves && reached(controller)) {
         stop(controller);
         return;
     }

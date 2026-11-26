@@ -158,13 +158,11 @@ static char charge_tuned_unit[4] = "";          // the scale's unit then
 static bool charge_tuning = false;              // the switch then
 static float charge_profile_kp = NAN;           // the profile's fine gains as last seen or written
 static float charge_profile_kd = NAN;
-static float charge_profile_ki = NAN;
+static float charge_profile_ki = NAN;           // the user's alone: the tuner never moves it (the owner, 2026-11-26)
 static double charge_kp = NAN;                  // the fine gains the next throw is thrown on: the tuner's, or the
 static double charge_kd = NAN;                  // profile's
-static double charge_ki = NAN;
 static double charge_kp_thrown = NAN;
 static double charge_kd_thrown = NAN;
-static double charge_ki_thrown = NAN;
 static float charge_profile_coarse_kp = NAN;    // the profile's coarse kp as last seen or written
 static double charge_coarse_kp = NAN;           // the coarse kp the next throw is thrown on: the tuner's (its gains put
 static double charge_coarse_kp_thrown = NAN;    // right), or the profile's
@@ -207,7 +205,6 @@ static void charge_step2_configure(profile_t * profile) {
         charge_profile_coarse_kp = profile->coarse_kp;
         charge_kp = profile->fine_kp;
         charge_kd = profile->fine_kd;
-        charge_ki = profile->fine_ki;
         charge_coarse_kp = profile->coarse_kp;
         printf("Charge: the tuner begins afresh from kp %.4f, kd %.1f, ki %g, coarse kp %.4f\n",
                (double) profile->fine_kp, (double) profile->fine_kd, (double) profile->fine_ki,
@@ -217,7 +214,6 @@ static void charge_step2_configure(profile_t * profile) {
     if (!data->auto_tune) {
         charge_kp = profile->fine_kp;
         charge_kd = profile->fine_kd;
-        charge_ki = profile->fine_ki;
         charge_coarse_kp = profile->coarse_kp;
     }
     charge_coarse_k = profile->coarse_weight_per_turn > 0.0f ? profile->coarse_weight_per_turn : 0.0;
@@ -229,11 +225,12 @@ static void charge_step2_configure(profile_t * profile) {
     config->coarse.least_rps = fmaxf(get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR), profile->coarse_min_flow_speed_rps);
     config->coarse.most_rps = fminf(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR), profile->coarse_max_flow_speed_rps);
     config->fine.kp = (float) charge_kp;
-    config->fine.ki = (float) charge_ki;
+    config->fine.ki = profile->fine_ki;
     config->fine.kd = (float) charge_kd;
     config->fine.least_rps = fmaxf(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR), profile->fine_min_flow_speed_rps);
     config->fine.most_rps = fminf(get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR), profile->fine_max_flow_speed_rps);
     config->coarse_threshold = data->coarse_stop_threshold;
+    config->fine_threshold = data->fine_stop_threshold;
     config->backoff_enable = data->coarse_stop_backoff_enable;
     config->backoff_turns = data->coarse_stop_backoff_turns;
     config->backoff_rps = data->coarse_stop_backoff_speed_rps;
@@ -257,7 +254,6 @@ static void charge_step2_configure(profile_t * profile) {
     config->fine_weight_per_turn = profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : 0.0f;
     charge_kp_thrown = charge_kp;
     charge_kd_thrown = charge_kd;
-    charge_ki_thrown = charge_ki;
     charge_coarse_kp_thrown = charge_coarse_kp;
 }
 
@@ -296,12 +292,11 @@ static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
     }
     double next_kp;
     double next_kd;
-    double next_ki;
     double next_coarse_kp;
-    charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, charge_kd_thrown, charge_ki_thrown,
+    charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, charge_kd_thrown,
                                                   charge_coarse_kp_thrown, has_carried ? carried : 0.0,
                                                   charge_coarse_k, charge_lag_middle(&step2->controller.config),
-                                                  (double) reading - target, elapsed_s, &next_kp, &next_kd, &next_ki,
+                                                  (double) reading - target, elapsed_s, &next_kp, &next_kd,
                                                   &next_coarse_kp);
     if (step == CHARGE_TUNER_THROWING) {
         return;
@@ -311,16 +306,12 @@ static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
                                         "put back as they were"};
     printf("Tuner: %s, kp %.4f kd %.1f; next %.4f %.1f, kept %.4f %.1f\n", said[step], charge_kp_thrown,
            charge_kd_thrown, next_kp, next_kd, step2->tuner.base_kp, step2->tuner.base_kd);
-    if (next_ki != charge_ki_thrown || step2->tuner.base_ki != charge_ki_thrown) {
-        printf("Tuner: ki %g; next %g, kept %g\n", charge_ki_thrown, next_ki, step2->tuner.base_ki);
-    }
     if (next_coarse_kp != charge_coarse_kp_thrown || step2->tuner.base_coarse_kp != charge_coarse_kp_thrown) {
         printf("Tuner: coarse kp %.4f; next %.4f, kept %.4f\n", charge_coarse_kp_thrown, next_coarse_kp,
                step2->tuner.base_coarse_kp);
     }
     charge_kp = next_kp;
     charge_kd = next_kd;
-    charge_ki = next_ki;
     charge_coarse_kp = next_coarse_kp;
     if (step != CHARGE_TUNER_KEPT) {
         return;
@@ -328,16 +319,13 @@ static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
     char path[32];
     char kp_text[16];
     char kd_text[16];
-    char ki_text[16];
     char coarse_text[16];
     snprintf(path, sizeof(path), "powder_profiles/%d", charge_tuned_profile);
     snprintf(kp_text, sizeof(kp_text), "%.4f", step2->tuner.base_kp);
     snprintf(kd_text, sizeof(kd_text), "%.2f", step2->tuner.base_kd);
-    snprintf(ki_text, sizeof(ki_text), "%g", step2->tuner.base_ki);
     snprintf(coarse_text, sizeof(coarse_text), "%.4f", step2->tuner.base_coarse_kp);
     const char * why = settings_write_by(path, "fine_kp", kp_text, ACTIVITY_BY_UNIT);
     why = why != NULL ? why : settings_write_by(path, "fine_kd", kd_text, ACTIVITY_BY_UNIT);
-    why = why != NULL ? why : settings_write_by(path, "fine_ki", ki_text, ACTIVITY_BY_UNIT);
     if (why == NULL && step2->tuner.base_coarse_kp != (double) charge_profile_coarse_kp) {
         // The coarse kp the gains put right brought down: written only when it moved
         why = settings_write_by(path, "coarse_kp", coarse_text, ACTIVITY_BY_UNIT);

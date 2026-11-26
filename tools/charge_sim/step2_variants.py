@@ -51,8 +51,10 @@ VARIANTS = {"built": (False, "none", "stay", "up"), "seed": (True, "none", "stay
             "z1+kd": (True, "none", "stay", "miss", "kp+kd", "counted", 1.0),
             "fixed": (True, "none", "stay", "miss", None),
             # the throw never cut on the forecast, stopped by the reading (the owner, 2026-11-26: "Yes, build it"):
-            # the tuner as it ships with it, and no tuner
-            "shipped": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "reading"),
+            # the tuner as it ships with it (at main's rule, within the fine threshold; "@target", at the target as
+            # first built), and no tuner
+            "shipped": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "threshold"),
+            "shipped@target": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "reading"),
             "fixed+reading": (True, "none", "stay", "miss", None, "counted", 0.0, "reading")}
 TARGET = 10.0
 FIRST = 50

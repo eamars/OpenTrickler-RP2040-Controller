@@ -115,9 +115,9 @@ CHARGE_LIB_EXPORT void lib_tuner_free(charge_tuner_t *tuner) {
 }
 
 
-CHARGE_LIB_EXPORT int lib_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double coarse_kp,
+CHARGE_LIB_EXPORT int lib_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double coarse_kp,
                                       double k, double coarse_k, double lag, double error, double time_s,
-                                      double *next_kp, double *next_kd, double *next_ki, double *next_coarse_kp) {
-    return (int) charge_tuner_throw(tuner, kp, kd, ki, coarse_kp, k, coarse_k, lag, error, time_s, next_kp, next_kd,
-                                    next_ki, next_coarse_kp);
+                                      double *next_kp, double *next_kd, double *next_coarse_kp) {
+    return (int) charge_tuner_throw(tuner, kp, kd, coarse_kp, k, coarse_k, lag, error, time_s, next_kp, next_kd,
+                                    next_coarse_kp);
 }

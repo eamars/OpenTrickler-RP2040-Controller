@@ -48,11 +48,13 @@ STEPS = {1: ("first",), 2: ("resting",), 3: ("the base again",), 4: ("kept",), 5
          6: ("every way",), 7: ("the gain", "the braking"), 8: ("the gains as they were",)}
 # The product as it ships (ADR-009, 2026-11-26): step 1's weight a turn seeds the carry; the study of the variants
 # (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw; the
-# tuner on kp and kd by the share modelled; the throw never cut on the forecast, stopped by the reading
+# tuner on kp and kd by the share modelled; the throw never cut on the forecast, stopped by the reading within the fine
+# threshold under the target, main's rule (the owner, 2026-11-26)
 PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "modelled",
-           "cut": "reading"}
+           "cut": "threshold"}
 # The gains thrown from: the owner's Pico W's (gate 1's twin), the bench's stored profile (gate 4's baseline), and the
-# bench's with an integral term put in by mistake and with kp a hundredth (the tuner's first trial puts both right)
+# bench's with an integral term put in by mistake (the tuner leaves it, and meets it with kp and kd) and with kp a
+# hundredth (the tuner's first trial puts it right)
 STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH, "bench ki": dataclasses.replace(BENCH, fine_ki=0.1),
           "bench slow": dataclasses.replace(BENCH, fine_kp=0.02),
           "bench wild coarse": dataclasses.replace(BENCH, coarse_kp=0.2)}
@@ -64,6 +66,7 @@ class Channel(ctypes.Structure):
 
 class Config(ctypes.Structure):
     _fields_ = [("coarse", Channel), ("fine", Channel), ("coarse_threshold", ctypes.c_float),
+                ("fine_threshold", ctypes.c_float),
                 ("backoff_enable", ctypes.c_bool), ("backoff_turns", ctypes.c_float), ("backoff_rps", ctypes.c_float),
                 ("settle_s", ctypes.c_float), ("lag_count", ctypes.c_int),
                 ("lag_flow_per_s", ctypes.c_float * LAG_POINTS), ("lag_s", ctypes.c_float * LAG_POINTS),
@@ -79,7 +82,7 @@ def config_of(profile, records, acceleration_rps2: float) -> Config:
                           profile.coarse_max_rps),
                   Channel(profile.fine_kp, profile.fine_ki, profile.fine_kd, records.fine_least_rps,
                           profile.fine_max_rps),
-                  profile.coarse_stop_threshold, profile.backoff_enable, profile.backoff_turns,
+                  profile.coarse_stop_threshold, profile.fine_stop_threshold, profile.backoff_enable, profile.backoff_turns,
                   profile.backoff_speed_rps, records.settle_s, len(lag), flows, lags, acceleration_rps2,
                   records.fine_gr_turn if PRODUCT["seed"] and records.fine_gr_turn else 0.0)
 
@@ -112,7 +115,7 @@ def load_library() -> ctypes.CDLL:
                                ("lib_charge_state", [p, pd, pd, pi, pi, pi], i), ("lib_charge_starved", [p], i),
                                ("lib_charge_verdict_after_s", [p], d), ("lib_charge_at_rest", [p, d], None),
                                ("lib_charge_carried", [p, pd], i), ("lib_tuner_new", [d], p),
-                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, d, d, d, d, pd, pd, pd, pd], i)):
+                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, d, d, d, pd, pd, pd], i)):
         getattr(lib, name).argtypes = args
         getattr(lib, name).restype = result
     return lib
@@ -289,6 +292,7 @@ def tuner_case(job: tuple) -> dict:
     rig_name, records, start, throws, seed = job
     rig = rigs.get_rig(rig_name)
     profile = STARTS[start] if start in STARTS else dataclasses.replace(AR2209_PICOW_168, **step2_tuner.STARTS[start])
+    start_ki = profile.fine_ki
     lib = load_library()
     tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=PRODUCT["blind"], first=PRODUCT["first"],
                               axes=PRODUCT["axes"], share=PRODUCT["share"])
@@ -304,14 +308,14 @@ def tuner_case(job: tuple) -> dict:
             continue
         errors.append(result.true_error)
         times.append(result.elapsed_s)
-        next_kp, next_kd, next_ki = ctypes.c_double(), ctypes.c_double(), ctypes.c_double()
+        next_kp, next_kd = ctypes.c_double(), ctypes.c_double()
         next_coarse_kp = ctypes.c_double()
         k = controller.carried() or 0.0
         lag = statistics.median(lag for _, lag in records.lag)
         coarse_k = records.coarse_gr_turn or 0.0
-        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, profile.fine_ki, profile.coarse_kp, k,
-                                   coarse_k, lag, result.true_error, result.elapsed_s, ctypes.byref(next_kp),
-                                   ctypes.byref(next_kd), ctypes.byref(next_ki), ctypes.byref(next_coarse_kp))
+        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, profile.coarse_kp, k, coarse_k, lag,
+                                   result.true_error, result.elapsed_s, ctypes.byref(next_kp), ctypes.byref(next_kd),
+                                   ctypes.byref(next_coarse_kp))
         if len(errors) < step2_tuner.WINDOW:
             if step != 0 and mismatch is None:
                 mismatch = f"window {windows}: the C closed a window early"
@@ -322,13 +326,14 @@ def tuner_case(job: tuple) -> dict:
         said = STEPS.get(step, ("none",))
         apart = (abs(next_kp.value - profile.fine_kp) > CLOSE_KP * profile.fine_kp
                  or abs(next_kd.value - profile.fine_kd) > CLOSE_KP * max(profile.fine_kd, 1.0)
-                 or abs(next_ki.value - profile.fine_ki) > CLOSE_KP * max(profile.fine_ki, 1.0)
                  or abs(next_coarse_kp.value - profile.coarse_kp) > CLOSE_KP * profile.coarse_kp)
         if mismatch is None and (not any(word in note for word in said) or apart):
             mismatch = (f"window {windows} (kp {thrown[0]:.4f}, kd {thrown[1]:.1f}): Python {note!r} to kp "
                         f"{profile.fine_kp:.6f}, kd {profile.fine_kd:.3f}, coarse kp {profile.coarse_kp:.5f}; the C "
                         f"{said[0]!r} to kp {next_kp.value:.6f}, kd {next_kd.value:.3f}, coarse kp "
                         f"{next_coarse_kp.value:.5f}")
+        if mismatch is None and profile.fine_ki != start_ki:
+            mismatch = f"window {windows}: the Python tuner moved ki to {profile.fine_ki:g} (the tuner never touches ki)"
         windows += 1
     lib.lib_tuner_free(c_tuner)
     return {"rig": rig_name, "start": start, "windows": windows, "kp": profile.fine_kp, "kd": profile.fine_kd,

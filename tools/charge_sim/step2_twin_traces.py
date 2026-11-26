@@ -85,7 +85,7 @@ def tuner_case(job: tuple) -> tuple:
     profile = STARTS[start]
     session = Session(rig, seed)
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=True, hold="none",
-                             cut="reading")
+                             cut="threshold")
     tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="modelled")
     windows, current, errors, times = [], [], [], []
     for _ in range(throws):

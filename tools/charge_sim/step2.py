@@ -105,7 +105,9 @@ class Step2(LegacyPid):
             don't cut the throw)? So we basically push all potential failure mode to overcharge"): "forecast", the
             moment the forecast reaches the target (as built); "reading", only once the reading itself does, the
             forecast still driving the PID and its envelope, so the fine tube creeps at its least between; "none",
-            no forecast: the PID on the reading, stopped once the reading reaches the target.
+            no forecast: the PID on the reading, stopped once the reading reaches the target; "threshold", the
+            product (the owner, 2026-11-26: "Legit mistake, must fix"): as "reading", but stopped by main's rule,
+            once the reading is less than the fine threshold under the target.
         aim: with `cut` "reading", where the reading stops the throw (the owner, 2026-11-26: "Yes try it, but don't
             stress yourself too hard"): "none", at the target; "median", short of it by the median of the last
             throws' landing past where they stopped aiming (RAM, as the weight a turn), never above the target;
@@ -230,7 +232,10 @@ class Step2(LegacyPid):
 
     def reached(self) -> bool:
         """The fine tube's stop: the forecast at the target, or with `cut` "reading", the reading itself at the target
-        less the aim-off."""
+        less the aim-off, or with `cut` "threshold" main's rule: the reading less than the fine threshold under the
+        target."""
+        if self.cut == "threshold":
+            return self.target - self.reading < self.profile.fine_stop_threshold
         if self.cut == "reading":
             return self.reading >= self.target - self.aim_off
         return self.forecast() >= self.target

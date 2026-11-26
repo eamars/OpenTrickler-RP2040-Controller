@@ -1118,3 +1118,41 @@ The owner's direction (after 15:18): keep the coarse PID and tune it under the e
 **N17 closed: a twin artefact.** On the unit a starved throw cannot reach the tuner: the charge ends on the fault "Fine: no powder" and returns before `charge_step2_at_rest`, the one place the tuner is fed (`charge_mode.cpp`), and waits to be acknowledged. The twin's harnesses fed every throw, the starved too (`tests/step2_sim.py`'s tuner case, `step2_cases.py`), which walked kd to 113,184 on the empty-hopper rig. Both now skip a starved throw, as the unit does. `step2_sim` on `f2+fine_empty` and `f2`: the empty-hopper rig closes 0 or 1 windows and kd stays 10; f2's results are as before; C and Python the same steps, VERDICT PASS.
 
 **The bench run rewritten for tonight** (README, "The next bench run"): one pass, normal path first; each of 3a to 3d has its step and its pass written before it runs; the first step's pass says what the migration does to the bench unit's records (the powders' 516 bytes kept; the fine weight a turn an earlier build kept in `compatibility`'s place null until the copy is restored by name); the coarse kp's exception at 0.1, not 0.2 (0.2 puts every 10 gr throw about 2 gr over). The window-by-window prediction drawn on the night rig, wrong for this unit, is dropped; the twin's figures for the product as built stand (2a).
+
+## 2026-11-26, evening: ADR-009 checked against main, change by change; main's stop restored, Ki out of the tuner (no unit)
+
+**The owner:** "compare ADR-009 against baseline main branch. There are unintentional changes that changed the opentrickler behavior erratically. For example, the threshold is changed from +/- fine trickler threshold to +threshold, causing every single throw to exceed the limit. ... evaluate every single change from ADR-009, evaluate if the change is legit. If Not legit, or unsure, present it to me, for every single one."
+
+**The review** (every change in `src/` and `tests/` against `origin/main`, each against the owner's words in this ADR): one not legit, two unsure, the rest legit.
+- **Not legit: the fine stop.** Main stops once `target - reading < fine_stop_threshold`; step 2 stopped at `reading >= target`, so a throw had the band's upper half only. Its root cause: step 2 first stopped when the forecast reached the target (right for a forecast, which is the final weight); when the stop moved to the reading (09:51), the target came with it and main's rule never came back. Nothing showed it: the twin's "no forecast" arm stopped at the target too, not at main's rule. The owner's rule it broke (00:25): "we don't touch the controller mechanism, only the parameters are adjusted".
+- **Unsure: the tuner took Ki to 0** (`b62eb2c`, then `8806f78`'s gains put right), though this README said "ki is left as the user has it".
+- **Unsure: Kd's handling** (the braking axis, Kd in the hundreds).
+
+**The owner's answers:**
+1. "Legit mistake, must fix."
+2. "The tuner should never intentionally touch Ki. It user accidentially put some value in Ki, the tunner should compensate using Kp or Kd, never Ki."
+3. "If auto tuner is on, then Kd should be adjusted autonmously. The user should already grant the consent. I'm not talking about if Kd in hundreds is legit. I'm just talking about in general how the tuner should handle Kd value." Kd stays as built.
+
+**Built:**
+- **Main's stop** (`charge_controller.c`'s `reached`, both stops: each millisecond and each reading): the reading less than the fine threshold under the target, the coarse tube stopped; the PID still aims at the target. `charge_config_t` has `fine_threshold`, set from `fine_stop_threshold`. The twin: `step2.Step2(cut="threshold")`, the product in `tests/step2_sim.py`, `step2_cases.py`, `step2_twin_traces.py` and `step2_variants.py`'s `shipped` (`shipped@target` keeps the first build's); `step2_cut_study.py --stops threshold`.
+- **Ki is not in the tuner** (`charge_tuner.c/.h`, `step2_tuner.py`): no ki in its interface or its state, and the gains put right no longer take it to 0; the charge mode throws the profile's ki and never writes `fine_ki`. A change of ki by the user still starts the tuner afresh (its windows were thrown on the old one). `tests/step2_sim.py` fails a session whose Python tuner moves ki.
+
+**Proven with no unit:** `tests/step2_sim.py` VERDICT PASS (the C's stop the Python's on all 1,250 judged throws, 200 starved alike; the tuner the same steps from five starts on five rigs; from `bench ki` ki stays 0.1 on every rig); `tests/host_test.py` and `tests/calibration_sim.py` PASS; the Pico 2 W 55.50%, no new warning. The Pico W not built (the owner, 09:37).
+
+**On the twin, the two stops** (`step2_cut_study.py --stops reading threshold`; 4 sessions at 10 gr; SD, mean, good, under, median time):
+
+| Rig, start | Fixed gains, at the target | Fixed gains, main's rule | Tuner, last 100 of 600, at the target | Tuner, main's rule |
+|---|---|---|---|---|
+| f2, bench's gains | 0.098, +0.075, 37%, 0%, 5.0 s | 0.109, +0.064, 46%, 1%, 4.6 s | 0.121, +0.093, 41%, 0%, 5.7 s | 0.084, +0.034, 66%, 2%, 7.1 s |
+| f2, owner's gains | 0.042, +0.031, 62%, 0%, 11.3 s | 0.050, +0.013, 79%, 2%, 10.4 s | 0.053, +0.039, 53%, 0%, 8.7 s | 0.061, +0.023, 69%, 2%, 9.9 s |
+| f2 by speed, bench's | 0.111, +0.066, 42%, 0%, 5.7 s | 0.104, +0.056, 52%, 2%, 5.1 s | 0.079, +0.045, 50%, 0%, 6.7 s | 0.073, +0.033, 64%, 3%, 6.6 s |
+| night, bench's | 0.284, +0.335, 12%, 0%, 2.6 s | 0.335, +0.412, 10%, 0%, 2.6 s | 0.087, +0.057, 45%, 0%, 9.5 s | 0.117, +0.066, 55%, 0%, 7.8 s |
+| night, owner's | 0.045, +0.035, 57%, 0%, 11.0 s | 0.074, +0.026, 68%, 2%, 10.2 s | 0.068, +0.045, 48%, 0%, 9.8 s | 0.072, +0.032, 60%, 2%, 9.2 s |
+| BM2, bench's | 0.150, +0.150, 25%, 0%, 4.4 s | 0.104, +0.090, 34%, 1%, 4.8 s | 0.077, +0.045, 58%, 0%, 8.8 s | 0.062, +0.021, 77%, 2%, 8.9 s |
+| BM2, owner's | 0.038, +0.023, 72%, 0%, 18.2 s | 0.027, +0.000, 88%, 3%, 16.0 s | 0.048, +0.028, 67%, 0%, 13.6 s | 0.065, +0.026, 74%, 2%, 9.9 s |
+
+The product itself (`step2_variants.py --variants shipped shipped@target`, f2, 4 sessions of 600): from the bench's gains, the last 100 good 71% against 51%, mean +0.019 against +0.048, SD 0.044 against 0.071, 8.3 s against 7.0 s, a good charge 11.7 s against 13.7 s; from the owner's gains good 68% against 58%, SD 0.055 against 0.047, 9.0 s against 10.5 s.
+
+**Read:** main's rule gives more good throws in every case and centres the mean; the SD is narrower on about half and wider on the rest (the night rig's coarse tube most). **The unders are by the true weight:** the stop's reading is within the band, and 1 to 4% land under it in truth because the scale's 0.02 step rounds the reading up at the stop. The unit's verdict is that reading, as main's is, so on the unit they count good. I wrote earlier this evening that no throw would end under; by the true weight that was wrong.
+
+**Not on a unit.** The next bench run's passes are rewritten to these figures (README).

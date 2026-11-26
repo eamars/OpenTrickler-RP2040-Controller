@@ -88,7 +88,7 @@ AXES = {"kp": ("gain",), "kp+kd": ("gain", "braking")}
 # is grain, then I need a reliable way to tune down to support gram, with the auto tuner"). The steady gain kp / braking
 # times step 1's weight a turn and its middle lag is a number with no unit: the bench's stored gains 1.3, the owner's
 # 0.5; grains' gains on a scale in grams 0.08, in grains a gram's 20. Out of GAIN_RANGE the first trial brings it to
-# GAIN_AIM, an integral term taken out with it; kept only if cheaper, as any trial
+# GAIN_AIM; kept only if cheaper, as any trial. The integral term is the user's, never the tuner's
 GAIN_RANGE = (0.2, 5.0)
 GAIN_AIM = 1.0
 # The coarse kp put right too (2026-11-26: the owner, "use and tune PID ... tune under the existing framework"): its
@@ -140,7 +140,7 @@ class Tuner:
         self.k = None               # the weight a turn the braking is reckoned with (the carried one)
         self.lag = None             # step 1's middle lag, s
         self.coarse_k = None        # step 1's coarse weight a turn, for the coarse kp put right
-        self.putting_right = False  # the window being thrown is the gains put right (into range, ki 0)
+        self.putting_right = False  # the window being thrown is the gains put right (into range)
 
     @property
     def turned(self) -> bool:
@@ -158,9 +158,9 @@ class Tuner:
 
     def put_right(self):
         """The base's gains put right, or None when they need nothing: the steady gain into range by the weight a
-        turn and the lag (GAIN_RANGE), the integral term off (it only adds overshoot on the forecast, whose error
-        never changes sign before the stop), and the coarse kp down to COARSE_GAIN_MOST by step 1's coarse weight a
-        turn and the lag."""
+        turn and the lag (GAIN_RANGE), and the coarse kp down to COARSE_GAIN_MOST by step 1's coarse weight a turn
+        and the lag. The integral term is never touched (the owner, 2026-11-26: "The tuner should never
+        intentionally touch Ki"): an integral the user set is met by kp and kd."""
         base = self.base
         kp = base.fine_kp
         if self.k and self.lag:
@@ -171,9 +171,9 @@ class Tuner:
         coarse_kp = base.coarse_kp
         if self.coarse_k and self.lag and coarse_kp * self.coarse_k * self.lag > COARSE_GAIN_MOST:
             coarse_kp = COARSE_GAIN_MOST / (self.coarse_k * self.lag)
-        if kp == base.fine_kp and base.fine_ki == 0.0 and coarse_kp == base.coarse_kp:
+        if kp == base.fine_kp and coarse_kp == base.coarse_kp:
             return None
-        return dataclasses.replace(base, fine_kp=kp, fine_ki=0.0, coarse_kp=coarse_kp)
+        return dataclasses.replace(base, fine_kp=kp, coarse_kp=coarse_kp)
 
     def __call__(self, profile, errors: list, times: list, k: float = None, lag: float = None,
                  coarse_k: float = None):

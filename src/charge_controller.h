@@ -8,10 +8,11 @@
  * Two channels, each a tube:
  * - the coarse is today's: its PID on the reading's error to the target less its threshold, stopped for good once the
  *   reading reaches it, then its back-off;
- * - the fine one's PID works on the forecast's error, within its envelope, and it stops once the reading itself
- *   reaches the target: the throw is never cut on the forecast (the owner, 2026-11-26: "perhaps just don't cut the
+ * - the fine one's PID works on the forecast's error, within its envelope, and it stops once the reading itself is
+ *   within the fine threshold under the target, main's rule (the owner, 2026-11-26: "Legit mistake, must fix"): the
+ *   throw is never cut on the forecast (the owner, 2026-11-26: "perhaps just don't cut the
  *   throw ... push all potential failure mode to overcharge"; "Yes, build it"). Past the forecast's target its PID
- *   asks nothing and it creeps at its least until the reading shows the target. No top-up.
+ *   asks nothing and it creeps at its least until the reading is within the threshold. No top-up.
  * The forecast is the reading plus the fine tube's turns turned out and not yet shown (10 ms parcels of its speed at
  * the motor's ramp, each due after step 1's lag at its flow) times its weight a turn: the median of the last throws'
  * own, carried in RAM from throw to throw; the first throw after a start finds its own once a few tenths of a turn are
@@ -52,6 +53,8 @@ typedef struct {
     charge_channel_t coarse;
     charge_channel_t fine;              // its least: step 1's, the fine tube's least speed for this powder
     float coarse_threshold;             // the coarse tube stops for good at the target less this
+    float fine_threshold;               // the throw stops once the reading is less than this under the target, as
+                                        // main's charge loop does (the owner, 2026-11-26: the user's tolerance)
     bool backoff_enable;                // the coarse tube turned back once stopped, as today
     float backoff_turns;
     float backoff_rps;                  // 0: at the coarse tube's least
