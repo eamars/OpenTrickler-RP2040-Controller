@@ -3010,7 +3010,10 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         // nothing to a person
         bool between = strcmp(charge.state, "waiting_for_cup_removal") == 0 ||
                        strcmp(charge.state, "waiting_for_cup_return") == 0;
-        bool verdict = between && charge.last_throw > 0 && charge.last_result != EVENT_RESULT_NONE;
+        // Only this throw's verdict: until it is read (the scale's lag and settle time after the stop, ADR-009), the
+        // last one is the throw before's, and the live reading is shown
+        bool verdict = between && charge.last_throw > 0 && charge.last_throw == charge.throw_number &&
+                       charge.last_result != EVENT_RESULT_NONE;
         format_weight(verdict ? charge.last_weight : scale_get_current_measurement(), screen->figure,
                       sizeof(screen->figure));
         snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());

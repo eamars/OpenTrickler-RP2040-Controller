@@ -312,7 +312,7 @@ class Bench:
                 time.sleep(0.5)
 
     def throws(self, host: str, target: float, profile: int, count: int, watch_s: float, rezero: bool,
-               cup_holds: float = 0.0) -> None:
+               cup_holds: float = 0.0, leave_last: bool = False) -> None:
         """
         Real throws of the firmware's own loop, recorded: the charge started over the API with a powder profile,
         the console's state read as fast as it answers.
@@ -331,6 +331,7 @@ class Bench:
             watch_s: how long after the stop the weight at rest is read.
             rezero: zero the scale between throws in place of a changed cup.
             cup_holds: powder already in the cup from an earlier run, which the first zero then takes away too.
+            leave_last: the last throw's charge left waiting for the cup to be lifted, not stopped.
         """
         import unit_api   # beside rc_run.py, of the firmware's time
         unit = unit_api.Unit(host)
@@ -383,6 +384,11 @@ class Bench:
                 self.zero_scale(unit)
                 self.start_charge(unit, target, profile)
                 last_state = None
+        if self.charging and leave_last:
+            # The last charge left waiting on "Remove Cup": the person's lift when the cup is emptied is seen (the
+            # cup's lift, ADR-009 3b); its motors stand, and the charge ends at the unit or by the next run
+            print("the last charge waits for the cup to be lifted", flush=True)
+            self.charging = False
         if self.charging:
             self.end_charge()
 
@@ -583,6 +589,8 @@ def main() -> None:
     throws.add_argument("--watch-s", type=float, default=3.5, help="the cup stays on this long after the tubes stop")
     throws.add_argument("--rezero", action="store_true",
                         help="zero the scale between throws, the powder left in the cup, in place of a changed cup")
+    throws.add_argument("--leave-last", action="store_true",
+                        help="leave the last throw's charge waiting for the cup to be lifted (the cup's lift seen)")
     throws.add_argument("--cup-holds", type=float, default=0.0,
                         help="grains already in the cup from an earlier run, counted toward its limit")
     ramp = sub.add_parser("ramp", help="a tube through speeds one after another with no stop between, then "
@@ -637,7 +645,8 @@ def main() -> None:
                 trial = bench.flick(name, FLICKS[name], args.pause_ms / 1000.0, args.still_s)
                 print(f"{name} {trial['gained_gr']:+.3f} {trial['steps']} {trial['moves_ms']:.0f}", flush=True)
         elif args.command == "throws":
-            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero, args.cup_holds)
+            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero, args.cup_holds,
+                         args.leave_last)
         elif args.command == "creepstop":
             least, most = (float(text) for text in args.run_s.split(":"))
             plan = [(float(speed), stop) for speed in args.speeds.split(",")
