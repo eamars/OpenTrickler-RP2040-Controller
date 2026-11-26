@@ -1,6 +1,6 @@
 # ADR-016: an AI agent helps tune a powder's profile, over the API
 
-Status: **Draft** 2026-11-27. Not approved. It holds the use case as the owner and the agent traced it on 2026-11-27, the owner's answers, and what the API gives today. Nothing here is designed yet, and nothing is built.
+Status: **Draft** 2026-11-27. Not approved. It holds the use case as the owner and the agent traced it on 2026-11-27, the owner's answers, what the API gives today, and PR #113's features folded in as the owner asked the same day. Nothing here is designed yet, and nothing is built.
 
 ## What we want
 
@@ -16,6 +16,7 @@ A person at the unit, loading real rounds, asks an AI agent on the same network 
 - On a scale that does not talk: "The common failure modes are 'The scale doesn't talk'. So AI can help, but only a little, as from OpenTrickler perspective nothing is received."
 - On where this is built: "I don't think we need to include everything in ADR-009. IN fact I will merge ADR-009 now, and the API extension is to be added as separate ADR."
 - On the API's freedom: "no v2.0 is released, so any API change is permitted."
+- **On PR #113:** "Then perhaps fold PR#113 features, adjusted for our code base into ADR-016? And keep a note for PR#113 and leave it open for now, until ADR-016 is fully closed?" Weighed against the PR's own notes (below), agreed, and: "Go ahead". Read here as: #113's features are judged against this ADR's use case and taken where they serve it, in our code's form, with its author as co-author of the commits that use the work; the PR is not merged as it stands, and stays open, with a note, until this ADR is closed.
 - Earlier, of the API (2026-11-15, in `ADR-003-http_rest_server/api_v1.md`): "does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?", and "tuning will need some access to huge amount of data".
 
 ## The use cases, as traced
@@ -34,9 +35,32 @@ What a person might ask an AI to do with the unit, and where each stands. Only t
 | A person pastes the unit's data into a chat AI | No (the owner: real agents, not copy and paste) | |
 | "What gains do others use for this powder?" (issue #10) | No: outside the unit | |
 
+## PR #113, folded in
+
+PR #113 ("Add powder analysis", by DevDaniel1408, open since 2026-10-26) tunes a powder's profile in a session of its own, on the 12864 and a web page. ADR-002 left its end to ADR-009, which was designed without it and took nothing of it but the D-term fix (ADR-002's, `adc5f56`, its author co-author). Read for this ADR in its developer notes and its tuner's header (`git show pr113:manuals/powder_analysis_developer.md`, `pr113:src/powder_analysis_tuner.h`), 2026-11-27:
+
+- **Its tuner is driven as a loop:** the next trial's settings, a throw run on them, the throw's result reported, until done. Its logic has nothing of the hardware in it and is tested on a PC against a simulated powder. That is the shape of an agent on the API.
+- **What a throw reports to it:** the settled weight, the time to the coarse stop, the whole time, whether it timed out, and the weight of the sample that stopped the throw; from the last two, the fall after the stop.
+- **What it keeps:** a protocol of up to 60 trials (each its phase, gains, weight, coarse and whole time, verdict, fine minimum speed, fall), and the last throw's samples (300 at most: time, weight, each tube's P and D terms and speed).
+- **Its procedure:** the smallest coarse Kp that passes the coarse stop within 7.7 s, by a bracketing search on coarse-only throws; the coarse Kd by doubling from 0.1; the smallest fine Kp whose full throw ends within 13 s; then rounds of 10 throws, 9 hits verifying, 2 overs giving the round up and lowering the fine Kp by a tenth or the fine minimum speed by a quarter, three times at most; 60 throws at most. Start values by the powder's shape (ball, stick, flake, disc) and grain size. The fine Kd is not searched.
+- **Its threshold recommendation:** from the median fall, a fine threshold half a scale step off a multiple of the step, so a float's rounding never decides the stop.
+- **Its cost:** about 70 KB of flash and 27 KB of RAM for the module, by its own figures. The Pico W's image today is 916 KB of its 1,016 KB slot, and its RAM is 98% taken at link time.
+
+Where each part goes:
+
+| Of PR #113 | In this ADR |
+|---|---|
+| What a throw reports, the trials kept, the samples | The unit's side: the throw's record and the throws kept (ideas 1 and 2); the samples are idea 4's question |
+| The procedure, its start values, the threshold recommendation | The agent's playbook (idea 8): followed by an agent, or run as a script with no AI. No firmware |
+| A trial on settings that are not the stored profile; a coarse-only throw | Idea 4's question |
+| The session on the 12864 (16 screens), its web page with a chart and CSV, its manuals | Not ported: the Pico W's room, and a tuning session on the unit is what ADR-009 chose not to have ("Not in this ADR") |
+| Its tests on a PC against a simulated powder | Ours exist (`tests/step2_sim.py`, the twin); the playbook is proven on them |
+
+**Its end:** PR #113 stays open, with a note that says this, and is closed with a note naming what was taken when this ADR is closed.
+
 ## Why here
 
-Not placed: its turn in the order is the owner's to say. It follows ADR-009, whose tuner it works beside, and it changes the charge's API, which ADR-014 changes too.
+Not placed: its turn in the order is the owner's to say. It follows ADR-009, whose tuner it works beside, and it changes the charge's API, which ADR-014 changes too. PR #113 waits on it, open since October, so its place wants settling.
 
 ## What we know (read in the code and api_v1.md, 2026-11-27)
 
@@ -55,28 +79,32 @@ Not placed: its turn in the order is the owner's to say. It follows ADR-009, who
 
 A first view of what the use case asks of the unit, each to be weighed. None is a decision.
 
-1. **A fuller record of each throw:** the coarse stop's time and weight, the weight at the stop, what landed after, the fine tube's part, the pauses, and the gains it was thrown on. A few figures a throw: what an agent reasons over well. Samples only if this proves too little.
-2. **The last few dozen throw records kept on the unit,** apart from the event log, so an agent that joins late can read them.
+1. **A fuller record of each throw:** the coarse stop's time and weight, the weight at the stop, what landed after, the fine tube's part, the pauses, and the gains it was thrown on. PR #113's list is the start: the settled weight, the coarse and whole times, the weight at the stop and the fall. A few figures a throw: what an agent reasons over well.
+2. **The last few dozen throw records kept on the unit,** apart from the event log, so an agent that joins late can read them. PR #113 keeps 60.
 3. **The agent and the unit's tuner not at odds:** the record says which gains a throw used; the guide says to switch `auto_tune` off, or to leave the gains to it and tune only what it never moves.
-4. **Try, then save or revert:** with a person present, a PATCH that is live and not stored, `saved`, the revert and the restart may be all a trial needs. The reserved test throw with overrides is built only if this is found wanting.
+4. **A trial that is not a PATCH, and a throw's samples: open.** With a person present, a PATCH that is live and not stored, `saved`, the revert and the restart may be all a trial needs. PR #113 counts against that: it runs each trial on settings of its own, runs the coarse tube alone, and keeps a throw's samples. The fuller record may make the coarse-only throw needless (a full throw then tells the coarse tube's time and overshoot); whether the rest is needed decides what becomes of the test throw and the recordings reserved in api_v1.md.
 5. **A PIN** (the owner's idea): set on a unit, a write needs it. Whether a start needs it, whether a read stays free, how a person sets and clears it at the unit, and what a factory reset does to it.
 6. **A guide for agents,** beside the API's own description: what tuning needs of the person, what to put back at the end.
 7. **Nothing taken away:** every start the API has stays.
+8. **A playbook for tuning,** from PR #113's procedure in our terms: which setting to move for which miss, in what order, by how much, when to stop, and start values by the powder's shape. An agent follows it; the same steps run as a script through `unit_api.py` with no AI, which is also how it is proven on the simulated scale and the twin. It lives with the tools, not in the firmware.
+9. **A fine threshold recommended, never written:** from the fall after the stop, as PR #113 reckons it, shown for the person to take or leave. The owner's direction in ADR-009 stands: the fine threshold is the user's.
 
 ## To settle before approval
 
 - Which of the ideas are in, and the throw record's fields.
 - The PIN's reach (idea 5).
-- Whether a trial needs more than a PATCH and a revert (idea 4), and so what becomes of the section reserved in api_v1.md: built, replaced or dropped.
+- Whether a trial needs more than a PATCH and a revert, and a throw's samples (idea 4), and so what becomes of the section reserved in api_v1.md: built, replaced or dropped.
+- The playbook's form (idea 8): a document an agent reads, a script, or both; and how much of PR #113's procedure holds beside the unit's own tuner, which already moves the fine gains.
 - How it is shown without powder (the simulated scale, which a charge on the bench already uses) and what needs real throws.
 - Its place in the order of the ADRs.
 
 ## How the unit shows it works
 
-A first view: an agent given only the unit's address, with the owner at the cup, tunes a powder on the bench. It says from the unit's own figures why throws miss, changes a setting, and the next throws show it or the setting is put back. When it ends, nothing is live that is not stored. With a PIN set, a write without it is refused.
+A first view: an agent given only the unit's address, with the owner at the cup, tunes a powder on the bench. It says from the unit's own figures why throws miss, changes a setting, and the next throws show it or the setting is put back. When it ends, nothing is live that is not stored. With a PIN set, a write without it is refused. At its close, PR #113 is closed with a note of what was taken, and the commits that took it name its author.
 
 ## Not in this ADR
 
+- **A tuning session on the unit's screen, and PR #113's web page:** the Pico W has no room for the module as written, and ADR-009 chose a tuner with no session. A person without an agent has the unit's own tuner, or the playbook as a script.
 - **A scale that does not talk.** The owner: an AI helps only a little, as the unit receives nothing. Noted, not planned: the unit counts frames that did not parse (`bad_frames`) and neither bytes received nor serial errors, so it cannot tell no bytes at all from a wrong baud rate; a count and a plain "nothing received" would help a person with or without an AI.
 - Data pasted into a chat, and an export made for it.
 - Support questions, set-up, health.

@@ -1,12 +1,13 @@
 # ADR-006: the application apart from the platform
 
-Status: **Draft** 2026-11-13, written again with the owner 2026-11-26 and 27. Not approved. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C. Nothing a user sees changes, and nothing of ADR-007 is built here.
+Status: **Draft** 2026-11-13, written again with the owner 2026-11-26 and 27, and revised later on the 27th after a second agent's review on main and the owner's direction on what later builds may add or leave out. Not approved. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C; a base build that carries everything of today, cut so that a later build adds or leaves out a part without touching what is shared. Nothing a user sees changes, and nothing of ADR-007 or of any other build is built here.
 
 ## What we want
 
 - Each module in a folder of its own, by what it does, built on its own, with the modules it needs named and linked.
 - A board that picks its modules, and each module's optimisation: a module left out of a board that runs out of RAM or flash.
 - The application apart from the driver: no Pico SDK or cyw43 name outside the platform and the boards.
+- **A base build, and room for others.** Everything the firmware has today is the base build, on both boards. A later build opts a part in or out (a larger screen with its own UI, another kind of dispenser, the ESP32) by adding modules and a list, editing no shared module.
 - Ready for ADR-007, with none of ADR-007 built here.
 - Our code in C.
 - The same behaviour as before, shown on the unit after every gate. Stored settings byte for byte as they are.
@@ -38,6 +39,14 @@ Status: **Draft** 2026-11-13, written again with the owner 2026-11-26 and 27. No
 - "Small bug fixes are acceptable, as long as they don't need extensive tests."
 - Stored enums written as fixed-width types: acceptable, "but we need to make sure the existing Pico targets are unaffected."
 - C++: "Can we remove C++, or replace with the C version?" The agent found it small (below); the owner took it.
+
+**2026-11-27, later**, on a second agent's review of this draft
+- The review's points written in, with its steps in detail: "Yes revise, and include details of your steps."
+- "All current features are considered as base features for the base build. Future changes may allow the opt in, or opt out of certain features, that ADR-006 should design for that, which includes but not limited to":
+  1. "Larger LCD screen with alternative UI. Will likely exclude Pico W or even Pico 2W."
+  2. "Supporting different trickler controller, like the future thrower/per kernel basis trickler (not rotary tube design). This would be different firmware build, for a soft ware switch to change the mode depending on the available FLASH space." Read here as: a build of its own where both do not fit, and one build with both and a stored switch where they do. To confirm (below, "To settle").
+  3. "ESP32 support. which means discarding bsp and platform for Pico, and only include ESP IDF library for ESP32, but sharing the same application layer code."
+  4. "More??" The agent's candidates are under [More lines](#more-lines-the-agents-candidates), for the owner to strike or add to.
 
 ## Why here
 
@@ -99,6 +108,26 @@ Checked 2026-11-27 on ADR-009's branch (`adr009_restart` at 1765df3), the code t
 - **LVGL**'s own `CMakeLists.txt` builds it as an ESP-IDF component under ESP-IDF and as a plain CMake library otherwise (`library/lvgl/env_support/cmake/esp.cmake`): one folder, two build systems.
 - **The Pico SDK**'s libraries are INTERFACE libraries: their sources compile in whatever links them. Each has a `_headers` twin with only its headers (`library/pico-sdk/src/CMakeLists.txt`), for a library built against the SDK and linked into the image later.
 
+### The review on main (2026-11-27, main at 4719984, ADR-009 merged)
+
+Read in the code and the build files. Nothing was built for it: what it says of the linker and of CMake is to be shown by gate 1.
+
+- **The figures above hold on main:** 61 `.c`, 4 `.cpp`, 54 `.h`, 2 `.pio`, 33,650 lines; 40 files on the Pico SDK; 14 `xTaskCreate` in 10 files.
+- **Third-party code is at `-Os` more widely than written above** (ADR-009, 2026-11-27): lwIP, the cyw43 driver and the Pico SDK's own code too, FreeRTOS's kernel left at the build's level. It is done by a property on their source files that names the target `app` and holds only for targets made in the root folder (`CMakeLists.txt`, the lines on `THIRD_PARTY_OS_SOURCES`). A module made in a folder of its own is neither.
+- **A static library drops the hard fault's handler.** `isr_hardfault` is the only function in `fault_handler.c`, and nothing of ours calls it: it takes the place of the SDK's own, which `crt0.S` defines weak. A linker takes a file out of a static library only for a name still undefined, and this one is defined. So `fault_handler` as a static library is left out with no error, and a hard fault no longer stops the motors. The usual proof (flash, `menu_tour`, `charge_cycle`) does not see it; `pulses` does. The same holds for anything linked only because its file is on the link line.
+- **The SDK's `_headers` twins do not carry all a module needs.**
+  - Each SDK library's own mark, `LIB_<NAME>=1`, is put on the full library and not on its twin (`pico_add_impl_library`), and 11 of the SDK's headers read such marks. A module built on the twins can read a header differently from the image.
+  - FreeRTOS has no twin: `FreeRTOS-Kernel-Core` carries the kernel's sources and its include path together (`library/FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040/library.cmake`). A module that links it compiles a kernel of its own.
+  - The image's own definitions (`RC_TEST_*`, `FEATURE_SERVO_GATE`, read in nine of our files) are private to `app` today.
+- **Two of the draft's module names are, or were, ESP-IDF's own.** `console` is one of ESP-IDF's components (its `components/` folder, read 2026-11-27 on its main branch), and a project's component of the same name takes its place. `json` is not there today; an earlier ESP-IDF had one, from memory, not checked.
+- **The step pulses' seam is wider than "a rate and stop".** `step_pulses.h` (ADR-012): a rate for a channel; a feed every millisecond, with no feed no steps; the steps counted on the pin, the feeds that came late; a stop by register writes alone for the fault's handler. Each is a rule ADR-012 proved on the unit.
+- **The serial port is read with a time limit** by the motor drivers' one-wire line (`uart_is_readable_within_us`, `motors.c`), not only as bytes come.
+- **mDNS is lwIP's own responder** (`mdns_resp_*` in `wireless.c`, on cyw43's network interface). ADR-007 names ESP-IDF's in its place.
+- **Who names the screen today:** `display.h` is included by 11 files and `mini_12864_module.h` by 13, among them `wireless.c`, `access_point_mode.c`, `update.c`, `charge_mode.cpp` and `cleanup_mode.cpp`. `menu.h` is included by the charge, the cleanup, the calibration, the jobs and the update. Each of the four jobs refuses its start while the menu shows no page (`menu_get_current_form_id() < 0`) and wakes the menu (`menu_wake`).
+- **Who names the tubes today:** `motors.h` is included by 12 files, among them `api_v1_commands.c`, `menu_nav.c`, `remote_control.c`, `rest_endpoints.c`, `simulated_scale.c`, `fault_handler.c` and `eeprom.c`; `charge_mode.h` by 13.
+- **The unit's `features`** is one name written by hand (`api_v1.c`, the servo gate's).
+- **A release's files are named by their board** (`scripts/build_release.py`: `pico_w`, `pico2_w` and their update images). Nothing in an image or the manifest says which kind of build it is, there being one a board.
+
 ## What we do
 
 ### Modules
@@ -107,13 +136,17 @@ Checked 2026-11-27 on ADR-009's branch (`adr009_restart` at 1765df3), the code t
   `ot_module(SRCS ... INCLUDE_DIRS ... PRIV_INCLUDE_DIRS ... REQUIRES ... PRIV_REQUIRES ...)`.
   The arguments are those of ESP-IDF's `idf_component_register`, and no others.
 - Under the Pico SDK the call makes a static library: `INCLUDE_DIRS` and `REQUIRES` public, the `PRIV_` ones private. A module can include only the headers of the modules it names: the compiler refuses the rest. That is what makes the layout hold, not the folders.
+- **Every module is linked whole** (the linker's whole-archive, which CMake 3.24 and later give by `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>`; the build asks for 3.25), and what nothing uses is dropped by section as today. A module's files then take part in the link exactly as they do now, on the link line: the hard fault's handler stays (the review, above). ESP-IDF has the same switch for a component (`WHOLE_ARCHIVE`).
+- **Third-party code goes by ESP-IDF's names:** a module that needs the RTOS, the network, TLS or the screen's library requires `freertos`, `lwip`, `mbedtls` or `lvgl`. Under the Pico SDK those four are targets of ours that carry the headers and the definitions the image itself compiles with, and no source; the image links the real libraries once, from the board's file, where the third-party `-Os` rule also goes. Under ESP-IDF the same names are its own components, so a module's `REQUIRES` line is the same in both. How FreeRTOS's headers are spelt there (`freertos/FreeRTOS.h`) is ADR-007's, not checked.
+- **A module compiles with the image's definitions:** the test builds' and the features' (`RC_TEST_*`, `FEATURE_*`) reach every module from one place, the board's file.
 - In ADR-007 the call gets its ESP-IDF branch, which passes the arguments on, as LVGL does.
-- A module's name is its folder's, and no two are the same (ESP-IDF's rule).
+- A module's name is its folder's, and no two are the same (ESP-IDF's rule). **None is a name ESP-IDF uses:** the remote control's module is `remote_control`, not `console`, and the JSON helper's is `http_json`, its file's name. The layer folder `console/` is not a component and keeps its name. ADR-007 checks the rest against the ESP-IDF version it picks; against today's list none other is taken.
+- **If gate 1 shows a static library cannot be had this way**, the fallback is named now: each module's files compiled in the image itself, with the module's own include paths and optimisation set on its files. The compiler refuses the same includes; only the library is gone. The owner is told before the work goes on.
 - Folders by layer, and in each a module by what it does. A module requires only modules of its own layer or below:
 
 ```
 app/        start-up and wiring: the one place that knows the board's modules
-ui/         the menu, the 12864's settings
+ui/         the menu; a view and its panel; the knob and the buttons
 web/        the HTTP server, the API, the pages
 console/    the remote control's console
 services/   charge, cleanup, calibration, jobs, scale, motors, profile, settings,
@@ -129,25 +162,30 @@ Every file's place, a first draft, is in [The layout](#the-layout-a-first-draft-
 ### Boards and the platform
 
 - Two words for two things, as Zephyr keeps them (a board, and its chip):
-  - **A board** (`boards/<name>/`) is the controller board as the module in its socket sees it: its pins, its flash layout, its modules, each module's optimisation, the third-party code's settings (`FreeRTOSConfig.h`, `lwipopts.h`, `mbedtls_config.h`, `lv_conf.h`), and the SDK libraries the image links. Today `pico_w` and `pico2_w`; ADR-007 adds `esp32s3_pico`. The controller board is the same under each: only the module in its socket changes.
+  - **A board** (`boards/<name>/`) is one set of hardware a build is made for: the module in the socket, the controller board and the screen on it. It holds its pins, its flash layout, its modules, each module's optimisation, the third-party code's settings (`FreeRTOSConfig.h`, `lwipopts.h`, `mbedtls_config.h`), and the SDK libraries the image links. Today `pico_w` and `pico2_w`; ADR-007 adds `esp32s3_pico`. Today the controller board and its screen are the same under each, and only the module in the socket changes. A later board with another screen is a folder of its own that includes the same pin map: boards share by including a file, and there is no table of boards by parts.
   - **The platform** (`platform/`) is the chip. `include/` holds the small interfaces (below); `rp2/` gives them on the Pico SDK for the RP2040 and the RP2350, their differences inside it (the slots, the PIO version) as today.
 - "BSP" is not used for the chip: in ESP's world (its BSP components) it means a board.
 - **The drivers for the controller board's parts** (the TMC2209, the UC1701, the CAT24C256, the scale protocols) sit above the platform, on its serial port, SPI and I2C: written once, for every module that goes in the socket.
 - Only `platform/rp2` names the Pico SDK's libraries, and by their `_headers`. The board's file links the libraries themselves into the image, once; otherwise SDK code would compile into several libraries.
-- **lwIP stays where the network code uses it.** ESP-IDF's network is lwIP too (its documentation; not built here), so the sockets are the same on both chips. Only the Pico's settings of it, `lwipopts.h`, go to the board. This changes the draft, which kept lwIP inside the platform.
+- **lwIP stays where the network code uses it.** ESP-IDF's network is lwIP too (its documentation; not built here), so the sockets are the same on both chips. Only the Pico's settings of it, `lwipopts.h`, go to the board. This changes the draft, which kept lwIP inside the platform. What is not the sockets goes behind the network's interface: the radio, the access point's DHCP server, and the unit's name on the network (mDNS, lwIP's own responder today).
 
 **The interfaces**, each a header in `platform/include` (the draft's list, with the slots added by ADR-004):
 - storage: read and write a block;
-- a serial port: open, its format, read, write;
-- step pulses: a rate for a pin, and stop;
+- a serial port: open, its format, read, read within a time, write;
+- step pulses: `step_pulses.h` as it is today, with its rules (a rate for a channel; fed every millisecond, and with no feed no steps; the steps counted on the pin and the late feeds; the fault's stop);
 - an LED strip: write colours;
 - a servo: a pulse width;
 - inputs: a pin's edges as events (the encoder, the buttons);
 - the display's bus: write bytes, and its three control pins;
-- the network: start as access point or station, its state and address;
-- the image slots: write, check, try, confirm (ADR-004);
+- the network: start as access point or station, its state and address, its scan, the unit's name announced;
+- the image slots: write, check, try, confirm (ADR-004), `update_slots.h` as it is today;
 - the system: restart, enter the USB loader, the unit's id, a random number, the time, the hard fault's hook;
 - a task: one call that takes a stack size in bytes, since the two FreeRTOS ports count it differently.
+
+**How an interface is made:**
+- It is today's header lifted, where one exists, not a new one drawn up. Each rule the code keeps today is written in the header, and none is dropped without the owner's word.
+- **Checked on paper against ESP-IDF** before it is fixed: one row in progress.md for each call, ours beside the ESP-IDF call that would give it (its documentation read, nothing built). A seam with one platform behind it is a guess (ADR-007's words); the row is the cheapest thing that makes it less of one.
+- No interface is made for hardware no board has.
 
 ### What a board carries
 
@@ -156,13 +194,83 @@ Every file's place, a first draft, is in [The layout](#the-layout-a-first-draft-
 - **The menu keeps its one table** (ADR-010): a row names what it acts on, and a row whose module is absent is left out, its page's count taken from its list, as now.
 - **The EEPROM keeps every module's space, linked or not** (the owner). The slot map stays one list (`eeprom.h`). An absent module's record is never read, reset or written, so a later build with the module reads it back as it was stored. A factory reset still clears the whole EEPROM, as today.
 - **A stored choice that names an absent module never runs another in its place:** the unit says so at start, and what needs it refuses (fail early). Today no stored choice names a module a build can leave out; the rule is for the first that does. Why it matters: a scale driver read as another one once nearly ran the simulated scale while the motors poured real powder (AGENTS.md, v1.21's 9).
-- **Each module's optimisation is in the board's file:** ours at `-O0` unless the board says otherwise, LVGL and mbedTLS at `-Os` and `sha256.c` at `-O2`, as ADR-010 decided. One list a board, for the bench's builds and the release's alike: what the bench proves is what users get. A module at `-Os` is harder to step through on that board; the owner: that is the cost of the space, not of the build.
+- **Each module's optimisation is in the board's file:** ours at `-O0` unless the board says otherwise; third-party code at `-Os` but FreeRTOS's kernel, and `sha256.c` at `-O2`, as ADR-010 and ADR-009 decided. One list a board, for the bench's builds and the release's alike: what the bench proves is what users get. A module at `-Os` is harder to step through on that board; the owner: that is the cost of the space, not of the build.
+- **The unit's `features` is made from the board's list**, not written by hand: every part a build may leave out, by name, present or absent (ADR-008: no feature silently dropped).
+
+### The base build, and what a later build changes
+
+The owner, 2026-11-27: everything the firmware has today is the base build; later builds opt parts in or out, and this ADR designs for it.
+
+- **The base build** is what `boards/pico_w` and `boards/pico2_w` list: every module of today. It is what the bench proves and what a release ships. In ADR-005's words it is the core and the standard tier together, with the update's fetch over HTTPS.
+- **This ADR builds no other build.** It makes the cuts along the lines below, so a later build is new modules and a list. Where a line needs an interface that only its second side can shape, the interface is left to that side's ADR, and this ADR writes down what names the first side today.
+- **An option exists only with a build that uses it,** in CI, and a unit to prove it on (ADR-005: every optional module is one more build to keep working). No switch is added for a build nobody makes.
+
+**Three kinds of pick** in a board's list:
+
+| Kind | What it is | Today | Wrong pick |
+|---|---|---|---|
+| In or out | a module the build carries or leaves out | the servo gate | a module that needs an absent one fails at configure, by its `REQUIRES` |
+| One of | a place only one module can fill | the chip's platform; the screen's view | none, or two, fails at configure |
+| Several, one chosen | modules linked together, a stored setting picks one at start | the scale's make | a stored choice whose module is absent: the unit says so at start, and what needs it refuses (above) |
+
+A stored choice is a stored enum: its values are never renumbered or reused, whatever a build carries (AGENTS.md).
+
+**The lines, and what this ADR does for each**
+
+*The chip* (the owner's 3: the ESP32, ADR-007).
+- The seam is `platform/include`. An ESP32 build has nothing of `platform/rp2`, of the Pico's boards or of the Pico SDK; it has ESP-IDF, `platform/esp32s3` and its board, and every module above them unchanged.
+- This ADR: the interfaces; third-party code by ESP-IDF's names; no ESP-IDF name taken by a module of ours; stored records the same under both compilers; the PC build as the modules' second build.
+- Left to ADR-007: everything of ESP-IDF.
+
+*The screen and its UI* (the owner's 1: a larger LCD with another UI, likely not on the Pico W, perhaps not on the Pico 2 W).
+- ADR-010 already split the menu: the tree and what is open (`menu_nav.c`), a view that draws it (`menu_view_12864.c`), the panel's driver (`display.c`). Another display is another view.
+- But the screen is named well outside the UI today (the review, above): by the Wi-Fi, the update and the jobs. Until those are cut, no build can take another screen without edits in each.
+- This ADR:
+  - `ui/` is the only layer that names a screen. Nothing below requires a module of `ui/`: the jobs' calls into the menu and the others' includes of the display go (gate 6).
+  - The 12864 is three modules: its view (`view_12864`, with the fonts and LVGL's settings, `lv_conf.h`, which follow the panel's depth), its panel's driver (`uc1701`), and the knob and buttons (`mini_12864`). `menu` names none of them.
+  - The view is a "one of".
+- **Two readings of "alternative UI"**, both of which then fit:
+  - another view of the one menu table: ADR-010's plan. A new setting is placed once;
+  - a UI of its own, with its own pages and its own way round them (touch): the whole of `ui/` is the "one of". A new setting is then placed twice, and each UI has its own `menu_tour` baseline.
+- ADR-005's rule 1, the owner's of 2026-11-13, says "one screen UI". The second reading changes it. To settle (below).
+- Left to the screen's own ADR: its panel, its view or its UI, its board, LVGL's cost at its depth.
+
+*The dispenser* (the owner's 2: a thrower, or a trickler by the kernel, not rotary tubes).
+- **The tubes' modules today:** `motors`, `tmc2209`, the step pulses, `charge` (the charge mode), `charge_control`, `cleanup`, `calibration`'s powder part, `servo_gate`, and the powder profile's tube figures. The simulated scale follows the tubes' speeds, so it is theirs too.
+- **What any dispenser shares:** the scale; a job with a target (start, stop, status, events); the settings, the API and the menu as frames; storage; the update; the network.
+- **No dispenser interface is designed here.** Its shape depends on what a thrower needs, which nobody has written down; made now, it would be the tubes' own shape with a new name.
+- This ADR:
+  - the tubes' modules hand their own parts over at start-up (their settings tables, API routes, console commands, save handlers), so `web/`, `console/` and `storage` stop naming them (gates 6 and 9);
+  - at its end, progress.md lists every module that still names a tubes' module, and for what. That list is where the thrower's ADR starts. Expected in it: `jobs`, the menu's table, the API's commands, the hard fault's handler;
+  - a dispenser's stored records are its own slots. Another dispenser takes new slots, never the tubes'; and the EEPROM keeps an absent module's space (above), so a unit moved to another build and back has both.
+- **A build each, or a switch:** the dispenser is a "several, one chosen". Where both fit (the Pico 2 W's 4 MB, the ESP32's 16 MB) one build links both and a stored choice picks at start; where they do not (the Pico W), a build each. The choice is a new stored enum, appended, by the ADR that adds the second dispenser.
+- Left to the thrower's ADR: the interface, its modules, its records, its screens and pages, its bench rules.
+
+*A build's name, and an update.*
+- Today a board has one build, and a release's files are named by board. With a second build for a board, an update must offer a unit its own kind, or a tubes' unit takes a thrower's image.
+- Not built here: it is a change to the update (ADR-004), and there is one build a board. The first ADR that makes a second build for a board does it: the image says which build it is, the manifest lists by board and build, and the unit refuses another kind unless asked.
+- This ADR's part: the `features` made from the board's list, which is where a build's name comes from.
+
+#### More lines (the agent's candidates)
+
+The owner asked for more. Each is a line the cuts above already serve or nearly serve; none is designed or built here, and the owner strikes or adds.
+
+| Line | Kind | What it needs of this ADR |
+|---|---|---|
+| The update's own fetch left out (ADR-005's fallback for the Pico W: updates by file only) | in or out | `update_fetch` (the poll, the HTTPS client, the roots) a module apart from `update` (the job, the slots). It has a trigger already, so the layout splits it now |
+| A board with no radio (a Pico, a Pico 2): no network, no pages, set up at the screen (ADR-010 put every needed setting there) | in or out, a group | nothing new: what needs the network requires `wireless`, so leaving out the radio alone fails at configure |
+| The scale's makes, each a module; a scale not on a serial port (Bluetooth, ADR-005's extended tier) | several, one chosen | the makes hand themselves to `scale` in place of its eleven `extern`s (gate 6); the reader apart from the parser is handed on (below) |
+| An agent's side of the API (ADR-016: a fuller record of each throw, a PIN) | in or out | routes handed to `web/` by the module that owns them (gate 9) |
+| Storage that is not the CAT24C256: a controller board without it, on the chip's flash | one of | the storage interface, a block read and written. Already here |
+| Another motor driver chip, or a second controller board | one of, by board | a board as a folder that includes shared files. Already here |
+| A second language on the screen and the pages | not served | the words are in the code and the pages. It would be an ADR of its own; nothing here helps or hinders it |
 
 ### A build for the PC, for tests only
 
 - **The PC is never a board** (the owner: underneath there is always an ESP32 or a Pico to drive the motors). The PC build has no product, and turns no motor.
 - **What it builds:** the modules meant to be free of the chip, with stand-ins where a test needs one (an EEPROM in RAM, the RTOS's headers).
 - **What it runs:** today's host tests (`host_test.py`, `step2_sim.py`, `calibration_sim.py`), their sources and include paths taken from the modules in place of their lists by hand.
+- **How:** a small CMake project under `tests/host` that takes the chosen modules' folders as they are, with `ot_module` given for the PC (a library by the PC's compiler, `freertos` a target of the stand-ins). It is the module call's second build, before ESP-IDF's.
 - **What it gains this ADR:** a module meant to be free of the chip that is not fails to build on the PC. It is the check that the cut was made, before any ESP32 exists.
 - **Its meter:** the stand-ins. Today six headers, three of them the SDK's only because `common.h` pulls them in. At this ADR's end only the RTOS's should be left.
 - **What it is not:** a simulated unit (FreeRTOS's PC port, LVGL in a window, the PC's sockets). That is a third platform to keep alive; the motors' timing cannot be judged there; the bench and `tests/web_test.py` cover what it would show. The motors' side stays the Python simulation (`tools/charge_sim`), as now.
@@ -193,7 +301,6 @@ The owner: "Small bug fixes are acceptable, as long as they don't need extensive
 - **A failed save reported as done:** `eeprom_save_all` ignores what each handler returns, and returns 37, the old menu's page number. It returns whether every save worked.
 - **The pre-1.17 revision path** (`common.c`, `load_config_layout`): a record whose first two bytes equal the old revision number is taken with no CRC and no check of its size. It is below the v1.21 floor (the owner, 2026-11-26), so it goes, once `host_test.py` has shown v1.21's records still read without it.
 - **The Generic scale's sign apart from its digits:** "- 12.34" reads as no number, so a lifted cup goes unseen. Its parser reads the sign; checked on the PC with frames.
-- **The scale's reader task not swapped with its make:** it goes by design when the scale becomes one reader with a parser a make, on the platform's serial port. Each make's framing stays as it is today, byte for byte, compared old against new on the PC once.
 - **The ring buffer's unchecked `malloc`**, with C only.
 
 ### Handed on to an ADR of its own
@@ -202,6 +309,7 @@ These change what a user sees, or need tests that are not small:
 - **A CRC that fails writes the defaults at once** (`common.c`): one bad read wipes a module's settings. When to write, and how the unit says so, is a design.
 - **An EEPROM that does not answer:** the start-up's results are ignored, the unit comes up blank, then calls through NULL; the I2C calls have no time limit. The fix is a screen that fails early, proven on a unit with its EEPROM taken off.
 - **The other makes' frames taken at their line endings:** no scale of theirs is on the bench to prove it.
+- **The scale as one reader with a parser a make**, and with it the reader task not swapped with its make. The draft had it among the small fixes. It is not one (the review): it writes the reading of ten makes again, with one make's scale on the bench. Here each make keeps its task and its framing, and only its serial calls are swapped one for one for the platform's (gate 7). The one reader is designed with the line endings, where a parser can be shown against recorded frames.
 - **The filler rule checked by `release_records.py`:** it needs each record's layout from the compiler, at v1.21 and now.
 
 Its exit: that ADR is drafted before this one closes.
@@ -210,16 +318,128 @@ Gone since they were handed on: the menu's one-byte writes into enums (`mui_menu
 
 ## Gates
 
-Each proven on the unit before the next.
+Each proven on the unit before the next. Ten gates, written again after the review (2026-11-27): the draft's first gate is three (the build's mechanics tried, the move, the libraries), each with one thing to prove; the rest are the draft's, in its order.
 
-1. **Modules and boards.** The module call and the boards' files; every file moved into its module's folder; each module requiring what it includes today, loops and all (CMake takes a loop between static libraries); includes that nothing uses dropped; the tools that name `src/` paths following (the host tests, `release_records.py`, the build scripts, CI, AGENTS.md's table). No other line of code changes. The module graph (CMake's `--graphviz`) goes into progress.md, its loops shown. This gate is merged by a PR of its own as soon as it is proven: a move costs most while other branches are open.
-2. **The PC build** from the modules, in place of the host tests' lists.
-3. **C only**, but for the 12864's module and its interrupt class, which go with the inputs interface (gate 5).
-4. **The loops cut**, one at a time: each call that goes up turned into a call down or a part handed over at start-up, and each `extern` of another module's state turned into that module's call.
-5. **The platform's interfaces**, one at a time, in the order above. `common.h` without the SDK. At the end no `pico/`, `hardware/` or cyw43 include outside `platform/` and `boards/`.
-6. **Stored records apart from the compiler.**
-7. **What a board carries:** the parts handed to the rest from the wiring, the servo gate's switch first; each module's optimisation from the board's file; the EEPROM's space kept for an absent module.
-8. **The small fixes**, each with its own check.
+**The check a move is judged by,** used by gates 2, 3 and 5: the image's symbols before and after (`arm-none-eabi-nm -S`: each function and object by name and size). Our code is at `-O0`, so a file moved or built as a library gives every function the size it had. A function gone, new or of another size is a change to explain. It is quick, it needs no unit, and it would have shown the hard fault's handler dropped.
+
+### Gate 1: the build's mechanics, tried on two modules
+
+Nothing moves. It settles whether a module can be a static library at all, before 120 files depend on it.
+
+1. `ot_module` written (the Pico SDK's branch only), and two modules made where their files lie today: `fault_handler.c`, linked only by its place on the link line, and one service that uses FreeRTOS and the SDK (`events.c`).
+2. The four third-party targets (`freertos`, `lwip`, `mbedtls`, `lvgl`) and the SDK's headers for `platform/rp2`, with no source in them.
+3. Shown, on both boards' builds:
+   - **linked whole:** `isr_hardfault` in the map comes from our file; `pulses` passes on the Pico W, all three of its faults;
+   - **the same compile:** one file's compile command before and after (`compile_commands.json`): the same definitions and the same third-party include paths, but for their order;
+   - **third-party code once, at its level:** every SDK, lwIP, cyw43 and mbedTLS source compiled once, at `-Os` (`sha256.c` at `-O2`, FreeRTOS's kernel at the build's);
+   - **the image:** its symbols as before; its size within 1 KB;
+   - **the others still build:** the Pico W's bootloader, a test image (`-DRC_TEST_FAULT=1`), a release (`build_release.py`).
+4. If a point cannot be had, the fallback (above, "Modules") is tried the same way, and the owner is told which it is before gate 2.
+
+What was found goes into progress.md. It stays in the ADR's branch and is merged with gate 2.
+
+### Gate 2: the move
+
+One thing: every file in its module's folder. Still one program, built as today.
+
+1. Every file moved by `git mv` (so its history follows), a module's public headers into its `include/`. The layout below, as approved.
+2. The build finds the sources in the module folders in place of `src/`, and every module's `include/` is on the one include path. No library yet, no `#include` line changed.
+3. What names a path follows, in the same commit: the build scripts and `scripts/` (the version, the pages, the fonts, the release), the three host tests, `release_records.py`, `tools/size_report.py` and `tools/ui_mock`, CI, `.vscode`, the skills, and AGENTS.md's table of where code goes. `src/generated` stays what the build makes, in a place of its own.
+4. Proof: the symbols as before, both boards. Then the Pico W on the probe: `flash`, `menu_tour --compare`, `charge_cycle`; the host tests and `release_records.py`. The Pico 2 W the same when it is on the probe (a change to the build: both boards).
+5. Merged by a PR of its own at once: a move costs most while other branches are open.
+
+### Gate 3: the modules as libraries
+
+One thing: each module built on its own. No file moves.
+
+1. Each module's build file with its one call, requiring what its files include today, loops and all (CMake takes a loop between static libraries). Every module linked whole.
+2. The boards' folders: each board's list of modules, their optimisation, the third-party settings' headers, the SDK's libraries and the third-party `-Os` rule; the flash layout from `targets/`.
+3. What the build makes goes to the module that uses it: the PIO headers to `platform/rp2`, the pages to `api`, the fonts to the view, the version to `app`, the roots to `update_fetch`.
+4. Includes that nothing uses dropped (`eeprom.c`'s ten, `scale.h`'s `app.h`): the only lines of code this gate changes.
+5. The module graph (CMake's `--graphviz`) into progress.md, its loops and its upward arrows marked: gate 6's list.
+6. Proof: the symbols as before, both boards; a module made to include a header it does not require fails to compile (tried once, not kept); `pulses`; the five release builds and the test images build; the size within 1 KB; then `flash`, `menu_tour --compare`, `charge_cycle` on both boards.
+7. Merged by a PR of its own.
+
+### Gate 4: the PC build
+
+1. The CMake project under `tests/host`, `ot_module` given for the PC, the stand-ins as its `freertos` target.
+2. The three host tests take their sources and include paths from it, their lists by hand gone. CI runs it as it runs them today.
+3. The meter written down: the stand-in headers, six today.
+4. Proof: each test ends `VERDICT PASS` on Windows and in CI; a module of the PC build made to include an SDK header fails to build there (tried once).
+
+### Gate 5: C only
+
+1. `cleanup_mode.cpp` renamed `.c`. Proof: its functions' sizes as before; a purge on the unit.
+2. The ring buffer in C (`ring`), its array the caller's. Checked once on the PC against the old class with the same readings (above). Then `charge_mode.cpp` on it, and renamed `.c`.
+3. Proof: `charge_cycle`; the job task's stack by `stats tasks` before and after; the image's size.
+4. `mini_12864_module.cpp` and the interrupt class wait for gate 7's inputs.
+
+The unit on the probe is enough (the application's layer).
+
+### Gate 6: the loops cut
+
+One cut a commit. After each, the module's `REQUIRES` line loses a name, and from then on the compiler refuses its return.
+
+In this order, the cheapest first, and those that free the screen and the tubes (the lines above) before the rest:
+1. **The jobs and the menu.** The four jobs wake the menu and ask whether it shows a page. Turned round: the menu follows the activity (`activity`), which the jobs already mark, and a job asks `activity` whether a start may be taken. Each of the four is read first; what the question guards is kept.
+2. **The screen named from below:** the includes of `display.h` and `mini_12864_module.h` in the Wi-Fi, the access point, the update and the modes. Each use read, then cut or turned into something the UI reads.
+3. **The update:** its includes of the menu, the display and the web; the event log's calls into it (the version's text and the reset's record handed to `events` at start-up).
+4. **The web started by the Wi-Fi** (`rest_endpoints_init`): started by `app`.
+5. **The restart closing the web's clients:** a list of things to do before a restart, which `web` joins.
+6. **The settings' description and the web server's header:** the settings' HTTP side to `api`, the tables, checks and stores staying.
+7. **Other modules' state by `extern`:** `scale_config` (16 files) and `charge_mode_config` (8) behind their module's calls; the scale's eleven handles handed to `scale` by the makes; `neopixel_led_config`.
+
+Proof, each cut: both boards build; the path it touched run on the unit, by the command that has it (a restart and its clients: `api_check`; the update: `slot_trial` and `update` from the local OTA server; a job's start refused and taken: `charge_cycle`, a purge, `reach`).
+At the gate's end: the graph with no loop and no arrow upward; `menu_tour --compare`, `charge_cycle`, `api_check`, `settings_roundtrip`. The unit on the probe, and the Pico W for the network's cuts.
+
+### Gate 7: the platform's interfaces
+
+One interface a commit, each made as "How an interface is made" says: today's header lifted, its rules written in it, its row against ESP-IDF in progress.md.
+
+The order is by what is nearest done, so the first ones show the way:
+
+| | Interface | From | Its proof on the unit |
+|---|---|---|---|
+| 1 | step pulses | `step_pulses.h`, as it is | `pulses`; `motor`'s counts; a soak's late feeds |
+| 2 | the image slots | `update_slots.h`, as it is | `slot_trial` confirmed and back; an update from the local OTA server |
+| 3 | the system | the restart, the USB loader, the id, the random number, the time, the fault's hook | `reset`; the unit's id and its hotspot's key as before; `pulses` |
+| 4 | a task | the 14 `xTaskCreate` | `stats tasks`: every stack as before |
+| 5 | storage | the CAT24C256's I2C calls | `settings --compare` across a restart; `settings_roundtrip` |
+| 6 | a serial port | the scale's makes and the motor drivers' line, call for call | `scale_frames` with the A&D connected; `tmc <coarse\|fine> setup <n>`; a real reading in `state` |
+| 7 | the display's bus | the UC1701's SPI and its three pins | `menu_tour --compare` |
+| 8 | inputs | the interrupt class, in C; with it `mini_12864_module.cpp` | `knob`'s tap, `press`, `reach` |
+| 9 | an LED strip | the WS2812's PIO | the owner's eye: the LEDs are the 12864's backlight, which no snap shows |
+| 10 | a servo | the PWM slice's register | no gate is on the bench: the pulse's width read from the chip's registers through the probe, before and after |
+| 11 | the network | cyw43 in `wireless.c`, the access point's DHCP server, mDNS | `stream_check`, `web_robust`, a soak with `--load`; the set-up's join from the hotspot |
+
+Last, `common.h` without the SDK. At the end no `pico/`, `hardware/` or cyw43 include outside `platform/` and `boards/`, shown by a search and by the PC build's stand-ins, the RTOS's only.
+
+Both boards, each interface (drivers, the PIO, timing against the chip); the network on the Pico W.
+
+### Gate 8: stored records apart from the compiler
+
+As above. Proof: each record's size and each field's offset on both images before and after (`ptype /o`), the same; `release_records.py`, taught the declared change, and `host_test.py` pass; `settings --compare` on the unit across the flash.
+
+### Gate 9: what a board carries
+
+1. **The parts handed over** from `app`'s wiring: each module's settings table, routes, console commands and save handler. The servo gate first: its 15 lines in four files become its own module's, and `app` is the one place that asks whether it is there.
+2. **`features` made from the board's list.**
+3. **Each module's optimisation from the board's file.**
+4. **The EEPROM's space kept** for an absent module: never read, reset or written.
+5. **The three kinds of pick, each shown once on a real build:**
+   - in or out: the Pico W built with the servo gate left out by its board's list runs, its `features` says absent, its menu and pages have no trace of it; built with it again, it reads its record back as stored;
+   - one of: a board's list with no view, and with two, refused at configure;
+   - several, one chosen: a test build with one scale's make left out, on a unit whose stored make is that one. The unit says so at start, a charge refuses, and no other make runs. (Proposed: below, "To settle".)
+6. **The lines' lists into progress.md:** every module that still names a tubes' module, and every one outside `ui/` that still names the screen (none), each with what for.
+
+Proof besides: `menu_tour --compare`, `charge_cycle`, `api_check`; the size by module (`tools/size_report.py`), both boards.
+
+### Gate 10: the small fixes, and the close
+
+1. Each fix with its own check (above).
+2. The ADR for what was handed on is drafted.
+3. The end's checks (below), the owner's real throw among them.
+4. Closed in its branch, then its PR.
 
 ## How the unit shows it works
 
