@@ -2235,8 +2235,8 @@ static const char *const api_v1_schema_events[] = {
     "{\"source\":\"throw\",\"kind\":\"finished\",\"carries\":[\"throw\",\"result\",\"weight\",\"elapsed_s\"],"
     "\"about\":\"the verdict; result: good, under, over\"}",
     "{\"source\":\"throw\",\"kind\":\"ended\",\"carries\":[\"throw\",\"reason\",\"motor\",\"fault\"],\"about\":\"a "
-    "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and "
-    "fault only with driver_fault\"}",
+    "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault, fault (the "
+    "fine tube starved of powder, or no memory for the throw); motor and fault only with driver_fault\"}",
     "{\"source\":\"purge\",\"kind\":\"started\",\"carries\":[\"by\"]}",
     "{\"source\":\"purge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"reason: stopped, time "
     "(its time ran out: by the unit), fault\"}",

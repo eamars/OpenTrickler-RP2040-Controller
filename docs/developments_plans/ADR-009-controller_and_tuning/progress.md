@@ -1309,3 +1309,35 @@ The Pico W put on the probe by the owner (power-cycled once: its SWD answered on
 ## 2026-11-27, 02:25: closed
 
 Built, in its README, this progress and the index, in its branch before its PR (the owner: "once all your soak tests are done I'd like you to create the PR before the end of today"). Handed on: the Pico 2 W's run of the `-Os` build (flash, the settings compared, a charge cycle, a slot trial) when it is next on the probe; an update over Wi-Fi on the `-Os` build, run on neither unit; N16, left as it is by the owner.
+
+## 2026-11-27, 09:55: the PR's review fixed (built, no unit)
+
+The review of PR #138 (`logs/review/adr009_pr_review_2026-11-27.md`): its "To fix now", each fixed and checked on the PC.
+
+- **C1, the fine stop first.** The reading within the fine threshold under the target stops the throw first on each reading, whatever the coarse tube does, as main's loop; the tick's gate on the coarse tube gone; `tools/charge_sim/step2.py` the same. `tests/step2_sim.py` has a start with the coarse threshold under the fine one (`bench low coarse`, 0.02 under 0.03): before the fix it failed, 54 differences against main's loop; after, VERDICT PASS. Every other start's figures, the forecast on and off and the tuner's steps, unchanged line for line against a run of the commit before.
+- **C4, the gate's twitch.** Gone with C1: a reading past both stops ends the throw with the coarse tube still marked moving, so `charge_mode.cpp` never sends the gate to its ratio before closing it. Read in the code.
+- **C2, a back-off cut by a pause.** At the resume a back-off under way is over, the coarse tube at 0, as main. C only: the Python models no pause. Built; no test reaches it.
+- **U1, Save all or nothing.** A powder's records written checked whole and stored in one write; the scale's eleven fields the same (`SETTINGS_WRITE_BY_MAX` 8 to 11), the charge's margins written first and put back if the scale refuses. The setting's own refusal reaches the 12864 as a "Not kept" message (wrapped onto three lines, a message's fourth slot added to the menu's frames: 224 bytes) and the API as 409 `not_kept` (api_v1.md, the schema), which the web shows. Seen on the stand-in: NewProfile4 (maximum speeds 0) calibrated, Save gives "Not kept: coarse_min_speed_rps is above coarse_max_speed_rps", nothing kept. The profile's maximum is not changed.
+- **U2, the margins.** "Charge margins" with the margin Keep writes, on the screen's and the web's results, only when it writes it. Seen on the stand-in (its mock's result now carries `margin`) and on the mock sheet.
+- **U7, the web's unit.** The calibration's weights in the scale's unit as `GET /api/v1/scale` gives it, read with the first read and at each new step (gn as gr, as the screen), the number alone where the unit is null. The decimals stay two. Seen on the stand-in ("gr").
+- **U8, why not found.** The reason under Took on the screen's result, wrapped; the settle time's failure in plain words, "Settle time: too little powder seen", the same on both. A settle time not found reads "Not found" on the screen (it read "nan s").
+- **U9, the scale's first step.** "Powder in the hopper" over "Put the empty cup / on the scale"; the web "With powder in the hopper: its runs pour it."
+- **U10, the first key.** The web's Next for the cup, Start for the scale and a powder, as the screen.
+- **N1, the console.** `calibrate powder <n>` refuses a powder there is not (`out_of_range`); `calibrate answer` with no job says `not_running`; a refused save says `not_kept` with the setting's words.
+- **B1, the bootloader.** The `-Os` of the SDK's sources applies to the image alone: in `build_w`, none of the bootloader's 56 objects at `-Os` (264 of the image's are); the bootloader 6,488 bytes of its 16 KB (4,620 at `-Os`; 6.4 KB measured 2026-11-16).
+- **D1 to D3.** The README: item 6 appended with `compatibility` kept; the cup's weight read by nothing; the two switches, both off (the owner, 2026-11-27), where the earlier words stand.
+- **D4.** The step pulses' change of 2026-11-24 (`f0393a2`, in this branch): a segment's steps rounded up, so a segment lasts two feeds at least, against the fine motor's late feeds just under 1,000 steps a second; it changes every motor job. In no record before this line; the Pico W's soak of 2026-11-27 saw no late feed. `fault` added to `throw ended`'s reasons in api_v1.md and the schema ("Fine: no powder", "No memory").
+
+**Checked on the PC:** `host_test`, `step2_sim`, `calibration_sim`, `release_records` each VERDICT PASS; the mock sheet drawn again (`tools/ui_mock/calibration_12864.py`, 24 screens); the portal on the stand-in. Both boards built with no new warning: the Pico W's image 913.8 KB of its slot's 1,016 KB (90%), RAM 252.1 KB at link time; the Pico 2 W's 900.6 KB (50%).
+
+**None of it has run on a unit.** Wanted on one: the screens of U1, U2, U8 and U9 (a calibration's result, a refused Save); a charge cycle for C1 and C2; the menu task's stack (`stats tasks`) after a Save from the screen, whose write now holds eleven fields on it.
+
+**Left for the owner** (the review's "The owner's to decide"):
+- T1: the tuner's 10 s limit at heavier charges.
+- T2: a change of target judged as a change of gains.
+- C3: the throw's room and the forecast's work with both switches off.
+- U5: "Calibrate this unit" as the main menu's first row.
+- U4: the calibration page's Powder row.
+- U3: Back at the result discarding without asking.
+- O1: the cup's weight measured and used by nothing.
+- O2: issue #12.
