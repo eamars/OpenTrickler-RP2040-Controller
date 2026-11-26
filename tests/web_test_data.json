@@ -1140,6 +1140,10 @@
         "label": "Generic"
        },
        {
+        "value": "fa_en",
+        "label": "FA-E/EN"
+       },
+       {
         "value": "simulated",
         "label": "Simulated (no scale)",
         "short_label": "Simulated"

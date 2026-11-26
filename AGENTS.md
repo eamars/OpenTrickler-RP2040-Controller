@@ -67,6 +67,10 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 - Each module stores one struct in its own 1 KB slot with `load_config` and `save_config` (`common.h`), with a CRC32.
 - The struct's layout is the stored format. A change that alters its size resets that module's settings to their defaults on every unit. **A field that fits in the struct's filler does not:** the size stays, the old record passes its CRC, and the new field reads whatever byte was stored there (ADR-006, handed on by ADR-010). Check the size before and after (`arm-none-eabi-gdb -batch -ex "p sizeof(<type>)" build_w/app.elf`).
 - Never change a stored struct's layout without saying so in the ADR.
+- **Never insert, always append** (the owner, 2026-11-26: "Remember, NEVER INSERT, always append for EEPROM record. This MUST be in AGENTS.md too."). The users of every release upgrade, and a record keeps its first bytes across an update, so a new release reads what the old one wrote:
+  - a new field goes at the end of its record (for a header-and-array record, at the end of each element), never in the middle;
+  - an old field is never moved, removed, retyped or put to a new use;
+  - a stored enum's value is never renumbered or reused: a new one takes a value no release used. Check every release tag's header before choosing one (`git show <tag>:src/<module>.h`). Why: v1.21 stored its FA-E/EN scale driver as 9, which v2 had taken for its simulated scale; a v1.21 unit on an FA-E/EN scale updated to v2 would have run the simulated scale while the motors poured real powder. v1.21's 9 stayed, and the simulated scale went to 100.
 - **Each setting is described once,** in its module's table (`settings.h`; charge mode's and the display's in a C file beside their C++ one): name, type, unit, limits or choices, when it applies, a line on what it is, and where it lies in the struct. A new setting goes in the struct and the table, and the API, the export, the schema, the portal's form (by its field's name) and the console's `setting` follow. `saved` is the struct's CRC against what was last stored, so a write from the menu counts; for a resource that shares its record (a powder of the eight, a motor of the two) it is its own part against what the EEPROM holds of it, read only when the record is not stored (ADR-008, gate 2). Each resource names where its part lies in the EEPROM (`addr`) and its revert (`revert_path`).
 
 **Style:** the skills in `.agents/skills`:
@@ -160,5 +164,6 @@ Work is planned and recorded as architecture decision records in [docs/developme
 - **Do not edit `src/generated/`.** Change the source (a page, a `.pio` file, `scripts/gen_version.py`) and build.
 - **Do not change anything under `library/`.** It is third-party code in submodules.
 - **Do not change a stored struct's layout without saying so in the ADR** (see "Settings in the EEPROM").
+- **Never insert into a stored record; always append.** Never renumber or reuse a stored enum's value (see "Settings in the EEPROM").
 - **Do not push often.** Push when a branch is ready for its PR, not as you go (see "Decisions and ADRs").
 - **Do not merge a feature, close a PR or an issue of someone else's, or post a comment** without the owner's word. An update that is not a feature is the exception above.
