@@ -1184,3 +1184,80 @@ The product itself (`step2_variants.py --variants shipped shipped@target`, f2, 4
 - **The cup's lift (3b): not seen.** The hands-off run stops each charge itself, so no charge waited on "Remove Cup". Left for a charge with a hand at the cup.
 
 Logs: `logs/rc/20261126_202818_adr009_step2_252.log`, `logs/rc/20261126_204324_adr009_step2_252b.log`; frames and runs under `logs/adr009/`. The cup holds 593.2 gr at the end.
+
+## 2026-11-26, 21:00 to 21:20: the charge screen's verdict (built, no unit)
+
+**The owner:** the screen did not show the latest measurement between throws; it lagged and sometimes showed over. Then, on what it should show: before the verdict is drawn, the scale's measurement in real time; after it, the verdict.
+
+**Found:** between throws the charge screen showed the last verdict's weight and result. Until this throw's verdict is read (the slowest lag and the settle time after the stop, about 1.6 s on the bench's unit; 1 s on main) that verdict was the throw before's, so after every stop the screen showed the previous throw's weight, often an over. Main has the same flaw over its 1 s.
+
+**Built** (`7e66cf1`, `menu_nav.c`): a verdict is shown only once it is this throw's; before it, the live reading. The web mirrors the same frame. On the unit from 2.0.3-255.
+
+## 2026-11-26, 21:20 to 22:25: the tuner's objective: the tolerance first, then quicker (built, no unit)
+
+**The owner's decisions:**
+- The pass rate of the bench run of 20:26 (36% and 44% within the tolerance) is unacceptable; throws up to 10 s are acceptable.
+- The tuner is never tuned by hand: a test of it gives it no gains but its own.
+- **Its objective changes to the tolerance first, then quicker,** replacing the time per good charge chosen on 2026-11-25 (18:54), which on the unit settled on 3.7 to 5 s throws.
+- On the owner's two questions (a window of 10 throws instead of 25; a pass-rate threshold to stop and start the tuning), researched first (below), the owner chose: **hold when nothing beats the kept gains** (no number from the user); **far from good, judge by the miss**; **a median throw time of 10 s as the tuner's limit, fixed for now, to be tested and settled before ADR-009's release.**
+
+**The research** (scratch studies on the twin, not kept in the repository):
+- **A window of 10:** it decides as the long run does 5 to 15 points less often than a window of 25, and as a tuner it changed its gains three times as often for no better pass rate. Not taken.
+- **A fixed pass-rate threshold:** on the twins the pass rate within ±0.03 tops out at about 70 to 78% (f2 77% at kp 0.89, 8.5 s; night 70% at kp 0.59, 10.9 s; slower gains no better), and where it tops out moves with the powder, the scale and the tolerance: a threshold of 80% was never reached in half the sessions. Not taken; the hold on convergence instead.
+- **Far from good the share carries almost no signal:** on the night rig a window judged kp 1.33 better than kp 2 only 22 to 30% of the time (5% against 11% good), and with ties going to the quicker gains the tuner stayed at about 15% good for 400 throws in 2 or 3 sessions of 4.
+- **The twin against the bench's unit** (`step2_unit_fit.py`: the unit's own step 1 records and its tuner's gains in order): no rig matches; the unit sits between f2 (slower, more accurate) and night (quicker, less accurate), all three better with slower gains.
+
+**Built** (`9f7451a`, the C and the Python together; `step2_sim` VERDICT PASS, 25 cases): a window's median time past 10 s loses to one within it; while both windows' shares are under half, the smaller miss wins; else the share first, then quicker; every way put back, the kept gains are held, and the search begins again from them when their latest 50 throws pass less than they did by more than the noise. The step's shrinking and resting are gone. On the twin (`step2_tuner_proof.py`, 4 rigs, both starts) no session stayed stuck far from good.
+
+## 2026-11-26, 22:26 to 22:32: 20 charges on 2.0.3-255 (the bench)
+
+The owner asked for the trickle time of 10 charges of 10 gr and 10 of 42.5 gr, the scale's zero reset before each, at most 20 charges, never over 600 gr. On the gains the tuner kept at 20:52 (fine kp 1.33, kd 10); 20 throws close no window of 25, so the tuner changed nothing.
+
+| | Times (s) | Median | Good | Over | Under |
+|---|---|---|---|---|---|
+| 10 x 10 gr | 5.0, 9.2, 6.1, 6.3, 5.0, 4.5, 5.5, 5.4, 4.8, 4.1 | 5.2 | 4 | 5 (+0.04 to +0.14) | 1 |
+| 10 x 42.5 gr | 8.1, 7.5, 12.1, 8.0, 7.9, 10.3, 8.5, 11.4, 10.1, 11.4 | 9.3 | 5 | 5 (+0.04 to +0.08) | 0 |
+
+At 42.5 gr the coarse tube took about 4.7 s of each throw. The cup's lift was not seen: the last charge, left waiting on Remove Cup, was stopped by the remote control's end of session.
+
+## 2026-11-26, 23:10 to 23:38: the tuner on 2.0.3-255, 100 throws (the bench)
+
+From the stored gains (kp 1.33, kd 10), the unit restarted so the tuner began afresh; 10 gr, the scale zeroed before each charge, the cup emptied once (the owner's word passed to the cup ledger by `record.py --cup-emptied`, added for it).
+
+| Window | Gains | Good | Over | Under | Median time | The tuner |
+|---|---|---|---|---|---|---|
+| 1 | kp 1.33, kd 10 | 56% | 44% | 0% | 5.1 s | the base; tries kp 0.89 |
+| 2 | kp 0.89 | 68% | 32% | 0% | 8.1 s | put back |
+| 3 | kp 2.0 | 28% | 68% | 4% | 4.9 s | put back; the braking |
+| 4 | kp 2.0, kd 538 | 52% | 48% | 0% | 6.3 s | nothing beats the base: held at kp 1.33 |
+
+**Why window 2 was put back** (recomputed from the unit's log): the share modelled from the throws' percentiles snapped to the A&D's 0.02 grid. Windows of 56% and 68% good both came out at median +0.020, half-width 0.040, 49%: both under half, so the far rule judged them by the median miss, which snapped too (0.020 against 0.020), and the tie put the better gains back. The unit's own evidence that night at 10 gr: kp 0.89 68% ± 8 (34 throws), kp 1.33 48% ± 6 (60), kp 2.0 28 to 36%.
+
+**On the twin** the judgements could not be told apart (as built; counted with margins 1 and 0.5; counted with a confirmation window: all within a few points over the last 200 of 400 throws): its landscape is flatter than the unit's (f2: kp 0.89 77% against kp 1.33 68%; the unit: 68% against 48%). **The owner chose: the share counted, as the unit's verdict counts it; far from good, the mean miss; a trial kept when its share is higher by half the noise, or no lower and quicker.**
+
+**Built** (`1765df3`): as chosen, in the C and the Python; the C's normal model and its erf are gone. `step2_sim` VERDICT PASS (25 cases); `host_test` PASS; Pico 2 W 55.52%.
+
+## 2026-11-27, 00:05 to 00:35: the tuner on 2.0.3-256, 100 throws (the bench)
+
+The same run as at 23:10: flashed by the probe (the settings copy equal), from the stored kp 1.33, kd 10, the cup emptied once.
+
+| Window | Gains | Good | Over | Under | Median time | The tuner |
+|---|---|---|---|---|---|---|
+| 1 | kp 1.33, kd 10 | 44% | 52% | 4% | 5.4 s | the base; tries kp 0.89 |
+| 2 | kp 0.89 | 52% | 44% | 4% | 7.2 s | **kept**, stored into the profile by `unit` |
+| 3 | kp 0.59 | 60% | 36% | 4% | 11.0 s | put back: past 10 s |
+| 4 | kp 1.33 | 28% | 60% | 12% | 5.5 s | put back; the braking next |
+
+`step2_windows.py`: VERDICT PASS, 100 throws each on a carried weight a turn, every gains kept stored. AR2209's profile after: fine kp 0.8889, kd 10, ki 0. Pooled over both nights at 10 gr: kp 1.33 about 43% good (110 throws, 5 s), kp 0.89 about 61% (59 throws, 7 to 8 s), kp 0.59 60% (25 throws, 11 s): past kp 0.89 slower gains pay no more, and pass 10 s.
+
+## 2026-11-27, 00:42 to 00:46: 10 charges of 42.5 gr on the gains found (the bench)
+
+The unit restarted, so the tuner began from the profile's kp 0.8889, kd 10; 10 throws close no window. The scale zeroed before each charge.
+
+| Reading less target | −0.02 | 0.00 | +0.02 | +0.04 | +0.06 |
+|---|---|---|---|---|---|
+| Throws | 3 | 1 | 1 | 4 | 1 |
+
+Good 5, over 5, under 0; mean +0.016. Times 9.6, 9.8, 11.2, 9.6, 9.8, 12.3, 16.1, 12.8, 10.2, 10.3 s (median about 10.2 s; the coarse tube about 4.7 s of each). In 9 throws of 10 the reading at the stop was −0.02 (main's rule stops on the band's lowest reading), and about 2.2 digits landed after it on average, so the finals sit at +0.02 to +0.04, on the band's upper edge: what lands after the stop, not the gains, holds the pass rate at about half to two thirds.
+
+**The owner accepted this result** (2026-11-27). Left: the cup's lift seen on the unit (3b), steps 8 and 9 of the bench run (optional), the 10 s limit settled before release, the Pico W.
