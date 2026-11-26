@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27: gate 1 approved by the owner ("Approve") and built on the PC the same day, its run on the unit (`pulses`) still to do; the gates after it not approved. Drafted 2026-11-13, written again with the owner 2026-11-26 and 27, and revised later on the 27th after a second agent's review on main and the owner's direction on what later builds may add or leave out. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C; a base build that carries everything of today, cut so that a later build adds or leaves out a part without touching what is shared. Nothing a user sees changes, and nothing of ADR-007 or of any other build is built here.
+Status: **Open** 2026-11-27: gate 1 approved by the owner ("Approve") and built the same day, proven on the Pico W; the gates after it not approved. Drafted 2026-11-13, written again with the owner 2026-11-26 and 27, and revised later on the 27th after a second agent's review on main and the owner's direction on what later builds may add or leave out. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C; a base build that carries everything of today, cut so that a later build adds or leaves out a part without touching what is shared. Nothing a user sees changes, and nothing of ADR-007 or of any other build is built here.
 
 ## What we want
 
@@ -346,7 +346,7 @@ Nothing moves. It settles whether a module can be a static library at all, befor
 
 What was found goes into progress.md. It stays in the ADR's branch and is merged with gate 2.
 
-**Built 2026-11-27, on the PC; `pulses` on the Pico W still to run** ([progress](progress.md)). A module can be a static library: both boards' images are symbol for symbol what they were. Found on the way: a plain static library does drop the hard fault's handler, with no error; the SDK's libraries answer by who asks, so the console is now chosen for every target; and the image's own include paths cannot be handed out in parts.
+**Built 2026-11-27** ([progress](progress.md)), on the PC for both boards and on the bench's Pico W: `pulses` passed, all three faults, and the menu is pixel for pixel what main's firmware showed on the same unit that morning. A module can be a static library: both boards' images are symbol for symbol what they were. Found on the way: a plain static library does drop the hard fault's handler, with no error; the SDK's libraries answer by who asks, so the console is now chosen for every target; and the image's own include paths cannot be handed out in parts.
 
 ### Gate 2: the move
 

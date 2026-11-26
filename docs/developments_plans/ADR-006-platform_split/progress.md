@@ -6,7 +6,7 @@ What was built and measured. The plan is in the [README](README.md). The builds 
 
 2026-11-27, approved by the owner alone ("Approve"). On the branch `adr006_platform_split`, from main at 93277cf. Nothing moved: two files of `src/` are built as modules where they lie, and the rest as before.
 
-**The verdict: a module can be a static library.** Both boards' images are, symbol for symbol, what they were. Three things had to be found first, each below. `pulses` on the Pico W is still to run: it needs the bench.
+**The verdict: a module can be a static library.** Both boards' images are, symbol for symbol, what they were, and on the Pico W the step pulses stop on a hard fault as before. Three things had to be found first, each below.
 
 ### What was built
 
@@ -84,9 +84,20 @@ The 8 bytes are in `.text` and in no symbol: the two modules' files now come las
 - a whole release (`scripts/build_release.py`, its five builds, into `build_adr006/`): made, the update images the size of the plain ones (938,316 and 923,700 bytes), `isr_hardfault` from the module in the Pico W's slot B image and the Pico 2 W's update image;
 - `tests/host_test.py` and `tests/release_records.py`: `VERDICT PASS`.
 
-### Still to do: on the unit
+### On the unit
 
-`pulses` on the Pico W: a probe reset, an assert and a hard fault, each judged by whether the step pulses stop. It is the one proof here that needs the bench, and the one that shows the handler not only linked but run. The images for it are built (`build_adr006/after_w`, `fault1_w`, `fault2_w`). Nothing else of gate 1 is flashed: the image is the baseline's, symbol for symbol.
+2026-11-27, the bench's Pico W on the probe, the bench ready by the owner's word, the hopper empty (the owner), the A&D connected. The images rebuilt from the gate's commit (30b819a) first, so each reports 2.0.3-287.
+
+- **Its settings copied before the flash** (`logs/adr006/picow_before_gate1`, the unit then on 2.0.3-277), and compared after everything below: 17 resources, the same.
+- **`rc_run.py flash`:** the unit runs 2.0.3-287 at 30b819a.
+- **`pulses`: `VERDICT PASS`.** The step pulses stopped on a reset through the probe, on an assert and on a hard fault. The third is the one a plain static library would have failed, with nothing else to show it. The cup read 0.00 gr before and 0.0 gr after.
+- **The menu, before against after on the same unit.** Today's tour, pixel by pixel against the tour ADR-009's bench run took this morning on main's firmware (2.0.3-277; `src/` is the same from there to main but for the unserved `src/html` removed): 17 of 18 snaps the same, the Wi-Fi's and the scale's pages among them. The one that differs is `settings/firmware`, in the version's text.
+- **`menu_tour --compare tests/menu_baseline/pico_w`: 13 pages the same, 3 not judged, and `settings/display` differs: not this gate's.** Its baseline picture has Rotation "Upside down"; the unit's stored rotation has been "As mounted" since ADR-008's gate 4, and this morning's tour on main's firmware failed on the same page the same way. Set to the baseline's rotation live, the page gains a "Restart to apply" row and differs by its scroll bar. The picture can only be made right by saving that page again: the owner's to say, since no screen changed.
+- **`charge_cycle`: `VERDICT PASS`**, 30.000 for a target of 30.000, 13.0 s from charging to the cup prompt.
+
+The Pico 2 W was not on the probe. Its image is its baseline's, symbol for symbol, with the hard fault's handler from the module; its run of `pulses` goes with gate 2's, when it is on the probe.
+
+**Gate 1 is built.**
 
 ### For the later gates
 
