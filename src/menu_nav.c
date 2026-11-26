@@ -2954,17 +2954,6 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             snprintf(screen->title, sizeof(screen->title), "Zeroing");
             calibration_weight_figure(screen, cal.weight);
             break;
-        case CALIBRATION_STEP_LIFT:
-            snprintf(screen->title, sizeof(screen->title), "Lift the cup");
-            calibration_weight_figure(screen, cal.weight);
-            snprintf(screen->context, MENU_TEXT, "Its weight is read");
-            break;
-        case CALIBRATION_STEP_BACK:
-            snprintf(screen->title, sizeof(screen->title), "Put the cup back");
-            calibration_weight_figure(screen, cal.weight);
-            format_weight(cal.cup_weight, weight, sizeof(weight));
-            snprintf(screen->context, MENU_TEXT, "The cup weighs %s%s%s", weight, space, unit);
-            break;
         case CALIBRATION_STEP_FILL:
             // A job whose turn moves the coarse tube: the powder in the cup as the figure, what the knob does under
             // it; Full is the click, drawn focused; no Cancel softkey the knob could not reach: Back cancels, the

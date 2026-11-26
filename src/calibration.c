@@ -34,7 +34,6 @@
 #define CALIBRATION_FILL_RPS 2.0f       // the coarse tube's speed while it pours the fill
 #define CALIBRATION_FILL_POLL_MS 20     // how often the fill looks at its pour
 #define CALIBRATION_DETENT_TURNS 0.25f  // a detent of the knob while filling: 2.5 gr of AR2209, 0.125 s at 2 rev/s
-#define CALIBRATION_BACK_GR 0.5f        // put back: within this of zero, and steady
 #define CALIBRATION_MARGIN_MOST 1.0f    // the most the steady and zero margins hold (their settings' max)
 #define CALIBRATION_PER_TURN_MOST 100.0f    // the most a powder's weight a turn holds (its setting's max)
 
@@ -73,8 +72,8 @@ const char *calibration_part_name(calibration_part_t part) {
 
 
 const char *calibration_step_name(calibration_step_t step) {
-    static const char *const names[] = {NULL, "cup_on", "zeroing", "lift", "back", "fill", "keep", "empty",
-                                        "running", "paused", "result", "failed"};
+    static const char *const names[] = {NULL, "cup_on", "zeroing", "fill", "keep", "empty", "running", "paused",
+                                        "result", "failed"};
     return step <= CALIBRATION_STEP_FAILED ? names[step] : NULL;
 }
 
@@ -207,16 +206,6 @@ static bool wait_steady(bool (*test)(float weight), uint32_t timeout_ms, float *
 
 static bool near_zero(float weight) {
     return fabsf(weight) <= CALIBRATION_STEADY_GR;
-}
-
-
-static bool lifted(float weight) {
-    return weight <= -CALIBRATION_LIFTED_GR;
-}
-
-
-static bool put_back(float weight) {
-    return fabsf(weight) <= CALIBRATION_BACK_GR;
 }
 
 
@@ -436,20 +425,9 @@ static void run_cup(void) {
     if (!cup_on_and_zero()) {
         return;
     }
-    // Lifted: its weight is how far the reading falls
-    set_step(CALIBRATION_STEP_LIFT, "Lift the cup");
+    // Filled by the person straight after the zero (the cup's own weight is read by nothing: the PR's review, O1), a
+    // pour at a time from the knob, the web, the API or the console
     float weight;
-    if (!wait_steady(lifted, 0, &weight)) {
-        return;
-    }
-    activity_lock();
-    status.cup_weight = -weight;
-    activity_unlock();
-    set_step(CALIBRATION_STEP_BACK, "Put the cup back");
-    if (!wait_steady(put_back, 0, &weight)) {
-        return;
-    }
-    // Filled by the person, a pour at a time from the knob, the web, the API or the console
     set_step(CALIBRATION_STEP_FILL, "Rotate to dispense");
     answer_t given = fill_until_full();
     if (given == ANSWER_NONE) {
@@ -471,8 +449,6 @@ static void run_cup(void) {
     activity_by_t kept_by = answer_by;      // who answered Keep
     activity_unlock();
     const char *why = settings_write_by("settings/charge", "cup_capacity", text, kept_by);
-    snprintf(text, sizeof(text), "%.2f", (double) status.cup_weight);
-    why = why != NULL ? why : settings_write_by("settings/charge", "cup_weight", text, kept_by);
     why = why != NULL ? why : settings_store_by("settings/charge", kept_by);
     if (why != NULL) {
         printf("Calibration: the cup not kept, %s\n", why);
@@ -589,7 +565,6 @@ uint8_t calibration_job_run(void) {
     status.profile = part == CALIBRATION_PART_POWDER ?
                      (asked_profile >= 0 ? asked_profile : (int) profile_get_selected_idx()) : -1;
     status.capacity = NAN;
-    status.cup_weight = NAN;
     status.scale.settle_s = NAN;
     status.fine.least_rps = NAN;
     status.coarse.least_rps = NAN;

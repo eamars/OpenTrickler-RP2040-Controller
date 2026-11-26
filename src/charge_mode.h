@@ -50,7 +50,7 @@ typedef struct {
     // The calibration's cup (ADR-009 step 1, items 1 and 2), in the scale's unit; -1 never calibrated. Appended at the
     // end: an earlier version's record is kept by load_config (ADR-009, gate 2)
     float cup_capacity;
-    float cup_weight;
+    float cup_weight;           // kept in the record, unused since the PR's review (2026-11-27)
     // The auto-tuner's switch (ADR-009 step 2, gate 3), off by default (the owner, 2026-11-27). Appended at the end: an
     // earlier version's record is kept by load_config, this field its default
     bool auto_tune;

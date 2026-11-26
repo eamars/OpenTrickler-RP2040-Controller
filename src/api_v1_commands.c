@@ -529,8 +529,6 @@ static void write_calibration(char *out, size_t room, size_t *len) {
     http_json_float(out, room, len, cal.pour_turns);
     http_json_raw(out, room, len, ",\"capacity\":");
     http_json_float(out, room, len, cal.capacity);
-    http_json_raw(out, room, len, ",\"cup_weight\":");
-    http_json_float(out, room, len, cal.cup_weight);
     // What the part found, at its result step
     http_json_raw(out, room, len, ",\"result\":");
     if (cal.step != CALIBRATION_STEP_RESULT) {
@@ -588,8 +586,6 @@ static void write_calibration(char *out, size_t room, size_t *len) {
     const eeprom_scale_data_t *scale = &scale_config.persistent_config;
     http_json_raw(out, room, len, ",\"records\":{\"cup\":{\"capacity\":");
     write_record(out, room, len, charge->cup_capacity, 1.0f);
-    http_json_raw(out, room, len, ",\"weight\":");
-    write_record(out, room, len, charge->cup_weight, 1.0f);
     http_json_raw(out, room, len, "},\"scale\":{\"settle_ms\":");
     write_record(out, room, len, scale->settle_ms, 1.0f);
     http_json_raw(out, room, len, ",\"lag\":[");
@@ -2189,8 +2185,7 @@ static const char *const api_v1_schema_states[] = {
     "\"about\":\"a firmware update (ADR-004)\"},{\"value\":\"calibration\",\"about\":\"a part of the "
     "calibration (ADR-009)\"}]",
     "\"calibration\":[{\"value\":\"cup_on\",\"about\":\"the empty cup to be put on the scale: answer "
-    "next\"},{\"value\":\"zeroing\"},{\"value\":\"lift\",\"about\":\"the cup to be lifted: its weight is "
-    "read\"},{\"value\":\"back\"},{\"value\":\"fill\",\"about\":\"the cup filled a pour at a time (POST pour; "
+    "next\"},{\"value\":\"zeroing\"},{\"value\":\"fill\",\"about\":\"the cup filled a pour at a time (POST pour; "
     "the knob at the unit): answer full\"},{\"value\":\"keep\",\"about\":\"the capacity found: answer keep\"},"
     "{\"value\":\"empty\",\"about\":\"the cup to be emptied and put back: answer done\"},{\"value\":"
     "\"running\"},{\"value\":\"paused\",\"about\":\"a run would pass the cup's capacity: empty it, put it "

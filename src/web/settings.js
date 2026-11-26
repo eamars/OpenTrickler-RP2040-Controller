@@ -191,7 +191,7 @@ function line(label, value) {
 // What changes within a step, as the unit says it: drawn into the step's card in place, never by rebuilding it
 function liveValues(cal) {
     const live = {};
-    if (["zeroing", "lift", "back", "fill"].includes(cal.step)) {
+    if (["zeroing", "fill"].includes(cal.step)) {
         live.figure = cal.weight.toFixed(2);
     }
     if (cal.step === "running") {
@@ -305,18 +305,6 @@ function drawCalibration(options = {}) {
             figure(scaleUnit);
             actions(cancel());
             break;
-        case "lift":
-            head("Lift the cup");
-            figure(scaleUnit);
-            note("Its weight is read.");
-            actions(cancel());
-            break;
-        case "back":
-            head("Put the cup back");
-            figure(scaleUnit);
-            note(`The cup weighs ${weightText(cal.cup_weight)}.`);
-            actions(cancel());
-            break;
         case "fill":
             // As at the unit, where the knob pours (the owner, 2026-11-25): the key pours while held
             head("Fill the cup");
@@ -401,7 +389,6 @@ function drawCalibration(options = {}) {
         return [
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
                     line("Capacity", weightText(cup.capacity)),
-                    line("Weight", weightText(cup.weight)),
                     slot("cup", "Calibrate the cup")),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Scale"),
                     line("Settle time", msText(scale.settle_ms)),

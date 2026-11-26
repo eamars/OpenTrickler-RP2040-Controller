@@ -34,8 +34,6 @@ typedef enum {
     CALIBRATION_STEP_NONE = 0,
     CALIBRATION_STEP_CUP_ON,    // the empty cup on the scale: answer next
     CALIBRATION_STEP_ZEROING,   // the scale zeroed with it
-    CALIBRATION_STEP_LIFT,      // the cup's part: lifted, its weight read
-    CALIBRATION_STEP_BACK,      // put back
     CALIBRATION_STEP_FILL,      // filled by the person, a pour at a time (calibration_pour): answer full
     CALIBRATION_STEP_KEEP,      // its capacity shown: answer keep
     CALIBRATION_STEP_EMPTY,     // emptied and put back: answer done
@@ -58,7 +56,6 @@ typedef struct {
     bool pouring;               // the fill: the coarse tube turning a pour
     float pour_turns;           // the fill: its turns still to go
     float capacity;             // the cup's, as filled (keep); NAN before
-    float cup_weight;           // as lifted; NAN before
     calibration_scale_record_t scale;       // the scale's records found (result)
     calibration_speeds_record_t fine;       // a powder's (result)
     calibration_speeds_record_t coarse;
