@@ -34,6 +34,21 @@ FIRST_FACTOR = 1.5
 LEAST_FACTOR = 1.1
 Z = 0.0                     # the rule gate 1 passed with (19:52): a lower cost is enough; z > 0 asks for a margin of its noise
 POOL_THROWS = 75
+# The tolerance first, then quicker (the owner, 2026-11-26, replacing the time per good charge): a trial is better when
+# its share within the tolerance passes the kept gains' by more than SHARE_Z of the two shares' noise; short of that, a
+# quicker trial whose share is not lower is better too (no lower, not merely within the noise: a quicker trial kept
+# while its share fell within the noise each time would walk the throws quicker and worse, window after window)
+SHARE_Z = 1.0
+# The owner, 2026-11-26 (to test first; may change before ADR-009's release): a window whose median throw time passes
+# TIME_MOST_S loses to any within it, and between two past it the quicker wins
+TIME_MOST_S = 10.0
+# Far from good, the share within the tolerance has almost no signal (5% against 11% good is lost in a window's noise):
+# while both shares are under FAR_SHARE, the throws landing nearer the target (the smaller median miss) are better
+# (the owner, 2026-11-26)
+FAR_SHARE = 0.5
+# A hold, once every neighbouring trial has been put back (the owner, 2026-11-26: hold when nothing beats it), ends when
+# the last HOLD_RECENT throws on the held gains pass less than the held pool by more than SHARE_Z of their noise
+HOLD_RECENT = 50
 REST_WINDOWS = 2
 STARTS = {"owner": {}, "kp/4": {"fine_kp": 0.2}, "kp x4": {"fine_kp": 3.2}}
 
@@ -78,6 +93,30 @@ def cost(errors: list, times: list, tolerance: float, share=counted) -> tuple:
     return (time / good if good > 0.0 else math.inf), good
 
 
+def share_noise(good: float, throws: int) -> float:
+    """A share's standard error over its throws."""
+    return math.sqrt(max(0.0, good * (1.0 - good)) / throws)
+
+
+def tolerance_first(trial: tuple, base: tuple, tolerance: float, share=counted) -> tuple:
+    """(whether the trial's throws are better than the base's, by the tolerance first and then quicker, in words).
+    Each is (errors, times)."""
+    trial_good, base_good = share(trial[0], tolerance), share(base[0], tolerance)
+    trial_time, base_time = statistics.median(trial[1]), statistics.median(base[1])
+    margin = SHARE_Z * math.hypot(share_noise(trial_good, len(trial[0])), share_noise(base_good, len(base[0])))
+    said = f"{trial_good:.0%} in {trial_time:.1f} s against {base_good:.0%} in {base_time:.1f} s"
+    if trial_time > TIME_MOST_S or base_time > TIME_MOST_S:
+        return (trial_time < base_time if trial_time > TIME_MOST_S and base_time > TIME_MOST_S
+                else trial_time <= TIME_MOST_S), said + ", past the time"
+    if trial_good < FAR_SHARE and base_good < FAR_SHARE:
+        trial_miss = statistics.median(abs(e) for e in trial[0])
+        base_miss = statistics.median(abs(e) for e in base[0])
+        return trial_miss < base_miss, said + f", far: misses {trial_miss:.3f} against {base_miss:.3f}"
+    if trial_good > base_good + margin:
+        return True, said
+    return trial_good >= base_good and trial_time < base_time, said
+
+
 def noise(good: float, throws: int) -> float:
     """A cost's relative noise from its share of good throws."""
     return math.sqrt((1.0 - good) / (good * throws)) if good > 0.0 else 1.0
@@ -116,13 +155,15 @@ class Tuner:
     other axis; with all four put back the step shrinks and the kept gains rest."""
 
     def __init__(self, tolerance: float, z: float = Z, share: str = "counted", blind: str = "stay", first: str = "miss",
-                 axes: str = "kp"):
+                 axes: str = "kp", objective: str = "cost"):
         """
         blind: what a trial is judged by when neither it nor the kept gains had a good throw (both cost infinity):
             "stay", never cheaper (as gate 1 built it); "error", the lower median miss is the cheaper.
         first: the first trial's way: "miss", the way the first window misses (over on average, a slower kp; the
             product, 2026-11-26); "up", always quicker (as gate 1 built it).
         axes: "kp", the fine kp alone (gate 1's); "kp+kd", the steady gain and the braking.
+        objective: "cost", the time per good charge (2026-11-25, 18:54); "tolerance", the share within the tolerance
+            first, then quicker (the owner, 2026-11-26: the product).
         """
         self.tolerance = tolerance
         self.blind = blind
@@ -130,6 +171,7 @@ class Tuner:
         self.axes = AXES[axes]
         self.z = z
         self.share = SHARES[share]
+        self.objective = objective
         self.base = None
         self.pool = ([], [])        # the base's throws: final weights less the target, times
         self.axis = 0
@@ -141,6 +183,9 @@ class Tuner:
         self.lag = None             # step 1's middle lag, s
         self.coarse_k = None        # step 1's coarse weight a turn, for the coarse kp put right
         self.putting_right = False  # the window being thrown is the gains put right (into range)
+        self.holding = False        # every neighbour put back: the kept gains held (objective "tolerance")
+        self.held_share = 0.0
+        self.recent = []            # the held gains' latest throws
 
     @property
     def turned(self) -> bool:
@@ -194,12 +239,40 @@ class Tuner:
                 self.putting_right = True
                 return right, "first window: the base; the gains put right"
             return self.next_trial("first window: the base")
+        if self.holding:
+            self.recent = (self.recent + list(errors))[-HOLD_RECENT:]
+            recent = self.share(self.recent, self.tolerance)
+            margin = SHARE_Z * math.hypot(share_noise(recent, len(self.recent)),
+                                          share_noise(self.held_share, len(self.pool[0])))
+            if len(self.recent) < HOLD_RECENT or recent >= self.held_share - margin:
+                return self.base, f"holding ({recent:.0%} against {self.held_share:.0%})"
+            self.holding = False
+            self.keep(profile, errors, times)
+            self.factor = FIRST_FACTOR
+            self.axis = 0
+            self.direction = self.missing_way(errors)
+            return self.next_trial(f"resumed ({recent:.0%} against the {self.held_share:.0%} held)")
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
             if self.resting > 0:
                 self.resting -= 1
                 return self.base, "resting"
             return self.next_trial("the base again")
+        if self.objective == "tolerance":
+            better, said = tolerance_first((errors, times), self.pool, self.tolerance, self.share)
+            if self.putting_right:
+                self.putting_right = False
+                if better:
+                    self.keep(profile, errors, times)
+                    self.factor = FIRST_FACTOR
+                    self.direction = self.missing_way(errors)
+                    return self.next_trial(f"kept ({said}): the gains put right")
+                return self.next_trial(f"put back ({said}): the gains as they were")
+            if better:
+                self.keep(profile, errors, times)
+                self.factor = FIRST_FACTOR
+                return self.next_trial(f"kept ({said})")
+            return self.put_back(f"put back ({said})")
         trial_cost, trial_good = cost(errors, times, self.tolerance, self.share)
         base_cost, base_good = cost(*self.pool, self.tolerance, self.share)
         spread = math.hypot(noise(trial_good, len(errors)), noise(base_good, len(self.pool[0])))
@@ -244,6 +317,12 @@ class Tuner:
                 self.axis = (self.axis + 1) % len(self.axes)
                 self.direction = self.missing_way(self.pool[0])
                 said_now = f"{said}: the {self.axes[self.axis]}"
+            elif self.objective == "tolerance":
+                self.tried = 0
+                self.holding = True
+                self.held_share = self.share(self.pool[0], self.tolerance)
+                self.recent = []
+                return self.base, f"{said}: nothing beats the kept gains, holding at {self.held_share:.0%}"
             else:
                 self.tried = 0
                 self.factor = max(LEAST_FACTOR, math.sqrt(self.factor))

@@ -44,14 +44,14 @@ CLOSE_RPS = 1e-4                # two speeds this near are the same: the C's set
 CLOSE_K = 1e-4                  # two weights a turn this near (relative) are the same
 CLOSE_KP = 1e-9
 # The C tuner's steps (charge_tuner.h) and words the Python's note for the same step holds
-STEPS = {1: ("first",), 2: ("resting",), 3: ("the base again",), 4: ("kept",), 5: ("the other way",),
-         6: ("every way",), 7: ("the gain", "the braking"), 8: ("the gains as they were",)}
+STEPS = {1: ("first",), 2: ("holding (",), 3: ("the base again",), 4: ("kept",), 5: ("the other way",),
+         6: ("nothing beats",), 7: ("the gain", "the braking"), 8: ("the gains as they were",), 9: ("resumed",)}
 # The product as it ships (ADR-009, 2026-11-26): step 1's weight a turn seeds the carry; the study of the variants
 # (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw; the
 # tuner on kp and kd by the share modelled; the throw never cut on the forecast, stopped by the reading within the fine
 # threshold under the target, main's rule (the owner, 2026-11-26)
 PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "modelled",
-           "cut": "threshold"}
+           "cut": "threshold", "objective": "tolerance"}
 # The gains thrown from: the owner's Pico W's (gate 1's twin), the bench's stored profile (gate 4's baseline), and the
 # bench's with an integral term put in by mistake (the tuner leaves it, and meets it with kp and kd) and with kp a
 # hundredth (the tuner's first trial puts it right)
@@ -295,7 +295,7 @@ def tuner_case(job: tuple) -> dict:
     start_ki = profile.fine_ki
     lib = load_library()
     tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=PRODUCT["blind"], first=PRODUCT["first"],
-                              axes=PRODUCT["axes"], share=PRODUCT["share"])
+                              axes=PRODUCT["axes"], share=PRODUCT["share"], objective=PRODUCT["objective"])
     c_tuner = lib.lib_tuner_new(profile.fine_stop_threshold)
     controller = python_controller(profile, records, rig)
     session = Session(rig, seed)

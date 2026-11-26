@@ -1,7 +1,7 @@
 /*
  * ADR-009 step 2: the auto-tuner (charge_tuner.h), ported from tools/charge_sim/step2_tuner.py's Tuner with the axes
- * "kp+kd" and the share modelled, on the rule the owner's objective passed with (gate 1, 19:52): a trial is kept when
- * its time per good charge is lower than the kept gains'. tests/step2_sim.py judges it against the Python window for
+ * "kp+kd", the share modelled and the objective "tolerance": a trial is kept when its share within the tolerance is
+ * clearly higher than the kept gains', or no lower and quicker (the owner, 2026-11-26). tests/step2_sim.py judges it against the Python window for
  * window.
  */
 #include "charge_tuner.h"
@@ -10,8 +10,6 @@
 #include <string.h>
 
 #define FIRST_FACTOR 1.5
-#define LEAST_FACTOR 1.1
-#define REST_WINDOWS 2
 #define AXES 2
 #define NO_MOVE 0.01                    // a braking step smaller than this does not move the gains
 
@@ -82,12 +80,59 @@ static double modelled_share(const charge_tuner_t *tuner, const double *errors, 
 }
 
 
-// Seconds a good charge: the median time over the share within the tolerance; infinite with none
-static double cost(const charge_tuner_t *tuner, const double *errors, const double *times, int count) {
-    double share = modelled_share(tuner, errors, count);
+static double median_time(const double *times, int count) {
     double sorted[CHARGE_TUNER_POOL];
     sorted_copy(times, count, sorted);
-    return share > 0.0 ? median_sorted(sorted, count) / share : INFINITY;
+    return median_sorted(sorted, count);
+}
+
+
+// A share's standard error over its throws
+static double share_noise(double share, int count) {
+    return sqrt(fmax(0.0, share * (1.0 - share)) / count);
+}
+
+
+// The median of the misses' sizes
+static double median_miss(const double *errors, int count) {
+    double misses[CHARGE_TUNER_POOL];
+    for (int i = 0; i < count; i++) {
+        misses[i] = fabs(errors[i]);
+    }
+    double sorted[CHARGE_TUNER_POOL];
+    sorted_copy(misses, count, sorted);
+    return median_sorted(sorted, count);
+}
+
+
+/*
+ * Whether the window's throws are better than the kept gains' (the owner, 2026-11-26; step2_tuner.tolerance_first):
+ * - a median time past CHARGE_TUNER_TIME_MOST_S loses to one within it, and between two past it the quicker wins;
+ * - far from good (both shares under CHARGE_TUNER_FAR_SHARE), where the share has almost no signal, the smaller median
+ *   miss wins;
+ * - else the tolerance first, then quicker: the share higher by more than CHARGE_TUNER_SHARE_Z of the two shares'
+ *   noise, or quicker with a share no lower. No lower, not merely within the noise: a quicker trial kept while its
+ *   share fell within the noise each time would walk the throws quicker and worse, window after window
+ */
+static bool better(const charge_tuner_t *tuner) {
+    double trial_time = median_time(tuner->window_times, CHARGE_TUNER_WINDOW);
+    double base_time = median_time(tuner->pool_times, tuner->pool_count);
+    if (trial_time > CHARGE_TUNER_TIME_MOST_S || base_time > CHARGE_TUNER_TIME_MOST_S) {
+        return trial_time > CHARGE_TUNER_TIME_MOST_S && base_time > CHARGE_TUNER_TIME_MOST_S ?
+               trial_time < base_time : trial_time <= CHARGE_TUNER_TIME_MOST_S;
+    }
+    double trial = modelled_share(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
+    double base = modelled_share(tuner, tuner->pool_errors, tuner->pool_count);
+    double margin = CHARGE_TUNER_SHARE_Z * hypot(share_noise(trial, CHARGE_TUNER_WINDOW),
+                                                  share_noise(base, tuner->pool_count));
+    if (trial < CHARGE_TUNER_FAR_SHARE && base < CHARGE_TUNER_FAR_SHARE) {
+        return median_miss(tuner->window_errors, CHARGE_TUNER_WINDOW) <
+               median_miss(tuner->pool_errors, tuner->pool_count);
+    }
+    if (trial > base + margin) {
+        return true;
+    }
+    return trial >= base && trial_time < base_time;
 }
 
 
@@ -173,14 +218,13 @@ static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, doub
         }
         else {
             tuner->tried = 0;
-            tuner->factor = fmax(LEAST_FACTOR, sqrt(tuner->factor));
-            tuner->resting = REST_WINDOWS;
-            tuner->axis = CHARGE_TUNER_GAIN;
-            tuner->direction = missing_way(tuner, tuner->pool_errors, tuner->pool_count);
+            tuner->holding = true;
+            tuner->held_share = modelled_share(tuner, tuner->pool_errors, tuner->pool_count);
+            tuner->recent_count = 0;
             tuner->on_trial = false;
             *next_kp = tuner->base_kp;
             *next_kd = tuner->base_kd;
-            return CHARGE_TUNER_EVERY_WAY;
+            return CHARGE_TUNER_HOLD;
         }
         if (trial(tuner, next_kp, next_kd) && (*next_kp != tuner->base_kp || *next_kd != tuner->base_kd)) {
             tuner->on_trial = true;
@@ -235,21 +279,38 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
         }
         return next_trial(tuner, CHARGE_TUNER_FIRST, next_kp, next_kd);
     }
-    if (!tuner->on_trial) {
-        pool(tuner);
-        if (tuner->resting > 0) {
-            tuner->resting--;
+    if (tuner->holding) {
+        // The held gains' latest throws against what they passed when the hold began
+        for (int i = 0; i < CHARGE_TUNER_WINDOW; i++) {
+            if (tuner->recent_count == CHARGE_TUNER_HOLD_RECENT) {
+                memmove(tuner->recent, &tuner->recent[1], (CHARGE_TUNER_HOLD_RECENT - 1) * sizeof(double));
+                tuner->recent_count--;
+            }
+            tuner->recent[tuner->recent_count++] = tuner->window_errors[i];
+        }
+        double recent = modelled_share(tuner, tuner->recent, tuner->recent_count);
+        double margin = CHARGE_TUNER_SHARE_Z * hypot(share_noise(recent, tuner->recent_count),
+                                                      share_noise(tuner->held_share, tuner->pool_count));
+        if (tuner->recent_count < CHARGE_TUNER_HOLD_RECENT || recent >= tuner->held_share - margin) {
             *next_kp = tuner->base_kp;
             *next_kd = tuner->base_kd;
-            return CHARGE_TUNER_RESTING;
+            return CHARGE_TUNER_HOLDING;
         }
+        tuner->holding = false;
+        keep(tuner, kp, kd, coarse_kp);
+        tuner->factor = FIRST_FACTOR;
+        tuner->axis = CHARGE_TUNER_GAIN;
+        tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
+        return next_trial(tuner, CHARGE_TUNER_RESUMED, next_kp, next_kd);
+    }
+    if (!tuner->on_trial) {
+        pool(tuner);
         return next_trial(tuner, CHARGE_TUNER_KEPT_AGAIN, next_kp, next_kd);
     }
-    double trial_cost = cost(tuner, tuner->window_errors, tuner->window_times, CHARGE_TUNER_WINDOW);
-    double base_cost = cost(tuner, tuner->pool_errors, tuner->pool_times, tuner->pool_count);
+    bool kept = better(tuner);
     if (tuner->putting_right) {
         tuner->putting_right = false;
-        if (trial_cost < base_cost) {
+        if (kept) {
             keep(tuner, kp, kd, coarse_kp);
             tuner->factor = FIRST_FACTOR;
             tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
@@ -257,7 +318,7 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
         }
         return next_trial(tuner, CHARGE_TUNER_AS_THEY_WERE, next_kp, next_kd);
     }
-    if (trial_cost < base_cost) {
+    if (kept) {
         keep(tuner, kp, kd, coarse_kp);
         tuner->factor = FIRST_FACTOR;
         return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd);

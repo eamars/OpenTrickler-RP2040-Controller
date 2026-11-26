@@ -47,7 +47,8 @@ def case(job: tuple) -> tuple:
     session = Session(rig, seed)
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=True, hold="none", cut=cut,
                              aim=aim)
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="modelled") if tuned else None
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="modelled",
+                                    objective="tolerance") if tuned else None
     out, errors, times = [], [], []
     for _ in range(throws):
         controller.profile = profile

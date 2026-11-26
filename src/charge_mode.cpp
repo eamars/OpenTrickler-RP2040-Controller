@@ -301,9 +301,9 @@ static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
     if (step == CHARGE_TUNER_THROWING) {
         return;
     }
-    static const char * const said[] = {"throwing", "first window", "resting", "the kept gains again", "kept",
-                                        "put back, the other way", "put back every way", "put back, the other axis",
-                                        "put back as they were"};
+    static const char * const said[] = {"throwing", "first window", "holding", "the kept gains again", "kept",
+                                        "put back, the other way", "nothing beats the kept gains, held",
+                                        "put back, the other axis", "put back as they were", "resumed"};
     printf("Tuner: %s, kp %.4f kd %.1f; next %.4f %.1f, kept %.4f %.1f\n", said[step], charge_kp_thrown,
            charge_kd_thrown, next_kp, next_kd, step2->tuner.base_kp, step2->tuner.base_kd);
     if (next_coarse_kp != charge_coarse_kp_thrown || step2->tuner.base_coarse_kp != charge_coarse_kp_thrown) {

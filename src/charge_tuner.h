@@ -6,8 +6,9 @@
  * against the Python on the same windows.
  *
  * After each throw, per powder: the throw's final weight less the target and its time to the stop. Each window of
- * CHARGE_TUNER_WINDOW throws is judged by the owner's objective, its time per good charge (its median time over its
- * share within the tolerance), against the kept gains' throws (the latest CHARGE_TUNER_POOL). The share is reckoned
+ * CHARGE_TUNER_WINDOW throws is judged by the owner's objective, the tolerance first, then quicker (2026-11-26,
+ * replacing the time per good charge): its share within the tolerance against the kept gains' throws (the latest
+ * CHARGE_TUNER_POOL), and between shares alike its median time. The share is reckoned
  * from every throw's weight: a normal spread with the throws' median and the half-width of their middle 68%, so a
  * window of 25 decides as a count of its good throws cannot (2026-11-26).
  *
@@ -16,9 +17,10 @@
  * - the braking, 1 + kd x k / 1000 (k the weight a turn; the D term is per millisecond): kd moved, and kp with it so
  *   the steady gain holds. It brakes the fine tube on what the forecast does not hold, the coarse tube's powder
  *   landing. Never under 1: kd never negative.
- * A trial cheaper than the kept gains is kept and the same way tried again at the full step; one no cheaper is put
- * back and the other way tried at once, then the other axis; every way put back, the step's logarithm halves (down
- * to 1.1) and the kept gains are thrown again a while. The first way on an axis is the one the throws miss by: over
+ * A trial better than the kept gains is kept and the same way tried again; one no better is put back and the other
+ * way tried at once, then the other axis; every way put back, nothing beats the kept gains and they are held (the
+ * owner, 2026-11-26), until the held gains' latest CHARGE_TUNER_HOLD_RECENT throws pass less than they did by more than
+ * their noise, when the search begins again from them. The first way on an axis is the one the throws miss by: over
  * on average, a lower gain and more braking. Ratios only, so grams and grains are alike. Before the search, the first
  * window's gains are put right where they need it, as one trial kept only if cheaper (2026-11-26): the steady gain kp /
  * braking times step 1's weight a turn and middle lag is a number with no unit (the bench's 1.3, the owner's 0.5), so
@@ -40,17 +42,22 @@
 #define CHARGE_TUNER_GAIN_HIGH 5.0
 #define CHARGE_TUNER_GAIN_AIM 1.0
 #define CHARGE_TUNER_COARSE_GAIN_MOST 0.4
+#define CHARGE_TUNER_SHARE_Z 1.0          // a share better by this many of the two shares' noise (step2_tuner.SHARE_Z)
+#define CHARGE_TUNER_TIME_MOST_S 10.0     // a window's median time past it loses (the owner, 2026-11-26; to test first)
+#define CHARGE_TUNER_FAR_SHARE 0.5        // both shares under it: judged by the median miss (the owner, 2026-11-26)
+#define CHARGE_TUNER_HOLD_RECENT 50       // the held gains' latest throws a hold is judged on
 
 typedef enum {
     CHARGE_TUNER_THROWING = 0,          // the window is not full yet
     CHARGE_TUNER_FIRST,                 // the first window: its gains kept, a trial next
-    CHARGE_TUNER_RESTING,               // the kept gains thrown again, every way having been put back
+    CHARGE_TUNER_HOLDING,               // the kept gains held: nothing beat them, and they still pass as they did
     CHARGE_TUNER_KEPT_AGAIN,            // the kept gains' window pooled, a trial next
     CHARGE_TUNER_KEPT,                  // the trial was cheaper: kept, the same way tried again
     CHARGE_TUNER_OTHER_WAY,             // the trial no cheaper: put back, the other way tried
-    CHARGE_TUNER_EVERY_WAY,             // every way put back: the step smaller, the kept gains thrown again
+    CHARGE_TUNER_HOLD,                  // every way put back: nothing beats the kept gains, held from now on
     CHARGE_TUNER_OTHER_AXIS,            // both ways of an axis put back: the other axis tried
     CHARGE_TUNER_AS_THEY_WERE,          // the gains put right no cheaper: put back as they were
+    CHARGE_TUNER_RESUMED,               // the held gains pass less than they did: the search begins again from them
 } charge_tuner_step_t;
 
 typedef enum {
@@ -74,8 +81,11 @@ typedef struct {
     int axis;                           // charge_tuner_axis_t
     int direction;
     double factor;
-    int tried;                          // ways put back since the kept gains were kept or the step changed
-    int resting;
+    int tried;                          // ways put back since the kept gains were kept
+    bool holding;                       // every way put back: the kept gains held
+    double held_share;                  // the kept gains' share when the hold began
+    double recent[CHARGE_TUNER_HOLD_RECENT];    // the held gains' latest throws, oldest first
+    int recent_count;
     double k;                           // the weight a turn the braking is reckoned with; 0, none known
     double lag;                         // step 1's middle lag, s, for the gains put right; 0, none known
     double base_coarse_kp;              // the kept coarse kp
