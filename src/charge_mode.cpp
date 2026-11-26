@@ -748,6 +748,18 @@ void charge_mode_wait_for_complete() {
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
 }
 
+
+/*
+    How far below zero the reading goes before the cup counts as lifted: half the cup's weight, step 1's cup part
+    (ADR-009, 2026-11-26: a fixed 10 assumed grains, and a cup under 10 g on a scale in grams was never seen lifted);
+    10, as before, on a unit whose cup was never weighed
+*/
+static float charge_mode_cup_lift(void) {
+    float cup = charge_mode_config.eeprom_charge_mode_data.cup_weight;
+    return cup > 0.0f ? cup / 2.0f : 10.0f;
+}
+
+
 void charge_mode_wait_for_cup_removal() {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Remove Cup");
@@ -841,8 +853,8 @@ void charge_mode_wait_for_cup_removal() {
 
         // Generate stop condition
         if (data_buffer.getCounter() >= 5) {
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
-                data_buffer.getMean() + 10 < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
+                data_buffer.getMean() + charge_mode_cup_lift() < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
                 break;
             }
         }

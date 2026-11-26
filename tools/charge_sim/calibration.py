@@ -51,6 +51,7 @@ WATCH_MARGIN_S = 1.0            # a stop is watched for the slowest lag and the 
 LAG_RUNS = {"fine": ((0.25, 2.0), (0.5, 2.0), (1.0, 1.5)), "coarse": ((0.25, 1.5), (1.0, 1.0))}
 LAG_RUNS_EACH = 2               # runs at each speed
 LAST_S = 0.6                    # the reading at rest is the median of the watch's last stretch
+WATCH_READINGS_MOST = 256       # the readings a unit's watch holds, its first (CALIBRATION_AFTER_MAX)
 SPEED_LADDER = 6                # speeds a tube is stopped from, spaced evenly in ratio from its motor's least up to
                                 # the prime's speed (the motor's limits' middle in ratio), below it
 SPEED_STOPS = 4                 # stops at each speed
@@ -122,13 +123,39 @@ def settled(after: list, watch_s: float) -> tuple:
     return rest, first, reached if reached is not None else after[min(last_away + 1, len(after) - 1)][0]
 
 
+def rest_noise(after: list) -> tuple:
+    """The scale's noise in a watch after a stop (ADR-009, 2026-11-26: the charge's steady and zero margins from it),
+    from the readings the unit's watch holds (its first WATCH_READINGS_MOST, CALIBRATION_AFTER_MAX).
+
+    Args:
+        after: (seconds after the stop, reading) through the watch.
+
+    Returns:
+        (the step, the smallest change the readings make, None when they never moved; the spread of the last LAST_S
+        of the readings held, at rest, their standard deviation, 0 with none).
+    """
+    held = after[:WATCH_READINGS_MOST]
+    changes = [abs(w1 - w0) for (_, w0), (_, w1) in zip(held, held[1:]) if w1 != w0]
+    stretch = [w for t, w in held if t >= held[-1][0] - LAST_S] if held else []
+    return (min(changes) if changes else None), (statistics.pstdev(stretch) if stretch else 0.0)
+
+
+def rest_margin(records: dict):
+    """The charge's steady and zero margins from the scale's noise: one step, or twice its spread at rest where that
+    is more; None when its step was not measured (calibration_rest_margin)."""
+    if records.get("step") is None:
+        return None
+    return max(records["step"], 2.0 * (records.get("rest_sd") or 0.0))
+
+
 def run_and_stop(bench, cup: Cup, tube: str, speed: float, run_s: float, watch_s: float, gr_turn: float) -> dict:
     """One steady turn and a stop, from rest to rest: its powder, its turns, and when the reading moved and settled."""
     cup_room(bench, cup, speed * run_s * gr_turn)
     trial = bench.creep_stop(tube, speed, run_s, watch_s, "held")
     before = trial["during"][0][1]
     rest, first, settle = settled(trial["after"], watch_s)
-    return {"gain": rest - before, "first_s": first, "settle_s": settle,
+    step, rest_sd = rest_noise(trial["after"])
+    return {"gain": rest - before, "first_s": first, "settle_s": settle, "step": step, "rest_sd": rest_sd,
             "turns": trial.get("turns", speed * run_s), "trial": trial, "before": before, "rest": rest}
 
 
@@ -158,8 +185,8 @@ def scale_part(bench, cup: Cup) -> Report:
         cup: the cup's numbers, the user's or the defaults.
 
     Returns:
-        A Report whose records are `settle_s` and `lag` ((flow gr/s, lag s), sorted), each where measured, and the
-        failures in words.
+        A Report whose records are `settle_s`, `lag` ((flow gr/s, lag s), sorted), `step` and `rest_sd` (the scale's
+        noise over the bursts), each where measured, and the failures in words.
     """
     report = Report("scale")
     start_s, start_gr = bench.now, bench.cup.landed_gr
@@ -176,6 +203,11 @@ def scale_part(bench, cup: Cup) -> Report:
                                "keeps its default")
     else:
         report.records["settle_s"] = settle_s
+    # The scale's noise: its smallest step over the bursts, and the middle of their spreads at rest
+    steps = [move["step"] for move in moves if move["step"] is not None]
+    if steps:
+        report.records["step"] = min(steps)
+    report.records["rest_sd"] = statistics.median(move["rest_sd"] for move in moves)
     lag = []
     for tube, runs in LAG_RUNS.items():
         gr_turn = fine_turn if tube == "fine" else prime(bench, cup, tube, 1.0)

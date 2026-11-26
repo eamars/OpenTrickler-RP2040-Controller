@@ -541,6 +541,12 @@ static void write_calibration(char *out, size_t room, size_t *len) {
         http_json_number(out, room, len, cal.scale.settle_s * 1000.0f, 4);
         http_json_raw(out, room, len, ",\"lag\":");
         write_lag(out, room, len, cal.scale.lag_count, cal.scale.lag_flow_per_s, cal.scale.lag_s);
+        http_json_raw(out, room, len, ",\"step\":");
+        http_json_number(out, room, len, cal.scale.step, 6);
+        http_json_raw(out, room, len, ",\"rest_sd\":");
+        http_json_number(out, room, len, cal.scale.rest_sd, 6);
+        http_json_raw(out, room, len, ",\"margin\":");
+        http_json_number(out, room, len, calibration_rest_margin(&cal.scale), 6);
         http_json_raw(out, room, len, ",\"elapsed_s\":");
         http_json_number(out, room, len, cal.scale.seconds, 4);
         http_json_raw(out, room, len, ",\"poured\":");

@@ -60,6 +60,10 @@ typedef struct {
     float seconds;
     float poured;
     char failure[CALIBRATION_FAILURE_LEN];      // the first item not measured, in words; empty when none
+    // The scale's noise over the bursts (ADR-009, 2026-11-26): its smallest step, and the middle of their spreads at
+    // rest; NAN where not measured
+    float step;
+    float rest_sd;
 } calibration_scale_record_t;
 
 // A tube's speeds part's record (item 5); NAN where not measured
@@ -95,6 +99,13 @@ calibration_outcome_t calibration_speeds_part(const calibration_bench_t *bench, 
 
 // How long a stop is watched on a scale with these records (NULL, or not both measured: the default)
 float calibration_watch_after_stop(const calibration_scale_record_t *scale);
+
+/*
+ * The charge's steady and zero margins from the scale's noise (ADR-009, 2026-11-26): one step, or twice its spread at
+ * rest where that is more; NAN when its step was not measured. The steady test then passes a flicker of one step (an
+ * SD of at most half a step) and not a reading still climbing a step a reading (about three); a zero is within a step
+ */
+float calibration_rest_margin(const calibration_scale_record_t *scale);
 
 // The reading at rest after a stop, when it first moved (NAN when never) and when it came to rest (0 when it never
 // moved), from the readings of a watch of watch_s: a flicker of one step from the rest is no move

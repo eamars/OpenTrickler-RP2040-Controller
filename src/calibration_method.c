@@ -55,6 +55,8 @@ typedef struct {
     float settle_s;             // when it came to rest after the stop; 0 when it never moved
     float turns;
     float run_s;
+    float step;                 // the smallest change its readings after the stop make; NAN when they never moved
+    float rest_sd;              // the spread of the watch's last stretch, at rest (its standard deviation)
 } run_t;
 
 // The readings of the run now and of its watch, in the bench's room: one run at a time
@@ -147,6 +149,47 @@ void calibration_settled(const calibration_sample_t *samples, int count, float w
 
 
 /*
+ * The scale's noise in a watch after a stop (ADR-009, 2026-11-26: the charge's steady and zero margins from it): the
+ * step, the smallest change the readings make (NAN when they never moved), and the spread of the last LAST_S of the
+ * readings held, at rest (their standard deviation; 0 with none). The last held, not the watch's end: a scale faster
+ * than CALIBRATION_AFTER_MAX readings a watch fills the room first. calibration.py's rest_noise
+ */
+static void rest_noise(const calibration_sample_t *samples, int count, float *step, float *rest_sd) {
+    *step = INFINITY;
+    for (int i = 1; i < count; i += 1) {
+        float change = fabsf(samples[i].weight - samples[i - 1].weight);
+        if (change > 0.0f && change < *step) {
+            *step = change;
+        }
+    }
+    if (!isfinite(*step)) {
+        *step = NAN;
+    }
+    *rest_sd = 0.0f;
+    if (count <= 0) {
+        return;
+    }
+    float from_s = samples[count - 1].t_s - LAST_S;
+    double sum = 0.0;
+    int stretch = 0;
+    for (int i = 0; i < count; i += 1) {
+        if (samples[i].t_s >= from_s) {
+            sum += samples[i].weight;
+            stretch += 1;
+        }
+    }
+    double mean = sum / stretch;
+    double squares = 0.0;
+    for (int i = 0; i < count; i += 1) {
+        if (samples[i].t_s >= from_s) {
+            squares += (samples[i].weight - mean) * (samples[i].weight - mean);
+        }
+    }
+    *rest_sd = (float) sqrt(squares / stretch);
+}
+
+
+/*
  * One steady turn and its stop, watched to rest. False when stopped. Before it, a run whose most pour would pass the
  * cup's capacity pauses the calibration for the cup to be emptied.
  */
@@ -173,6 +216,7 @@ static bool run_and_stop(const calibration_bench_t *bench, int tube, float speed
     }
     run->before = during_count > 0 ? during[0].weight : last_reading;
     calibration_settled(after, after_count, watch_s, &run->rest, &run->first_s, &run->settle_s);
+    rest_noise(after, after_count, &run->step, &run->rest_sd);
     if (after_count > 0) {
         last_reading = after[after_count - 1].weight;
     }
@@ -247,6 +291,8 @@ static void say_failure(char *failure, const char *text) {
 calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, calibration_scale_record_t *record) {
     memset(record, 0, sizeof(*record));
     record->settle_s = NAN;
+    record->step = NAN;
+    record->rest_sd = NAN;
     part_seconds = 0.0f;
     part_poured = 0.0f;
     bench->report(bench->ctx, 0, "Priming the fine tube");
@@ -264,6 +310,7 @@ calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, c
     // The settle time: bursts, each watched long; the median from a burst's first move to its rest, of those that
     // moved more than one step
     float settles[SETTLE_BURSTS];
+    float rest_sds[SETTLE_BURSTS];
     int moved = 0;
     float longest_rest = 0.0f;
     for (int idx = 0; idx < SETTLE_BURSTS; idx += 1) {
@@ -277,7 +324,13 @@ calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, c
             settles[moved++] = fmaxf(0.0f, run.settle_s - run.first_s);
             longest_rest = fmaxf(longest_rest, run.settle_s);
         }
+        // The scale's noise: its smallest step over the bursts, and the middle of their spreads at rest
+        if (!isnan(run.step) && (isnan(record->step) || run.step < record->step)) {
+            record->step = run.step;
+        }
+        rest_sds[idx] = run.rest_sd;
     }
+    record->rest_sd = median(rest_sds, SETTLE_BURSTS);
     float watch_s = DEFAULT_WATCH_S;
     if (moved > 0) {
         record->settle_s = median(settles, moved);
@@ -350,6 +403,14 @@ float calibration_watch_after_stop(const calibration_scale_record_t *scale) {
         slowest = fmaxf(slowest, scale->lag_s[idx]);
     }
     return slowest + scale->settle_s + WATCH_MARGIN_S;
+}
+
+
+float calibration_rest_margin(const calibration_scale_record_t *scale) {
+    if (scale == NULL || isnan(scale->step)) {
+        return NAN;
+    }
+    return fmaxf(scale->step, isnan(scale->rest_sd) ? 0.0f : 2.0f * scale->rest_sd);
 }
 
 

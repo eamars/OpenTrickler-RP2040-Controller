@@ -34,11 +34,12 @@ static const setting_field_t charge_fields[] = {
      .applies = "now"},
     {.name = "steady_sd_margin", .label = "Steady margin (SD)", .group = "Thresholds",
      .about = "The readings are steady when their standard deviation is below it: for the zero, the cup's removal "
-              "and the resume after a pause",
+              "and the resume after a pause. The scale's calibration sets it from the scale's own step",
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_sd_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
     {.name = "zero_mean_margin", .label = "Zero margin (mean)", .group = "Thresholds",
-     .about = "The scale reads zero when the mean of its readings is this near it",
+     .about = "The scale reads zero when the mean of its readings is this near it. The scale's calibration sets it "
+              "from the scale's own step",
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_mean_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
     {.name = "decimal_places", .label = "Decimal places", .group = "Display", .short_label = "Decimals",

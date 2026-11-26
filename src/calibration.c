@@ -35,6 +35,7 @@
 #define CALIBRATION_FILL_POLL_MS 20     // how often the fill looks at its pour
 #define CALIBRATION_DETENT_TURNS 0.25f  // a detent of the knob while filling: 2.5 gr of AR2209, 0.125 s at 2 rev/s
 #define CALIBRATION_BACK_GR 0.5f        // put back: within this of zero, and steady
+#define CALIBRATION_MARGIN_MOST 1.0f    // the most the steady and zero margins hold (their settings' max)
 
 extern charge_mode_config_t charge_mode_config;
 extern scale_config_t scale_config;
@@ -761,6 +762,18 @@ bool calibration_save(activity_by_t by) {
             why = why != NULL ? why : settings_write_by("settings/scale", name, text, by);
         }
         why = why != NULL ? why : settings_store_by("settings/scale", by);
+        // The charge's steady and zero margins from the scale's own noise, in its own numbers (ADR-009, 2026-11-26):
+        // not written when the step was not measured, or is past what the setting holds
+        float margin = calibration_rest_margin(&found.scale);
+        if (why == NULL && isfinite(margin) && margin <= CALIBRATION_MARGIN_MOST) {
+            snprintf(text, sizeof(text), "%.6g", (double) margin);
+            why = settings_write_by("settings/charge", "steady_sd_margin", text, by);
+            why = why != NULL ? why : settings_write_by("settings/charge", "zero_mean_margin", text, by);
+            why = why != NULL ? why : settings_store_by("settings/charge", by);
+        }
+        else if (why == NULL) {
+            printf("Calibration: the margins kept as they are (the scale's step %.6g)\n", (double) found.scale.step);
+        }
     }
     else if (found.part == CALIBRATION_PART_POWDER) {
         char path[32];

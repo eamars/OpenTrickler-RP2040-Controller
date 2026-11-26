@@ -37,6 +37,7 @@ TUBES = {"coarse": 0, "fine": 1}
 CAPACITY = 1000.0               # no pause in either: the two count the cup's powder differently near its capacity
 MOTOR_LIMITS = {"fine": (0.01, 5.0), "coarse": (0.08, 5.0)}
 CLOSE_S = 0.02                  # two times this near are the same, float's rounding over a part
+CLOSE_NOISE = 1e-4              # two of the scale's steps or spreads this near are the same
 CLOSE_RPS = 1e-4
 
 
@@ -65,7 +66,8 @@ def bench_of(callbacks) -> tuple:
 class ScaleRecord(ctypes.Structure):
     _fields_ = [("settle_s", ctypes.c_float), ("lag_count", ctypes.c_int),
                 ("lag_flow_per_s", ctypes.c_float * LAG_POINTS), ("lag_s", ctypes.c_float * LAG_POINTS),
-                ("seconds", ctypes.c_float), ("poured", ctypes.c_float), ("failure", ctypes.c_char * FAILURE_LEN)]
+                ("seconds", ctypes.c_float), ("poured", ctypes.c_float), ("failure", ctypes.c_char * FAILURE_LEN),
+                ("step", ctypes.c_float), ("rest_sd", ctypes.c_float)]
 
 
 class SpeedsRecord(ctypes.Structure):
@@ -219,8 +221,12 @@ def main() -> int:
               f"Python {py.records.get('settle_s', float('nan')):.4f} s")
         for (cf, cl), (pf, pl) in zip(c_lag, py_lag):
             print(f"    lag C {cf:7.3f} gr/s {cl:.4f} s   Python {pf:7.3f} gr/s {pl:.4f} s")
+        print(f"    noise C step {record.step:.4f}, at rest {record.rest_sd:.5f}   Python step "
+              f"{py.records.get('step', float('nan')):.4f}, at rest {py.records.get('rest_sd', float('nan')):.5f}")
         if (replay.mismatch or replay.next != len(twin.runs)
                 or not close(py.records.get("settle_s"), record.settle_s, CLOSE_S) or len(c_lag) != len(py_lag)
+                or not close(py.records.get("step"), record.step, CLOSE_NOISE)
+                or not close(py.records.get("rest_sd"), record.rest_sd, CLOSE_NOISE)
                 or any(abs(cf - pf) > 1e-3 * max(1.0, pf) or abs(cl - pl) > CLOSE_S
                        for (cf, cl), (pf, pl) in zip(c_lag, py_lag))):
             differ.append(f"seed {seed} scale ({replay.mismatch or f'{replay.next} of {len(twin.runs)} runs'})")
