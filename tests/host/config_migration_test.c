@@ -11,6 +11,7 @@
 #include "common.h"
 #include "fake_eeprom.h"
 #include "profile.h"
+#include "charge_mode.h"
 
 #define ADDR 0x0400
 #define REV 7               // an old revision number no record carries
@@ -171,6 +172,92 @@ static void powders(void) {
 }
 
 
+/*
+    The charge record, whose history had insertions (ADR-009's review, B1): v1.21's 52 bytes, as its build stored them,
+    read field by field through charge_mode_layout; a record of a layout before v1.21 (48 bytes) gets the defaults,
+    never a shifted prefix
+*/
+#define CHARGE_ADDR 0x1400
+
+static void put_float(uint8_t *bytes, size_t at, float value) {
+    memcpy(bytes + at, &value, sizeof(value));
+}
+
+
+static void put_u32(uint8_t *bytes, size_t at, uint32_t value) {
+    memcpy(bytes + at, &value, sizeof(value));
+}
+
+
+static uint32_t colour_of(const rgbw_u32_t *colour) {
+    uint32_t value;
+    memcpy(&value, colour, sizeof(value));
+    return value;
+}
+
+
+static void charge_record(void) {
+    static eeprom_charge_mode_data_t defaults;
+    memset(&defaults, 0, sizeof(defaults));
+    defaults.coarse_stop_threshold = 5.0f;
+    defaults.coarse_stop_backoff_enable = true;
+    defaults.coarse_stop_backoff_turns = 0.25f;
+    defaults.coarse_stop_backoff_speed_rps = 1.0f;
+    defaults.precharge_time_ms = 1000;
+    defaults.cup_capacity = -1.0f;
+    defaults.cup_weight = -1.0f;
+    defaults.auto_tune = true;
+
+    // v1.21's record as its own build laid it out, each field a value of its own
+    uint8_t v121[52];
+    memset(v121, 0, sizeof(v121));
+    put_float(v121, 4, 7.5f);           // coarse_stop_threshold
+    put_float(v121, 8, 0.04f);          // fine_stop_threshold
+    put_float(v121, 12, 0.03f);         // set_point_sd_margin
+    put_float(v121, 16, 0.025f);        // set_point_mean_margin
+    put_float(v121, 20, 0.6f);          // coarse_stop_gate_ratio
+    v121[24] = 1;                       // decimal_places
+    v121[25] = 1;                       // precharge_enable
+    put_u32(v121, 28, 1500);            // precharge_time_ms
+    put_float(v121, 32, 1.5f);          // precharge_speed_rps
+    put_u32(v121, 36, 0x00112233u);     // the four colours
+    put_u32(v121, 40, 0x00445566u);
+    put_u32(v121, 44, 0x00778899u);
+    put_u32(v121, 48, 0x00aabbccu);
+    fake_eeprom_erase();
+    save_config_now(CHARGE_ADDR, v121, sizeof(v121));
+
+    static eeprom_charge_mode_data_t charge;
+    bool ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout, REV);
+    check(ok && charge.coarse_stop_threshold == 7.5f && charge.fine_stop_threshold == 0.04f &&
+          charge.set_point_sd_margin == 0.03f && charge.set_point_mean_margin == 0.025f &&
+          charge.coarse_stop_gate_ratio == 0.6f && charge.decimal_places == (decimal_places_t) 1 &&
+          charge.precharge_enable && charge.precharge_time_ms == 1500 && charge.precharge_speed_rps == 1.5f &&
+          colour_of(&charge.neopixel_normal_charge_colour) == 0x00112233u &&
+          colour_of(&charge.neopixel_under_charge_colour) == 0x00445566u &&
+          colour_of(&charge.neopixel_over_charge_colour) == 0x00778899u &&
+          colour_of(&charge.neopixel_not_ready_colour) == 0x00aabbccu,
+          "v1.21's charge record: every field it had read from its own place");
+    check(charge.coarse_stop_backoff_enable && charge.coarse_stop_backoff_turns == 0.25f &&
+          charge.coarse_stop_backoff_speed_rps == 1.0f && charge.cup_capacity == -1.0f && charge.cup_weight == -1.0f &&
+          charge.auto_tune, "the fields v2 added at their defaults");
+    static eeprom_charge_mode_data_t back;
+    check(config_read_stored(CHARGE_ADDR, &back, sizeof(back)) && memcmp(&back, &charge, sizeof(back)) == 0,
+          "and stored at this version's size");
+    memset(&charge, 0, sizeof(charge));
+    ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout, REV);
+    check(ok && memcmp(&charge, &back, sizeof(back)) == 0, "the next start reads it whole");
+
+    // A layout before v1.21 (v1.16 to v1.18's 48 bytes): not read as a prefix, the defaults
+    uint8_t v118[48];
+    memcpy(v118, v121, sizeof(v118));
+    fake_eeprom_erase();
+    save_config_now(CHARGE_ADDR, v118, sizeof(v118));
+    ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout, REV);
+    check(ok && memcmp(&charge, &defaults, sizeof(charge)) == 0, "a layout before v1.21 gets the defaults, not a shifted prefix");
+}
+
+
 int main(void) {
     record_v2_t v2;
     uint16_t reset[4];
@@ -247,6 +334,7 @@ int main(void) {
     check(ok && v1.a == 10.0f && v1.b == 20.0f, "a damaged longer record gets the defaults");
 
     powders();
+    charge_record();
 
     printf("%s: %d failed\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;

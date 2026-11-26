@@ -55,10 +55,33 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
  * element by element: each element's part kept, the rest at the defaults. load_config is a plain record's: a struct
  * that grows at its end only. Either way a field is only ever appended, never moved, removed or put to a new use
  */
+/*
+ * A field of a record's earlier layout that is not a prefix of today's (a field inserted before the rule: never insert,
+ * always append): where it lay and its bytes then, where it lies and its bytes now
+ */
 typedef struct {
-    size_t header;      // the bytes before the array (offsetof the array), never changed
-    size_t element;     // an element's bytes (sizeof)
+    uint16_t was;
+    uint8_t was_size;
+    uint16_t now;
+    uint8_t now_size;
+} config_field_map_t;
+
+// A record's earlier layout, known by its stored size: each of its fields mapped into today's struct
+typedef struct {
+    uint16_t size;
+    const config_field_map_t *fields;
+    uint8_t field_count;
+} config_past_layout_t;
+
+typedef struct {
+    size_t header;      // the bytes before the array (offsetof the array), never changed; 0 for a plain record
+    size_t element;     // an element's bytes (sizeof); 0, a plain record with no array
     size_t count;       // the elements
+    // A record whose history had an insertion (ADR-009's review, B1): the size it has been append-only from, below
+    // which a record found is read only as one of its known earlier layouts, field by field; 0, append-only always
+    size_t append_only_from;
+    const config_past_layout_t *past;
+    size_t past_count;
 } config_layout_t;
 bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
                         const config_layout_t * layout, uint16_t rev_validation);

@@ -6,6 +6,8 @@
 
 #define taskSCHEDULER_RUNNING 2
 
+typedef void *TaskHandle_t;
+
 static inline void vTaskDelay(TickType_t ticks) {
     (void) ticks;
 }

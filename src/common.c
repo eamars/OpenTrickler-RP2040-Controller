@@ -296,8 +296,28 @@ bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
 static const config_layout_t config_plain = {.header = 0, .element = 0, .count = 0};
 
 
-// Whether a record of this layout can have been stored at `stored` bytes
+// The record's known earlier layout stored at `stored` bytes, or NULL
+static const config_past_layout_t *config_past(const config_layout_t *layout, size_t stored) {
+    for (size_t idx = 0; idx < layout->past_count; idx += 1) {
+        if (layout->past[idx].size == stored) {
+            return &layout->past[idx];
+        }
+    }
+    return NULL;
+}
+
+
+/*
+    Whether a record of this layout can have been stored at `stored` bytes: one of its known earlier layouts, or a
+    size it has been append-only from (below it, a prefix would be read shifted: ADR-009's review, B1)
+*/
 static bool config_size_fits(const config_layout_t *layout, size_t stored) {
+    if (config_past(layout, stored) != NULL) {
+        return true;
+    }
+    if (stored < layout->append_only_from) {
+        return false;
+    }
     if (layout->element == 0) {
         return stored > sizeof(uint16_t);       // past the old revision
     }
@@ -334,10 +354,24 @@ static size_t config_stored_size(const uint8_t *slot, size_t room, size_t size, 
 }
 
 
-// A record stored at `stored` bytes, into the struct: the defaults, then what it holds of each field, element by element
+/*
+    A record stored at `stored` bytes, into the struct: the defaults, then what it holds of each field: a known earlier
+    layout field by field (a field's bytes then into its place now, a narrower one widened with zeros), else element by
+    element as a prefix of each
+*/
 static void config_fill(void *cfg, const void *default_cfg, size_t size, const uint8_t *slot, size_t stored,
                         const config_layout_t *layout) {
     memcpy(cfg, default_cfg, size);
+    const config_past_layout_t *past = config_past(layout, stored);
+    if (past != NULL) {
+        for (uint8_t idx = 0; idx < past->field_count; idx += 1) {
+            const config_field_map_t *field = &past->fields[idx];
+            uint8_t *place = (uint8_t *) cfg + field->now;
+            memset(place, 0, field->now_size);
+            memcpy(place, slot + field->was, field->was_size < field->now_size ? field->was_size : field->now_size);
+        }
+        return;
+    }
     if (layout->element == 0) {
         memcpy(cfg, slot, stored < size ? stored : size);
         return;
@@ -364,7 +398,8 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
     if (layout == NULL) {
         layout = &config_plain;
     }
-    else if (layout->element == 0 || layout->count == 0 || layout->header + layout->element * layout->count != size) {
+    else if (layout->element > 0 &&
+             (layout->count == 0 || layout->header + layout->element * layout->count != size)) {
         printf("Config: the layout at 0x%04x is not its struct's: read as a plain record\n", addr);
         layout = &config_plain;
     }
@@ -429,6 +464,7 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
         if (stored > 0) {
             printf("Config: the record at 0x%04x was stored %u bytes long by %s version: %s\n", addr, (unsigned) stored,
                    stored < size ? "an earlier" : "a later",
+                   config_past(layout, stored) != NULL ? "read field by field from its layout then" :
                    stored < size ? "kept, the appended fields at their defaults" : "its fields read, the rest discarded");
             config_fill(cfg, default_cfg, size, slot, stored, layout);
             free(slot);

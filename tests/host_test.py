@@ -19,7 +19,7 @@ OUT = REPO / "build_host"
 
 # Each test: its C file, and the firmware's sources and the host's own it is built with
 TESTS = {
-    "config_migration_test": ["src/common.c", "tests/host/fake_eeprom.c"],
+    "config_migration_test": ["src/common.c", "src/charge_mode_layout.c", "tests/host/fake_eeprom.c"],
 }
 
 

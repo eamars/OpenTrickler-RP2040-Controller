@@ -69,6 +69,12 @@ typedef struct {
 extern "C" {
 #endif
 
+/*
+ * How the charge record is read (charge_mode_layout.c): append-only from v2.0.0's 64 bytes; below it only v1.21's 52,
+ * field by field. v1.19 and v2.0.0 inserted fields in it (ADR-009's review, B1); the owner's floor is v1.21
+ */
+extern const config_layout_t charge_mode_layout;
+
 
 bool charge_mode_config_init(void);
 // Its settings' table, for the API and the console (charge_mode_settings.c; ADR-003, gate 3)

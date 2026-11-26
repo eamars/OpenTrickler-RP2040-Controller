@@ -1061,7 +1061,10 @@ bool charge_mode_config_init(void) {
     bool is_ok = false;
 
     // Read charge mode config from EEPROM
-    is_ok = load_config(EEPROM_CHARGE_MODE_BASE_ADDR, &charge_mode_config.eeprom_charge_mode_data, &default_charge_mode_data, sizeof(charge_mode_config.eeprom_charge_mode_data), EEPROM_CHARGE_MODE_DATA_REV);
+    // Its history had insertions: read through its layout (charge_mode_layout.c; ADR-009's review, B1)
+    is_ok = load_config_layout(EEPROM_CHARGE_MODE_BASE_ADDR, &charge_mode_config.eeprom_charge_mode_data,
+                               &default_charge_mode_data, sizeof(charge_mode_config.eeprom_charge_mode_data),
+                               &charge_mode_layout, EEPROM_CHARGE_MODE_DATA_REV);
     if (!is_ok) {
         printf("Unable to read charge mode configuration\n");
         return is_ok;
