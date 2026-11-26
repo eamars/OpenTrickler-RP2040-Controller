@@ -262,7 +262,7 @@ Today's files by their module. A file split between a module and the platform is
 | `ui/` | `menu` | `menu.c`, `menu_nav.c`, `menu_view_12864.c` and their headers; the fonts (`fonts/`, `scripts/bdf2lvgl.py`) |
 | `ui/` | `mini_12864` | `mini_12864_module.cpp`, `mini_12864_settings.c`, `button.c` |
 | `web/` | `http_server` | `http_server.c` |
-| `web/` | `api` | `api_v1.c`, `api_v1_commands.c`, `rest_endpoints.c`, `web/` (the portal, `scripts/web_build.py`), `html/plot_weight.html` (not served) |
+| `web/` | `api` | `api_v1.c`, `api_v1_commands.c`, `rest_endpoints.c`, `web/` (the portal, `scripts/web_build.py`) |
 | `console/` | `console` | `rc_console.c`, `remote_control.c` |
 | `services/` | `charge` | `charge_mode.cpp`, `charge_mode_settings.c`, `charge_mode_layout.c` |
 | `services/` | `charge_control` | `charge_controller.c`, `charge_tuner.c` (free of the chip) |

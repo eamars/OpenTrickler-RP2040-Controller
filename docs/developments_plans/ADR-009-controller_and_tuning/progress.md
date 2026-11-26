@@ -1412,3 +1412,8 @@ The review of PR #138 (`logs/review/adr009_pr_review_2026-11-27.md`): its "To fi
 ## 2026-11-27: merged
 
 PR #138 merged into main by the owner (`e2214d5`), its checks passed on `295fdd0`. What an AI agent needs of the API to help tune a powder, which the review handed on as O3, is its own ADR, ADR-016 (the owner: "the API extension is to be added as separate ADR"). Left at the merge, each waiting for the owner's word (HANDOVER): PR #113's end; issue #12's note; the branch `adr009_restart` on GitHub.
+
+## 2026-11-27: two leftovers cleared (straight to main, the owner: "Don't need PR, just merge to main directly for the small cleanup")
+
+- **The web stand-in's recording made again** (`tests/web_test.py --record`, the Pico W on 2.0.3-277, reads only): it was the Pico W's at 2.0.3-64, from before ADR-009, so the stand-in's Settings pages had none of ADR-009's settings. 35 paths now, `/api/v1/calibration` and `/api/v1/setup` among them; the Wi-Fi's name, the unit's address and the networks heard left out as before. Walked on the stand-in after: the portal, the schema with `auto_tune`, `forecast`, `cup_capacity` and `fine_weight_per_turn` and no `cup_weight`, a write taken and one past its limit refused, a cup's part through `cup_on`, `zeroing`, `fill`, `keep`, `empty`: all as expected.
+- **`src/html/` removed:** `plot_weight.html`, which ADR-008 left to ADR-009 (served by nothing, reading `/rest/scale_weight`, gone since ADR-003's gate 4, and loading two scripts from CDNs), and the two placeholder files beside it. No build file, script or test names the folder, so nothing was built again for it.

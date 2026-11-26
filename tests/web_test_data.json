@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-64-dirty",
-   "vcs": "8449f9a",
+   "version": "2.0.3-277",
+   "vcs": "7733b5d",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
   "hostname": "opentrickler-4A82",
-  "boot": 3884089477,
-  "uptime_s": 124,
+  "boot": 2781003122,
+  "uptime_s": 2155,
   "features": [
    {
     "name": "servo_gate",
@@ -114,6 +114,48 @@
     "about": "stops whatever job runs; never fails"
    },
    {
+    "path": "/api/v1/calibration",
+    "methods": [
+     "GET"
+    ],
+    "about": "the calibration (ADR-009 step 1): its part and step, what it does, the records it found, and what is kept"
+   },
+   {
+    "path": "/api/v1/calibration/start",
+    "methods": [
+     "POST"
+    ],
+    "about": "starts a part of the calibration: cup, scale or powder"
+   },
+   {
+    "path": "/api/v1/calibration/answer",
+    "methods": [
+     "POST"
+    ],
+    "about": "the person's answer at a step of the calibration"
+   },
+   {
+    "path": "/api/v1/calibration/pour",
+    "methods": [
+     "POST"
+    ],
+    "about": "while the cup is filled: the coarse tube turned at least these turns from now"
+   },
+   {
+    "path": "/api/v1/calibration/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "keeps and stores the records the calibration found"
+   },
+   {
+    "path": "/api/v1/calibration/stop",
+    "methods": [
+     "POST"
+    ],
+    "about": "stops the calibration, discarding what it found; never fails"
+   },
+   {
     "path": "/api/v1/agent/hello",
     "methods": [
      "POST"
@@ -211,6 +253,14 @@
      "POST"
     ],
     "about": "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"
+   },
+   {
+    "path": "/api/v1/setup",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "the set-up's stage, kept by the unit: set up or not, the step, the network chosen, a phone on its hotspot, the hotspot's name; a PATCH gives the page's step"
    },
    {
     "path": "/api/v1/setup/done",
@@ -486,8 +536,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-64-dirty",
-   "vcs": "8449f9a",
+   "version": "2.0.3-277",
+   "vcs": "7733b5d",
    "build": "Debug"
   },
   "resources": [
@@ -685,15 +735,15 @@
       "about": "The network's name (SSID)"
      },
      {
-      "name": "key",
-      "label": "Key",
+      "name": "password",
+      "label": "Password",
       "type": "string",
       "min_length": 0,
       "max_length": 63,
       "access": "write_only",
       "applies": "at_restart",
       "refused_while": "never",
-      "about": "The network's key; never sent back"
+      "about": "The network's password; never sent back"
      },
      {
       "name": "auth",
@@ -1202,6 +1252,160 @@
       "applies": "now",
       "refused_while": "in_throw",
       "about": "The scale's serial frame, as the scale is set"
+     },
+     {
+      "name": "settle_ms",
+      "label": "Settle time",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "ms",
+      "min": 0,
+      "max": 30000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How long a small change takes from the reading's first move to its rest, as the calibration found it; null, never calibrated"
+     },
+     {
+      "name": "lag_1_flow_per_s",
+      "label": "Lag 1, flow",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight/s",
+      "min": 0,
+      "max": 1000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The flow the scale's lag was measured at, slowest first; null, never calibrated"
+     },
+     {
+      "name": "lag_1_ms",
+      "label": "Lag 1",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "ms",
+      "min": 0,
+      "max": 10000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How far the reading ran behind the powder poured at that flow; null, never calibrated"
+     },
+     {
+      "name": "lag_2_flow_per_s",
+      "label": "Lag 2, flow",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight/s",
+      "min": 0,
+      "max": 1000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The flow the scale's lag was measured at, slowest first; null, never calibrated"
+     },
+     {
+      "name": "lag_2_ms",
+      "label": "Lag 2",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "ms",
+      "min": 0,
+      "max": 10000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How far the reading ran behind the powder poured at that flow; null, never calibrated"
+     },
+     {
+      "name": "lag_3_flow_per_s",
+      "label": "Lag 3, flow",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight/s",
+      "min": 0,
+      "max": 1000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The flow the scale's lag was measured at, slowest first; null, never calibrated"
+     },
+     {
+      "name": "lag_3_ms",
+      "label": "Lag 3",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "ms",
+      "min": 0,
+      "max": 10000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How far the reading ran behind the powder poured at that flow; null, never calibrated"
+     },
+     {
+      "name": "lag_4_flow_per_s",
+      "label": "Lag 4, flow",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight/s",
+      "min": 0,
+      "max": 1000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The flow the scale's lag was measured at, slowest first; null, never calibrated"
+     },
+     {
+      "name": "lag_4_ms",
+      "label": "Lag 4",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "ms",
+      "min": 0,
+      "max": 10000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How far the reading ran behind the powder poured at that flow; null, never calibrated"
+     },
+     {
+      "name": "lag_5_flow_per_s",
+      "label": "Lag 5, flow",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight/s",
+      "min": 0,
+      "max": 1000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The flow the scale's lag was measured at, slowest first; null, never calibrated"
+     },
+     {
+      "name": "lag_5_ms",
+      "label": "Lag 5",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "ms",
+      "min": 0,
+      "max": 10000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How far the reading ran behind the powder poured at that flow; null, never calibrated"
      }
     ]
    },
@@ -1258,7 +1462,7 @@
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
-      "about": "The readings are steady when their standard deviation is below it: for the zero, the cup's removal and the resume after a pause"
+      "about": "The readings are steady when their standard deviation is below it: for the zero, the cup's removal and the resume after a pause. The scale's calibration sets it from the scale's own step"
      },
      {
       "name": "zero_mean_margin",
@@ -1271,7 +1475,7 @@
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
-      "about": "The scale reads zero when the mean of its readings is this near it"
+      "about": "The scale reads zero when the mean of its readings is this near it. The scale's calibration sets it from the scale's own step"
      },
      {
       "name": "decimal_places",
@@ -1422,6 +1626,40 @@
       "applies": "now",
       "refused_while": "in_throw",
       "about": "The LEDs' colour while the unit waits for the cup"
+     },
+     {
+      "name": "cup_capacity",
+      "label": "Cup capacity",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight",
+      "min": 0,
+      "max": 10000,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How much the cup holds, filled and kept by the calibration: no pour of a calibration passes it; null, never calibrated"
+     },
+     {
+      "name": "auto_tune",
+      "label": "Auto-tune",
+      "group": "Tuning",
+      "type": "boolean",
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw",
+      "about": "After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then quicker ones, better ones kept into the powder's profile; a coarse Kp so high its powder overshoots is brought down once; a change of target begins it afresh; off, the profile is never changed"
+     },
+     {
+      "name": "forecast",
+      "label": "Forecast",
+      "group": "Tuning",
+      "type": "boolean",
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw",
+      "about": "The fine trickler steers on the reading and the powder still falling, held slow enough that what is falling never passes the target, and a throw whose powder stops coming ends on a fault; off, it steers on the reading alone"
      }
     ]
    },
@@ -1565,6 +1803,34 @@
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
       "about": "The fine motor's fastest while it pours; not above its Maximum speed in Settings, Motors"
+     },
+     {
+      "name": "fine_weight_per_turn",
+      "label": "Fine weight a turn",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight",
+      "min": 0.001,
+      "max": 100,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The fine tube's weight a turn where it streams, kept by the powder's calibration: the charge forecasts its first throws on this powder from it, until they give their own; null, never calibrated"
+     },
+     {
+      "name": "coarse_weight_per_turn",
+      "label": "Coarse weight a turn",
+      "group": "Calibration",
+      "type": "number",
+      "unit": "weight",
+      "min": 0.001,
+      "max": 100,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The coarse tube's weight a turn where it streams, kept by the powder's calibration; null, never calibrated"
      }
     ]
    },
@@ -1973,6 +2239,89 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/calibration/start",
+    "fields": [
+     {
+      "name": "part",
+      "type": "choice",
+      "choices": [
+       "cup",
+       "scale",
+       "powder"
+      ],
+      "required": true
+     },
+     {
+      "name": "profile",
+      "type": "integer",
+      "about": "a powder's part: the profile calibrated, the powder in the hopper; without it, the one the charge uses"
+     }
+    ],
+    "refused_while": "a_job_runs",
+    "about": "starts a part of the calibration (202), the empty cup on the scale first. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes",
+    "example": {
+     "part": "powder",
+     "profile": 2
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/calibration/answer",
+    "fields": [
+     {
+      "name": "answer",
+      "type": "choice",
+      "choices": [
+       "next",
+       "full",
+       "keep",
+       "done",
+       "go_on"
+      ],
+      "required": true
+     }
+    ],
+    "refused_while": "never",
+    "about": "the person's answer at a step: next at cup_on, full at fill, keep at keep, done at empty and failed, go_on at paused. 409 not_now at another step, 409 not_running",
+    "example": {
+     "answer": "next"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/calibration/pour",
+    "fields": [
+     {
+      "name": "turns",
+      "type": "number",
+      "unit": "turns",
+      "min": -0.5,
+      "max": 0.5,
+      "required": true
+     }
+    ],
+    "refused_while": "never",
+    "about": "while the cup is filled, the coarse tube turned at least these turns from now, back below 0: a turn under way the same way is extended to them, never added to, so it stops within half a turn of the last ask (the knob's detent is a quarter turn, right forward and left back); 409 not_filling at another step",
+    "example": {
+     "turns": 0.5
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/calibration/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "keeps and stores the records found, at the result step: the scale's into settings/scale, a powder's least speeds into its profile; the part then ends. All or nothing: 409 not_kept when a setting refuses one, its message the setting's own refusal, nothing kept. 409 not_now at another step"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/calibration/stop",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stops the calibration (202), or 200 with nothing to stop; what it found and did not keep is discarded"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/scale/zero",
     "fields": [],
     "about": "asks the scale to zero, not that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
@@ -2012,7 +2361,7 @@
       "about": "the network's name"
      },
      {
-      "name": "key",
+      "name": "password",
       "type": "string",
       "max_length": 63,
       "about": "its key, 8 to 63 bytes with security; never sent back"
@@ -2030,11 +2379,40 @@
      }
     ],
     "refused_while": "never",
-    "about": "the set-up's join (202, with GET /api/v1/network's reply, its station joining): the unit stays its own hotspot meanwhile, so the page that asked it reads the end in the station: joined (the network stored and in effect, no restart) or failed with its reason (wrong_key, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its network, which a join would leave; 409 busy while a scan or a join runs",
+    "about": "the set-up's join (202, with GET /api/v1/network's reply, its station joining): the unit stays its own hotspot meanwhile, so the page that asked it reads the end in the station: joined (the network stored and in effect, no restart) or failed with its reason (wrong_password, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its network, which a join would leave; 409 busy while a scan or a join runs",
     "example": {
      "ssid": "Smith home",
-     "key": "its key",
+     "password": "its password",
      "auth": "wpa2_mixed"
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/api/v1/setup",
+    "fields": [
+     {
+      "name": "step",
+      "type": "choice",
+      "choices": [
+       "wifi",
+       "scale",
+       "motors",
+       "ready"
+      ],
+      "about": "the step the page is on"
+     },
+     {
+      "name": "network",
+      "type": "string",
+      "max_length": 31,
+      "about": "on the Wi-Fi step, the network chosen, or null"
+     }
+    ],
+    "refused_while": "never",
+    "about": "the set-up's step as the page goes on (200, GET /api/v1/setup's reply): the unit keeps it, so its screen shows the same stage and a page that lost the hotspot reads where it is; a setup step event. Done is POST /api/v1/setup/done",
+    "example": {
+     "step": "wifi",
+     "network": "Smith home"
     }
    },
    {
@@ -2137,6 +2515,46 @@
     {
      "value": "update",
      "about": "a firmware update (ADR-004)"
+    },
+    {
+     "value": "calibration",
+     "about": "a part of the calibration (ADR-009)"
+    }
+   ],
+   "calibration": [
+    {
+     "value": "cup_on",
+     "about": "the empty cup to be put on the scale: answer next"
+    },
+    {
+     "value": "zeroing"
+    },
+    {
+     "value": "fill",
+     "about": "the cup filled a pour at a time (POST pour; the knob at the unit): answer full"
+    },
+    {
+     "value": "keep",
+     "about": "the capacity found: answer keep"
+    },
+    {
+     "value": "empty",
+     "about": "the cup to be emptied and put back: answer done"
+    },
+    {
+     "value": "running"
+    },
+    {
+     "value": "paused",
+     "about": "a run would pass the cup's capacity: empty it, put it back, answer go_on"
+    },
+    {
+     "value": "result",
+     "about": "the records found: save, or stop to discard"
+    },
+    {
+     "value": "failed",
+     "about": "what failed, in failure: answer done; nothing is retried"
     }
    ],
    "update": [
@@ -2324,7 +2742,7 @@
      "motor",
      "fault"
     ],
-    "about": "a throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and fault only with driver_fault"
+    "about": "a throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault, fault (the fine tube starved of powder, or no memory for the throw); motor and fault only with driver_fault"
    },
    {
     "source": "purge",
@@ -2341,6 +2759,55 @@
      "reason"
     ],
     "about": "reason: stopped, time (its time ran out: by the unit), fault"
+   },
+   {
+    "source": "calibration",
+    "kind": "started",
+    "carries": [
+     "part",
+     "by"
+    ]
+   },
+   {
+    "source": "calibration",
+    "kind": "paused",
+    "carries": [
+     "part"
+    ],
+    "about": "a run would pass the cup's capacity"
+   },
+   {
+    "source": "calibration",
+    "kind": "resumed",
+    "carries": [
+     "part"
+    ]
+   },
+   {
+    "source": "calibration",
+    "kind": "finished",
+    "carries": [
+     "part"
+    ],
+    "about": "the records found: GET /api/v1/calibration, result"
+   },
+   {
+    "source": "calibration",
+    "kind": "stored",
+    "carries": [
+     "part"
+    ],
+    "about": "the records kept and stored"
+   },
+   {
+    "source": "calibration",
+    "kind": "stopped",
+    "carries": [
+     "part",
+     "by",
+     "reason"
+    ],
+    "about": "reason: finished, stopped, failed, fault"
    },
    {
     "source": "motors",
@@ -2443,6 +2910,35 @@
      "path"
     ],
     "about": "what was written stored where it was not; path: the save's, so every resource stored by it is saved again"
+   },
+   {
+    "source": "setup",
+    "kind": "step",
+    "carries": [
+     "step",
+     "by"
+    ],
+    "about": "the set-up went on to a step (code, wifi, scale, motors, ready, done): read GET /api/v1/setup; the unit's screen shows the same stage"
+   },
+   {
+    "source": "wifi",
+    "kind": "joining",
+    "carries": [],
+    "about": "the set-up's join began: GET /api/v1/network's station names the network"
+   },
+   {
+    "source": "wifi",
+    "kind": "joined",
+    "carries": [],
+    "about": "the set-up's join joined: the network stored and in effect, its address in GET /api/v1/network's station"
+   },
+   {
+    "source": "wifi",
+    "kind": "not_joined",
+    "carries": [
+     "reason"
+    ],
+    "about": "the set-up's join did not join, nothing stored; reason: wrong_password, timeout, failed"
    }
   ],
   "errors": [
@@ -2477,14 +2973,16 @@
    "hash_mismatch",
    "not_ready",
    "no_network",
-   "not_on_hotspot"
+   "not_on_hotspot",
+   "not_now",
+   "not_filling"
   ]
  },
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-64-dirty",
-   "vcs": "8449f9a",
+   "version": "2.0.3-277",
+   "vcs": "7733b5d",
    "build": "Debug"
   },
   "unit_id": "4A821948",
@@ -2501,7 +2999,7 @@
    "/api/v1/settings/display": {
     "saved": true,
     "invert_encoder": false,
-    "rotation": 180,
+    "rotation": 0,
     "invert_display": true,
     "charge_view": "chart"
    },
@@ -2530,7 +3028,7 @@
     "full_steps_per_rotation": 200,
     "current_ma": 380,
     "microsteps": 256,
-    "max_speed_rps": 5,
+    "max_speed_rps": 3,
     "r_sense_mohm": 110,
     "acceleration_rps2": 50,
     "min_speed_rps": 0.01,
@@ -2542,7 +3040,18 @@
     "saved": true,
     "driver": "and_fxi",
     "baud": 19200,
-    "format": "8n1"
+    "format": "8n1",
+    "settle_ms": null,
+    "lag_1_flow_per_s": null,
+    "lag_1_ms": null,
+    "lag_2_flow_per_s": null,
+    "lag_2_ms": null,
+    "lag_3_flow_per_s": null,
+    "lag_3_ms": null,
+    "lag_4_flow_per_s": null,
+    "lag_4_ms": null,
+    "lag_5_flow_per_s": null,
+    "lag_5_ms": null
    },
    "/api/v1/settings/charge": {
     "saved": true,
@@ -2561,7 +3070,10 @@
     "colour_good": "#00ff00",
     "colour_under": "#ffff00",
     "colour_over": "#ff0000",
-    "colour_not_ready": "#0000ff"
+    "colour_not_ready": "#0000ff",
+    "cup_capacity": null,
+    "auto_tune": false,
+    "forecast": false
    },
    "/api/v1/powder_profiles/0": {
     "saved": true,
@@ -2575,7 +3087,9 @@
     "fine_ki": 0,
     "fine_kd": 10,
     "fine_min_speed_rps": 0.08,
-    "fine_max_speed_rps": 5
+    "fine_max_speed_rps": 5,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/1": {
     "saved": true,
@@ -2589,7 +3103,9 @@
     "fine_ki": 0,
     "fine_kd": 15,
     "fine_min_speed_rps": 0.08,
-    "fine_max_speed_rps": 2
+    "fine_max_speed_rps": 2,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/2": {
     "saved": true,
@@ -2603,7 +3119,9 @@
     "fine_ki": 0,
     "fine_kd": 12,
     "fine_min_speed_rps": 0.06,
-    "fine_max_speed_rps": 5
+    "fine_max_speed_rps": 5,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/3": {
     "saved": true,
@@ -2617,7 +3135,9 @@
     "fine_ki": 0,
     "fine_kd": 15,
     "fine_min_speed_rps": 0.05,
-    "fine_max_speed_rps": 5
+    "fine_max_speed_rps": 5,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/4": {
     "saved": true,
@@ -2631,7 +3151,9 @@
     "fine_ki": 0,
     "fine_kd": 0,
     "fine_min_speed_rps": 0,
-    "fine_max_speed_rps": 0
+    "fine_max_speed_rps": 0,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/5": {
     "saved": true,
@@ -2645,7 +3167,9 @@
     "fine_ki": 0,
     "fine_kd": 0,
     "fine_min_speed_rps": 0,
-    "fine_max_speed_rps": 0
+    "fine_max_speed_rps": 0,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/6": {
     "saved": true,
@@ -2659,7 +3183,9 @@
     "fine_ki": 0,
     "fine_kd": 0,
     "fine_min_speed_rps": 0,
-    "fine_max_speed_rps": 0
+    "fine_max_speed_rps": 0,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/powder_profiles/7": {
     "saved": true,
@@ -2673,7 +3199,9 @@
     "fine_ki": 0,
     "fine_kd": 0,
     "fine_min_speed_rps": 0,
-    "fine_max_speed_rps": 0
+    "fine_max_speed_rps": 0,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
    },
    "/api/v1/settings/gate": {
     "saved": true,
@@ -2745,20 +3273,20 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 2,
+  "throw": 50,
   "paused": false,
   "target": 30,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
-  "weight": null,
-  "elapsed_s": 9.877,
+  "weight": 0,
+  "elapsed_s": 12.97,
   "last": {
-   "throw": 2,
+   "throw": 50,
    "result": "none",
    "reason": "stopped",
    "weight": 0
   },
-  "event_seq": 9
+  "event_seq": 151
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -2766,13 +3294,46 @@
   "speed_rps": 0,
   "time_left_s": null
  },
+ "/api/v1/calibration": {
+  "state": "idle",
+  "part": null,
+  "profile": 0,
+  "profile_name": "AR2208,gr",
+  "step": null,
+  "by": null,
+  "progress": 0,
+  "line": "",
+  "weight": 0,
+  "pouring": false,
+  "pour_turns": 0,
+  "capacity": 0,
+  "result": null,
+  "failure": null,
+  "records": {
+   "cup": {
+    "capacity": null
+   },
+   "scale": {
+    "settle_ms": null,
+    "lag": []
+   },
+   "powder": {
+    "profile": 0,
+    "name": "AR2208,gr",
+    "fine_min_speed_rps": 0.08,
+    "coarse_min_speed_rps": 0.1,
+    "fine_weight_per_turn": null,
+    "coarse_weight_per_turn": null
+   }
+  }
+ },
  "/api/v1/scale": {
-  "weight": null,
-  "unit": null,
+  "weight": 0,
+  "unit": "gn",
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 100,
-  "bad_frames": 0,
+  "usual_interval_ms": 40,
+  "bad_frames": 8,
   "actions": [
    "zero"
   ]
@@ -2793,13 +3354,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-64-dirty",
-   "vcs": "8449f9a",
+   "version": "2.0.3-277",
+   "vcs": "7733b5d",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
-  "uptime_s": 126,
+  "uptime_s": 2156,
   "activity": "none",
   "restart_pending": false,
   "set_up": true
@@ -2809,23 +3370,31 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-4A82",
-  "rssi": -59,
+  "rssi": -54,
   "station": {
    "state": "joined",
    "ssid": "dummy_ssid",
    "address": "192.168.1.57",
-   "reason": null
+   "reason": null,
+   "joining_ms": 0
   }
  },
  "/api/v1/wifi/networks": {
   "scanning": false,
   "networks": []
  },
+ "/api/v1/setup": {
+  "set_up": true,
+  "step": "code",
+  "network": null,
+  "phone": false,
+  "hotspot": null
+ },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-64-dirty",
-   "block": "2.0.3-64",
+   "version": "2.0.3-277",
+   "block": "2.0.3-255",
    "slot": "a",
    "trial": false
   },
@@ -2839,14 +3408,7 @@
    "error": "no connection"
   },
   "found": null,
-  "last": {
-   "result": "back",
-   "version": "2.0.3-137",
-   "code": null,
-   "message": null,
-   "reason": "not_confirmed",
-   "reset": null
-  }
+  "last": null
  },
  "/api/v1/display": {
   "width": 128,
@@ -2854,7 +3416,7 @@
   "format": "mono_rows"
  },
  "/api/v1/display/frame": {
-  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABB5AAAAAAAAAAAAAAAAAAAQhQAAAAAAAAAAAAAAAAAAEIFnKaYAAAAAAAAAAAAACBCBkLJpAAAAAAAAAAAAAAQQgROiLwAAAAAAAAAAAAACEIEUoigAAAAAAAAAAAAABBCFFKJpAAAAAAAAAAAAAAgQeRNhpgAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAABAAAAHAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////////D////////////////////3f///////////////////91qyz/////////////////DabLf////////////////32u6H////////////////99ruv/////////////////fa7Lf////////////////34vLP///////////////////+////////////////////8f/////////////////////////////////////////////////////////////////////////////////u5+B/////////////////7u/v//////////////////bX73///////////////3/21+F///////////////+/9VRvf///////////////3/u373///////////////7/7t+9///////////////9/+7fvf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+P92//////////////////d/d//////////////////35iKnLP////////////9/+Nt2mst/////////////v/9Ddrrs/////////////9/3X3a673////////////+/91t2ust/////////////f/jnMrss////////////////////7////////////////////x///////////////w=="
+  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB5AAAAAAAAAAAAAAAAAAAAhQAAAAAAAAAAAAAAAAAAAIFnKaYAAAAAAAAAAAAAIACBkLJpAAAAAAAAAAAAABAAgROiLwAAAAAAAAAAAAAIAIEUoigAAAAAAAAAAAAAEACFFKJpAAAAAAAAAAAAACAAeRNhpgAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAP////////////////////j////////////////////4////////////////////+Ph/V//3/2+///2///////j3v3f/9/9v////v//////49+NU1GM+KbPtTR/////9+Pf9U0+232at7TW//////vj38VdeNh9us+11v/////949+1XXbb/br3tdb/////++PetU122326t7XW//////fj4clTeUz8us/F1n//////4////////////////////+P////////////////////j////////////////////4////////////////////+P////////////////////jw///////////////////493//////////////////+Pdass////////////////jw2my3///////////////499ruh///////////////+Pfa7r////////////////j32uy3///////////////49+Lyz///////////////+P///v////////////////j///H////////////////4////////////////////+P////////////////////j////////////////////+7ufgf////////////////u7v7/////////////////721+9///////////////3+9tfhf//////////////+/vVUb3///////////////377t+9///////////////7++7fvf//////////////9/vu373////////////////7////////////////////+/////////////////////g=="
  },
  "/api/v1/settings/leds": {
   "saved": true,
@@ -2868,7 +3430,7 @@
  "/api/v1/settings/display": {
   "saved": true,
   "invert_encoder": false,
-  "rotation": 180,
+  "rotation": 0,
   "invert_display": true,
   "charge_view": "chart"
  },
@@ -2897,7 +3459,7 @@
   "full_steps_per_rotation": 200,
   "current_ma": 380,
   "microsteps": 256,
-  "max_speed_rps": 5,
+  "max_speed_rps": 3,
   "r_sense_mohm": 110,
   "acceleration_rps2": 50,
   "min_speed_rps": 0.01,
@@ -2909,7 +3471,18 @@
   "saved": true,
   "driver": "and_fxi",
   "baud": 19200,
-  "format": "8n1"
+  "format": "8n1",
+  "settle_ms": null,
+  "lag_1_flow_per_s": null,
+  "lag_1_ms": null,
+  "lag_2_flow_per_s": null,
+  "lag_2_ms": null,
+  "lag_3_flow_per_s": null,
+  "lag_3_ms": null,
+  "lag_4_flow_per_s": null,
+  "lag_4_ms": null,
+  "lag_5_flow_per_s": null,
+  "lag_5_ms": null
  },
  "/api/v1/settings/charge": {
   "saved": true,
@@ -2928,7 +3501,10 @@
   "colour_good": "#00ff00",
   "colour_under": "#ffff00",
   "colour_over": "#ff0000",
-  "colour_not_ready": "#0000ff"
+  "colour_not_ready": "#0000ff",
+  "cup_capacity": null,
+  "auto_tune": false,
+  "forecast": false
  },
  "/api/v1/powder_profiles/0": {
   "saved": true,
@@ -2942,7 +3518,9 @@
   "fine_ki": 0,
   "fine_kd": 10,
   "fine_min_speed_rps": 0.08,
-  "fine_max_speed_rps": 5
+  "fine_max_speed_rps": 5,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/1": {
   "saved": true,
@@ -2956,7 +3534,9 @@
   "fine_ki": 0,
   "fine_kd": 15,
   "fine_min_speed_rps": 0.08,
-  "fine_max_speed_rps": 2
+  "fine_max_speed_rps": 2,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/2": {
   "saved": true,
@@ -2970,7 +3550,9 @@
   "fine_ki": 0,
   "fine_kd": 12,
   "fine_min_speed_rps": 0.06,
-  "fine_max_speed_rps": 5
+  "fine_max_speed_rps": 5,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/3": {
   "saved": true,
@@ -2984,7 +3566,9 @@
   "fine_ki": 0,
   "fine_kd": 15,
   "fine_min_speed_rps": 0.05,
-  "fine_max_speed_rps": 5
+  "fine_max_speed_rps": 5,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/4": {
   "saved": true,
@@ -2998,7 +3582,9 @@
   "fine_ki": 0,
   "fine_kd": 0,
   "fine_min_speed_rps": 0,
-  "fine_max_speed_rps": 0
+  "fine_max_speed_rps": 0,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/5": {
   "saved": true,
@@ -3012,7 +3598,9 @@
   "fine_ki": 0,
   "fine_kd": 0,
   "fine_min_speed_rps": 0,
-  "fine_max_speed_rps": 0
+  "fine_max_speed_rps": 0,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/6": {
   "saved": true,
@@ -3026,7 +3614,9 @@
   "fine_ki": 0,
   "fine_kd": 0,
   "fine_min_speed_rps": 0,
-  "fine_max_speed_rps": 0
+  "fine_max_speed_rps": 0,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/powder_profiles/7": {
   "saved": true,
@@ -3040,7 +3630,9 @@
   "fine_ki": 0,
   "fine_kd": 0,
   "fine_min_speed_rps": 0,
-  "fine_max_speed_rps": 0
+  "fine_max_speed_rps": 0,
+  "fine_weight_per_turn": null,
+  "coarse_weight_per_turn": null
  },
  "/api/v1/settings/gate": {
   "saved": true,
