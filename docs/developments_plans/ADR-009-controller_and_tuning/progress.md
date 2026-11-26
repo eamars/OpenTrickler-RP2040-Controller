@@ -1341,3 +1341,47 @@ The review of PR #138 (`logs/review/adr009_pr_review_2026-11-27.md`): its "To fi
 - U3: Back at the result discarding without asking.
 - O1: the cup's weight measured and used by nothing.
 - O2: issue #12.
+
+## 2026-11-27, 10:45: the owner's decisions on the review built (built, no unit)
+
+**The owner:** "All recommended" (2026-11-27), for the nine findings the review left to the owner (`logs/review/adr009_pr_review_2026-11-27.md`, "The owner's to decide"): each built as recommended there.
+
+**The tuner (T1, T2):**
+- **T1, what the tuner times.** The fine tube's part of a throw, from the coarse tube's stop to the throw's, in place of the whole throw (`charge_mode.cpp` takes the coarse stop's tick; 0 for a throw ended before the coarse tube stopped; `step2.py`'s `fine_part_s`). The whole throw's time grows with the charge, and its limit of 10 s then kept the tuner from the tolerance: on the twin at 60 gr (rig f2, the bench's gains) kp 1.33 threw 64 to 72% within the tolerance at 10.4 to 11.1 s and was put back each time as past the time.
+- **Its limit, 8 s on the fine tube's part** (`CHARGE_TUNER_TIME_MOST_S`; my choice of the value: the owner's 10 s for a throw as it stood at the 10 gr it was judged at, where the coarse tube's part is 1.7 s on both rigs). `tools/charge_sim/step2_limit_study.py`, 500 throws from the bench's gains, four sessions a line, the last 100 throws of each:
+
+  | Rig, charge | 10 s on the whole throw (as built) | 8 s on the fine tube's part | 10 s on the fine tube's part |
+  |---|---|---|---|
+  | f2, 10 gr | 68% good, 7.0 s | 68%, 7.0 s (the same gains on each session) | 70%, 7.8 s |
+  | f2, 42.5 gr | 66%, 9.7 s | 76%, 11.3 s | 75%, 12.7 s |
+  | f2, 60 gr | 44%, 8.9 s | 66%, 11.2 s | 67%, 12.2 s |
+  | night, 10 gr | 63%, 8.4 s | 63%, 8.4 s (the same gains on each session) | 68%, 10.4 s |
+  | night, 42.5 gr | 41%, 9.1 s | 57%, 10.7 s | 61%, 12.3 s |
+  | night, 60 gr | 31%, 9.0 s | 54%, 12.4 s | 56%, 14.6 s |
+
+  At 6 s on the fine tube's part the shares fall (f2 65, 68, 59%; night 56, 54, 49%). So 8 s changes nothing at 10 gr, where the owner accepted the tuner's result on the bench, and at heavier charges buys 10 to 23 points of throws within the tolerance for 1.5 to 3.4 s a throw. The times in the table are the whole throw's.
+- **T2, a change of target.** The tuner begins afresh from the profile's gains when the target changes, as at a change of powder (`charge_step2_configure`): its window and its kept gains' throws are one target's. Before, on the twin, 42.5 gr and then 10 gr: the first 10 gr window was "kept (76% in 6.3 s against 76% in 9.7 s)" and stored, quicker only because the charge was smaller. A person who changes the target every few throws gets no tuning: no window of 25 closes.
+- The console's line says both times: `Charge: throw N at rest, W of T in S s, the fine tube's part F s` (`step2_windows.py` reads it as before). `auto_tune`'s line in the table and api_v1.md say the timing and the restart.
+
+**The charge with both switches off (C3):** a throw borrows no room and does none of the forecast's work. The controller started with no room (`charge_controller_start`, room NULL) keeps no parcel, no reading and no weight a turn: the PIDs, the stops and the back-off only; with the forecast on and no room it refuses. The charge mode borrows the room at the first throw that uses it (the forecast or the tuner on) and keeps it until the charge ends; "No memory" is now that throw's fault alone. So a unit as it comes from v1.21 takes no heap for a charge (30 KB before, beside the update's poll on the Pico W) and decides a stop without the forecast's work (62 ms a reading at most on the Pico W, measured with the forecast on).
+
+**The calibration's screens (U3, U4, U5, O1)** (commits `451db34`, `22f9036`):
+- **U5, the offer under Charge.** "Calibrate this unit" below Charge on the main menu, shown until the cup and the scale are calibrated: a unit from v1.21 opens on Charge under the first click.
+- **U4, a powder chosen from a list.** Settings › Calibration › Powder opens the eight powders by name (`settings/calibration/powder`), the charge's focused first; a click calibrates the one chosen (`calibration_request_start` with its profile), the charge's powder left as it is.
+- **U3, Back at the result asks.** On the 12864, at the result only, Back opens "Discard what was found?" (`calibration/discard`), Cancel focused: Cancel goes back to the result as it was, Discard stops the job; every other step's Back stops as before. On the web, Esc is no way out at the result, and Discard asks in the page's confirmation, the same words. Seen on the stand-in: Esc kept the result; Cancel kept it; Discard ended the part.
+- **O1, no lift.** The cup's part fills straight after the zero: the `lift` and `back` steps gone from the job, the screen, the web, the API's step list and schema and api_v1.md; the `cup_weight` setting out of the charge's table and the calibration's replies. The field stays in the charge record with its default, unused. The calibration's own test of a cup lifted mid-run (2 below its zero) is unchanged. Seen on the stand-in: zeroing, then fill.
+- On the way: the web's calibration sheet opens again if a browser closes it on Esc while its part runs (a browser with no click on the page yet closes it whatever the page asks).
+
+**The record (O2, O3):** issue #12 stays open for its step 3 (the coarse tube's overthrow); its note is drafted (`logs/review/issue_12_note_draft.md`) and posted at the owner's word. The API's test throw and recordings, reserved for ADR-009 and not built by it, are handed on by name in `HANDOVER.md` and marked so in api_v1.md.
+
+**Checked on the PC:**
+- `tests/step2_sim.py` VERDICT PASS (`logs/review/step2_sim_after_decisions.out`): the forecast on, 1,500 throws, the same stop on every one; the forecast off against main's loop, 1,000 throws on four rigs, every other session with no room lent, the same stop on every one and the speeds within 3.2e-8 rev/s; the tuner given the fine tube's part, 30 cases, the same steps as the Python window for window.
+- `host_test`, `calibration_sim`, `release_records` each VERDICT PASS; the mock sheet drawn again.
+- Both boards built, no new warning: the Pico W's image 916.2 KB of its slot's 1,016 KB (90%), RAM 252.1 KB at link time by `size_report.py` (as before these changes); the Pico 2 W's 902.0 KB (50%).
+
+**None of it has run on a unit.** Wanted on one, when the owner says the bench is ready:
+- a charge cycle with both switches off, and `stats` after it: `charge_heap_low` near the quiet heap (no room borrowed), `charge_reading_us` small;
+- a charge with the tuner on: the `at rest` line's fine part, a window closed, and the tuner beginning afresh at a change of target;
+- `menu_tour`, with `settings/calibration/powder` and `calibration/discard` new and `settings/calibration` changed (and `main` on a unit not calibrated) saved into each board's baseline; `reach`;
+- from the screen: a cup's part (zero, then the fill), a powder's part from the list (the profile chosen calibrated, the charge's powder unchanged), Back at a result with Cancel and with Discard;
+- on the Pico W, memory being the point of C3: a soak, as ADR-009's last one.

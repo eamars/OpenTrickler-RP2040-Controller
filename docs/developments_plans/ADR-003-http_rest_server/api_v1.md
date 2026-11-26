@@ -289,7 +289,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
 | `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
 | ~~`cup_weight`~~ | | | Removed from the settings (the PR's review, O1, 2026-11-27): nothing set it or read it once the cup's part lost its lift. The record keeps the field, unused | | |
-| `auto_tune` | boolean | | false by default (ADR-009, 2026-11-27). After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then quicker ones, better ones kept into the powder's profile, stored, their writes `by` unit; at the first window's end a coarse Kp whose gain (Kp x the powder's `coarse_weight_per_turn` x the scale's middle lag) is above 0.4 is tried at 0.4 through the second window with the fine gains put right, and kept the same way (ADR-009, 2026-11-26); off, the profile is never changed (ADR-009, step 2) | the next throw | new |
+| `auto_tune` | boolean | | false by default (ADR-009, 2026-11-27). After each window of 25 throws the fine Kp and Kd move toward more throws within the tolerance, then quicker ones (a window is timed by the fine tube's part of its throws, from the coarse tube's stop; a median past 8 s loses), better ones kept into the powder's profile, stored, their writes `by` unit; a change of target, of powder or of the gains begins it afresh from the profile's gains (the PR's review, T1 and T2, 2026-11-27); at the first window's end a coarse Kp whose gain (Kp x the powder's `coarse_weight_per_turn` x the scale's middle lag) is above 0.4 is tried at 0.4 through the second window with the fine gains put right, and kept the same way (ADR-009, 2026-11-26); off, the profile is never changed (ADR-009, step 2) | the next throw | new |
 | `forecast` | boolean | | false by default (ADR-009, 2026-11-27). On: the fine trickler's PID steers on the reading and the powder still falling, held slow enough that what is falling never passes the target, and a throw whose fine powder stops coming ends on the fault "Fine: no powder". Off: the PID on the reading alone, as main's loop (its integral still held at the speed limits) | the next throw | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
@@ -399,6 +399,8 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | Waiting for news in place of polling | ADR-008, ADR-009 | `?wait=` on the event log, or a push channel |
 
 ## Experiments and recordings, for ADR-009 (reserved)
+
+**Not built by ADR-009** (the PR's review, O3, 2026-11-27): ADR-009 closed with its own calibration job and its tuner on the unit, and built neither the test throw nor the recordings below. They stay reserved as written, handed on in `HANDOVER.md` ("Handed on by ADR-009") until an ADR takes them. Until then a client tunes by each throw's `finished` (result, weight, elapsed_s), the live weight on the stream and the settings; a value it tries is a PATCH, live for a person's next charge until put back.
 
 ADR-009's step 1 built its calibration as its own job (Calibration, above), its cup a part of it: the cup's resource reserved here is not built by it.
 

@@ -58,7 +58,8 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 **Handed on by ADR-009** (2026-11-27), each first when its unit is at hand:
 - the Pico 2 W's run of the `-Os` build (the Pico SDK's RP2350 code, its slots and PIO, at `-Os`): flash, the settings compared, a charge cycle, a slot trial; the owner let the PR go on the Pico W's proof;
 - an update over Wi-Fi on the `-Os` build (the SDK's flash writes, lwIP and the cyw43 driver at `-Os`): neither unit has run one;
-- N16, step 1's weights carrying no unit: left as it is by the owner, a design question.
+- N16, step 1's weights carrying no unit: left as it is by the owner, a design question;
+- **the API's test throw and its recordings** (api_v1.md, "Experiments and recordings", reserved for ADR-009 on 2026-11-15 and not built by it; the PR's review, O3): a throw with settings for that throw alone, and its record (a summary, its samples). Without them an agent on the API tunes by each throw's result, weight and time, as the unit's own tuner does, and cannot see why a throw missed or try a gain without writing it. Not placed yet: into ADR-014, which changes the charge's API anyway, or an ADR of its own, the owner's to say; it stays in this list until it is in one. First of it: the throw's `finished` grown by the coarse stop's time and the weight at the stop (the charge mode has the first since the review's T1).
 
 1. ~~`git fetch`, and compare with `origin/main`.~~ Done 2026-11-14: the branch holds all of origin/main; the local `main` was moved up to it.
 2. ~~Ask the owner whether the bench is ready.~~ Done 2026-11-14: ready, SWD and motors included, hopper empty. The bench is a Pico W reached by a debug probe on SWD only, with an A&D FX-300i; see ADR-001's "The bench". ADR-001 is revised for it (F5), approved the same day.
