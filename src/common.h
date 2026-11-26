@@ -84,6 +84,13 @@ bool config_defaults_held(uint16_t addr);
 bool save_config_now(uint16_t addr, void * cfg, size_t size);
 // What the EEPROM holds of a record, its CRC checked; nothing written. False when it does not read
 bool config_read_stored(uint16_t addr, void * cfg, size_t size);
+/*
+ * What is stored of a part of a record (a powder of the eight, a motor of the two, or a whole record), as this version
+ * reads it: on an update's trial the write held, else the record read with its CRC checked (the review's S1: a raw
+ * read gave an earlier version's bytes at this version's offsets). False when no record read or stored at the start
+ * holds it, or it does not read
+ */
+bool config_read_part(uint16_t addr, void * out, size_t size);
 
 /**
  * @brief Whether the struct in RAM is what was last stored at that address, or read from it at the start: their

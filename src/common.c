@@ -127,25 +127,29 @@ uint32_t software_crc32(void * data, size_t length) {
 
 /*
     The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
-    against it, so a write from the menu or the console counts as one from the web does. One entry an address.
+    against it, so a write from the menu or the console counts as one from the web does. One entry an address, with
+    the record's size, so a part of it can be read back as stored (config_read_part).
 */
 #define CONFIG_STORED_MAX 16
 static struct {
     uint16_t addr;
+    uint16_t size;
     uint32_t crc;
 } config_stored[CONFIG_STORED_MAX];
 static size_t config_stored_count = 0;
 
 
-static void config_stored_set(uint16_t addr, uint32_t crc) {
+static void config_stored_set(uint16_t addr, uint32_t crc, size_t size) {
     for (size_t idx = 0; idx < config_stored_count; idx += 1) {
         if (config_stored[idx].addr == addr) {
             config_stored[idx].crc = crc;
+            config_stored[idx].size = (uint16_t) size;
             return;
         }
     }
     if (config_stored_count < CONFIG_STORED_MAX) {
         config_stored[config_stored_count].addr = addr;
+        config_stored[config_stored_count].size = (uint16_t) size;
         config_stored[config_stored_count].crc = crc;
         config_stored_count += 1;
     }
@@ -190,7 +194,7 @@ static bool config_hold(uint16_t addr, const void * cfg, size_t size, bool defau
     }
     memcpy(config_held[idx].data, cfg, size);
     config_held[idx].defaults = config_held[idx].defaults || defaults;
-    config_stored_set(addr, software_crc32((void *) cfg, size));
+    config_stored_set(addr, software_crc32((void *) cfg, size), size);
     printf("Config: on trial, the write at 0x%04x held until the update is confirmed\n", addr);
     return true;
 }
@@ -239,6 +243,33 @@ bool config_read_stored(uint16_t addr, void * cfg, size_t size) {
     }
     free(buf);
     return is_ok;
+}
+
+
+bool config_read_part(uint16_t addr, void * out, size_t size) {
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        uint16_t record = config_stored[idx].addr;
+        size_t record_size = config_stored[idx].size;
+        if (addr < record || addr + size > record + record_size) {
+            continue;
+        }
+        size_t offset = addr - record;
+        // On a trial, what is stored is the write held: the EEPROM may still hold an earlier version's record
+        for (size_t held = 0; held < config_held_count; held += 1) {
+            if (config_held[held].addr == record) {
+                memcpy(out, config_held[held].data + offset, size);
+                return true;
+            }
+        }
+        uint8_t *whole = malloc(record_size);
+        bool is_ok = whole != NULL && config_read_stored(record, whole, record_size);
+        if (is_ok) {
+            memcpy(out, whole + offset, size);
+        }
+        free(whole);
+        return is_ok;
+    }
+    return false;
 }
 
 
@@ -429,7 +460,7 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
         // Copy from buffer to config
         memcpy(cfg, buf, size);
         free(buf);
-        config_stored_set(addr, calculated_crc32);
+        config_stored_set(addr, calculated_crc32, size);
     }
 
     return true;
@@ -471,7 +502,7 @@ bool save_config_now(uint16_t addr, void * cfg, size_t size) {
     }
     else {
         printf("Configuration write successfully\n");
-        config_stored_set(addr, calculated_crc32);
+        config_stored_set(addr, calculated_crc32, size);
     }
 
     free(buf);

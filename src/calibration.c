@@ -36,6 +36,7 @@
 #define CALIBRATION_DETENT_TURNS 0.25f  // a detent of the knob while filling: 2.5 gr of AR2209, 0.125 s at 2 rev/s
 #define CALIBRATION_BACK_GR 0.5f        // put back: within this of zero, and steady
 #define CALIBRATION_MARGIN_MOST 1.0f    // the most the steady and zero margins hold (their settings' max)
+#define CALIBRATION_PER_TURN_MOST 100.0f    // the most a powder's weight a turn holds (its setting's max)
 
 extern charge_mode_config_t charge_mode_config;
 extern scale_config_t scale_config;
@@ -738,6 +739,20 @@ static void setting_text(char *text, size_t room, float value, float scale) {
 }
 
 
+// A tube's weight a turn worth keeping: measured, and within what its setting holds (else a line, and not kept)
+static bool kept_per_turn(float per_turn, const char *tube) {
+    if (!isfinite(per_turn) || per_turn <= 0.0f) {
+        return false;
+    }
+    if (per_turn > CALIBRATION_PER_TURN_MOST) {
+        printf("Calibration: the %s tube's weight a turn %.4g is past what the setting holds: not kept\n", tube,
+               (double) per_turn);
+        return false;
+    }
+    return true;
+}
+
+
 bool calibration_save(activity_by_t by) {
     activity_lock();
     bool at_result = running && status.step == CALIBRATION_STEP_RESULT;
@@ -782,8 +797,9 @@ bool calibration_save(activity_by_t by) {
             snprintf(text, sizeof(text), "%.4f", (double) found.fine.least_rps);
             why = settings_write_by(path, "fine_min_speed_rps", text, by);
         }
-        // The fine tube's weight a turn where it streams: step 2's first figure for this powder
-        if (why == NULL && isfinite(found.fine.stream_per_turn) && found.fine.stream_per_turn > 0.0f) {
+        // The fine tube's weight a turn where it streams: step 2's first figure for this powder. One past what the
+        // setting holds is left out with a line, as the margins are, not a Save refused whole (the review's N11)
+        if (why == NULL && kept_per_turn(found.fine.stream_per_turn, "fine")) {
             snprintf(text, sizeof(text), "%.4f", (double) found.fine.stream_per_turn);
             why = settings_write_by(path, "fine_weight_per_turn", text, by);
         }
@@ -792,7 +808,7 @@ bool calibration_save(activity_by_t by) {
             why = settings_write_by(path, "coarse_min_speed_rps", text, by);
         }
         // The coarse tube's, measured by the same part (ADR-009, 2026-11-26)
-        if (why == NULL && isfinite(found.coarse.stream_per_turn) && found.coarse.stream_per_turn > 0.0f) {
+        if (why == NULL && kept_per_turn(found.coarse.stream_per_turn, "coarse")) {
             snprintf(text, sizeof(text), "%.4f", (double) found.coarse.stream_per_turn);
             why = settings_write_by(path, "coarse_weight_per_turn", text, by);
         }

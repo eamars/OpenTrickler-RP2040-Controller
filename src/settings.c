@@ -9,6 +9,7 @@
 
 #include "activity.h"
 #include "api_v1.h"
+#include "common.h"
 #include "eeprom.h"
 #include "unit_id.h"
 #include "events.h"
@@ -303,7 +304,7 @@ static bool part_saved(const settings_resource_t *resource, int32_t id) {
         return true;
     }
     uint8_t stored[SETTINGS_STRUCT_MAX];
-    if (resource->size > sizeof(stored) || !eeprom_read(part_addr(resource, id), stored, resource->size)) {
+    if (resource->size > sizeof(stored) || !config_read_part(part_addr(resource, id), stored, resource->size)) {
         return false;
     }
     return memcmp(stored, resource->live(id), resource->size) == 0;
@@ -944,7 +945,7 @@ static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome
             int32_t first = resource_has_ids(resource) ? 0 : -1;
             int32_t last = resource_has_ids(resource) ? resource->id_count - 1 : -1;
             for (int32_t id = first; id <= last; id += 1) {
-                if (!eeprom_read(part_addr(resource, id), stored, resource->size)) {
+                if (!config_read_part(part_addr(resource, id), stored, resource->size)) {
                     fail(outcome, 500, "failed", NULL, "the EEPROM could not be read");
                     goto done;
                 }

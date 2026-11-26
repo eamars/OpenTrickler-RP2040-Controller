@@ -127,6 +127,27 @@ static void powders(void) {
     check(config_read_stored(POWDERS_ADDR, &back, sizeof(back)) && memcmp(&back, &now, sizeof(now)) == 0,
           "and stored at the new size");
 
+    // A part read back as stored (the review's S1): a powder as this version holds it, not the raw bytes at its offset
+    profile_t part;
+    size_t second = offsetof(eeprom_profile_data_t, profiles) + sizeof(profile_t);
+    check(config_read_part(POWDERS_ADDR + second, &part, sizeof(part)) && memcmp(&part, &now.profiles[1], sizeof(part)) == 0,
+          "a powder read back as stored, at this version's offsets");
+
+    // On an update's trial the EEPROM still holds v1.21's block: the part read back is the write held
+    fake_eeprom_erase();
+    save_config_now(POWDERS_ADDR, &old, sizeof(old));
+    config_hold_writes(true);
+    ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout, REV);
+    check(ok && config_read_part(POWDERS_ADDR + second, &part, sizeof(part)) &&
+          memcmp(&part, &now.profiles[1], sizeof(part)) == 0 && strcmp(part.name, "Powder1") == 0,
+          "on a trial, a powder read back is the write held, not v1.21's bytes");
+    uint16_t trial_reset[4];
+    config_write_held(trial_reset, 4);
+
+    // A record damaged since: nothing read back
+    fake_eeprom_bytes()[POWDERS_ADDR + 10] ^= 0x5A;
+    check(!config_read_part(POWDERS_ADDR + second, &part, sizeof(part)), "a damaged record reads nothing back");
+
     // A later version's powders, a field appended to each: this one's fields read, the rest discarded
     static profiles_later_t later;
     memset(&later, 0, sizeof(later));
@@ -201,7 +222,7 @@ int main(void) {
           v2_is(&read_back, 1.5f, 2.5f, -1.0f, -1.0f), "confirmed, it is written at the new size and no reset is said");
 
     // A later version's record, its fields appended after ours (the owner, 2026-11-26: forward compatibility): ours
-    // read, the rest ignored, nothing written
+    // read, the rest discarded, and stored at once at this version's size
     record_v2_t later = {.rev = 0, .a = 7.0f, .b = 8.0f, .c = 9.0f, .d = 10.0f};
     fake_eeprom_erase();
     save_config_now(ADDR, &later, sizeof(later));

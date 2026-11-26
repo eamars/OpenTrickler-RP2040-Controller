@@ -775,13 +775,15 @@ void charge_mode_wait_for_complete() {
 
 
 /*
-    How far below zero the reading goes before the cup counts as lifted: half the cup's weight, step 1's cup part
-    (ADR-009, 2026-11-26: a fixed 10 assumed grains, and a cup under 10 g on a scale in grams was never seen lifted);
-    10, as before, on a unit whose cup was never weighed
+    How far below zero the reading goes before the cup counts as lifted: CHARGE_CUP_LIFT_MARGINS of the zero margin,
+    which the scale's calibration sets from the scale's own step (ADR-009, 2026-11-26). A finished charge reads
+    positive, so a steady reading that far below zero is the cup off, whatever the cup weighs and whatever the unit. A
+    fixed 10 assumed grains (a cup under 10 g on a scale in grams was never seen lifted); half the cup's weight, tried
+    first, waited for ever with a cup lighter than the one weighed, or a unit changed since (the review's S2)
 */
+#define CHARGE_CUP_LIFT_MARGINS 10.0f
 static float charge_mode_cup_lift(void) {
-    float cup = charge_mode_config.eeprom_charge_mode_data.cup_weight;
-    return cup > 0.0f ? cup / 2.0f : 10.0f;
+    return CHARGE_CUP_LIFT_MARGINS * charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
 }
 
 
@@ -879,7 +881,7 @@ void charge_mode_wait_for_cup_removal() {
         // Generate stop condition
         if (data_buffer.getCounter() >= 5) {
             if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
-                data_buffer.getMean() + charge_mode_cup_lift() < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
+                data_buffer.getMean() < -charge_mode_cup_lift()){
                 break;
             }
         }
