@@ -105,3 +105,56 @@ The Pico 2 W was not on the probe. Its image is its baseline's, symbol for symbo
 - **Three of the image's own paths** are not any third-party's and went from the modules: the board's header folder (`targets/`), the PIO headers the build makes, and the roots' header (`https/`). Gate 3 gives each to the module that uses it (the board, `platform/rp2`, `update_fetch`).
 - **Every compile command compared** is how gate 3 is judged beside the symbols: the script used here is `build_adr006/cc_compare.py`, not kept in the tree; gate 3 makes it a tool if it is used again.
 - **The third-party `-Os` rule** names the target `app` and holds for targets made in the root folder. It was untouched here, the image still compiling the SDK's sources itself. Gate 3 must keep the image a target of the root folder, or move the rule with it.
+
+## Gate 2: the move
+
+2026-11-27, approved by the owner with the layout ("I'd like to work on gate 2 as approved"). The layers under `src/`, asked of the owner before anything moved. Commit bd00cf0.
+
+**The verdict: every file is in its module's folder, and both boards' images are symbol for symbol what they were.**
+
+### What was done
+
+- **138 files moved by `git mv`**, each a rename to git: 134 from `src/` (the portal's twelve among them) and the four of `targets/`. None changed but four, in a comment that names a path.
+- **Which headers are for others was worked out, not chosen:** a header included from outside its module, or by such a header of its own module, went to the module's `include/`; the settings headers that third-party code finds by name (`lv_conf.h`, `FreeRTOSConfig.h`, `lwipopts.h`, `mbedtls_config.h`) with them. 51 of 54. Three are a module's own: `dnsserver.h`, `generic_scale.h`, `remote_control.h`.
+- **The build:** the sources found two folders down (`src/*/*/*.c`), every module's `include/` on the one include path. No `#include` line changed. Gate 1's two modules are built from their new places, `platform/rp2/fault_handler.c` and `services/events/events.c`.
+- **What names a path followed, in the same commit:** the build files and the flash layout's; `scripts/web_build.py`; `tests/host_test.py`, `step2_sim.py`, `calibration_sim.py` (their sources and include paths); `tests/release_records.py` (today's headers by their new paths, v1.21's by its flat `src/`, and its search for a stored struct not listed, two folders down); `tests/features_check.py`; `tools/size_report.py` (the pages' part); and 52 mentions of a moved file's path in AGENTS.md, the skills, the tools and comments. The ADRs' own records were left as they were written.
+- **Left where they were:** `fonts/` and `scripts/`, which the PC's mock tools read too; `src/generated/`; the bootloader's folder.
+
+The two scripts that did it are on this PC only (`build_adr006/move.py`, `repath.py`): they have run, and git holds what they did.
+
+### The proofs, on the PC
+
+Against gate 1's images (`build_adr006/after_w`, `after_2w`):
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Symbols | 4,688, `VERDICT PASS` | 4,693, `VERDICT PASS` |
+| `app.bin` | 938,436 bytes, 120 more | 923,796 bytes, 96 more |
+| Bootloader | byte for byte the same | none |
+
+- **The bytes:** an image stores eight source paths, for its asserts. They are 111 bytes longer in all; the rest is padding.
+- **Every compile command, before against after** (844 sources on the Pico W, 841 on the Pico 2 W): no source's definitions, options or third-party include paths changed. Only our own include paths did: `src` and `targets` gone, the modules' `include/` folders in their place.
+- **The build's warnings** are main's own five kinds, none new.
+- `tools/size_report.py`: the same parts (the Pico W 915.1 KB of its 1,016 KB slot), the pages still told apart at 41.6 KB.
+- `tests/host_test.py`, `release_records.py` (every record still read against v1.21's), `features_check.py`, `calibration_sim.py`: `VERDICT PASS`.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner). The images rebuilt from the commit: the unit runs 2.0.3-291 at bd00cf0.
+
+- **`pulses`: `VERDICT PASS`**, the three faults; the cup 0.0 gr before and after.
+- **`menu_tour --compare tests/menu_baseline/pico_w`: `VERDICT PASS`**, 14 pages the same and 3 not judged. The baseline's `settings/display` had been saved again first, at the owner's word (commit 4c75a82): its picture had the rotation the unit stored before ADR-008's gate 4, and failed every tour, on main's firmware too.
+- **`charge_cycle`: `VERDICT PASS`**, 30.000 for a target of 30.000, 13.0 s from charging to the cup prompt.
+- **The portal**, whose folder was renamed: `GET /` from the unit gives 42,286 bytes gzipped, the size the build made, 157,173 bytes of page.
+- **The unit's settings** against the copy from before gate 1: 17 resources, the same.
+
+The Pico 2 W waits, by the owner's word: the whole ADR on the Pico W first.
+
+**Gate 2 is built.**
+
+### For gate 3
+
+- A module's `REQUIRES` can be read off the tree now: what its files include, by the folder each header lies in.
+- The three headers that are a module's own will be refused to any other module from gate 3 on. Nothing else is refused until then.
+- `boards/pico_w` does not exist yet: nothing is the Pico W's alone until a board has its list.
+

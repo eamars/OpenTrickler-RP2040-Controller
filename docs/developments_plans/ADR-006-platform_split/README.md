@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27: gate 1 approved by the owner ("Approve") and built the same day, proven on the Pico W; the gates after it not approved. Drafted 2026-11-13, written again with the owner 2026-11-26 and 27, and revised later on the 27th after a second agent's review on main and the owner's direction on what later builds may add or leave out. Each module a folder of its own, built on its own with what it needs named; a board that picks its modules and their optimisation; the application apart from the chip; our code in C; a base build that carries everything of today, cut so that a later build adds or leaves out a part without touching what is shared. Nothing a user sees changes, and nothing of ADR-007 or of any other build is built here.
+Status: **Open** 2026-11-27. Gates 1 and 2 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, and every file in its module's folder. The gates after them are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -51,6 +51,12 @@ Status: **Open** 2026-11-27: gate 1 approved by the owner ("Approve") and built 
 **2026-11-27, the approval**
 - Gate 1 approved, alone: "Approve." Gate 2 waits for the layout and for the Pico 2 W's runs ADR-009 handed on; the later gates for what is under "To settle".
 - "I don't expect other agents to work in parallel so you don't need an isolated worktree."
+
+**2026-11-27, gate 2**
+- Approved, with the layout: "I'd like to work on gate 2 as approved."
+- **The Pico W first, for the whole ADR:** "Pico 2W will be tested later. I want the full ADR to be tested on the most risky target Pico W before moving on to Pico 2W." Read here as: every gate is proven on the Pico W on the probe; both boards are still built and compared on the PC at every gate, which needs no unit; the Pico 2 W's runs on the probe are gathered after the last gate. It changes AGENTS.md's "a change to the build is proven on both" for this ADR's gates, not its end.
+- **The layers lie under `src/`** (asked before the move, since a second move is what gate 2 is there to avoid): `src/` stays the firmware's one source root, and the repository's root keeps its folders. The draft read "in place of `src/`".
+- The Pico W's menu baseline for `settings/display` saved again: "Yes please update."
 
 ## Why here
 
@@ -163,7 +169,7 @@ platform/   include/ (the interfaces), rp2/            (ADR-007: esp32s3/)
 boards/     pico_w/, pico2_w/                          (ADR-007: esp32s3_pico/)
 ```
 
-Every file's place, a first draft, is in [The layout](#the-layout-a-first-draft-2026-11-27) below.
+The layers lie under `src/` (the owner, 2026-11-27): `src/app/`, `src/ui/` and so on. Every file's place is in [The layout](#the-layout-as-gate-2-built-it) below.
 
 ### Boards and the platform
 
@@ -358,6 +364,8 @@ One thing: every file in its module's folder. Still one program, built as today.
 4. Proof: the symbols as before, both boards. Then the Pico W on the probe: `flash`, `menu_tour --compare`, `charge_cycle`; the host tests and `release_records.py`. The Pico 2 W the same when it is on the probe (a change to the build: both boards).
 5. Merged by a PR of its own at once: a move costs most while other branches are open.
 
+**Built 2026-11-27** ([progress](progress.md)): 138 files moved, both boards' images symbol for symbol what they were, the Pico W's bootloader byte for byte; on the Pico W `pulses`, the menu tour against its baseline and a charge cycle pass. The Pico 2 W's run waits (the owner, above).
+
 ### Gate 3: the modules as libraries
 
 One thing: each module built on its own. No file moves.
@@ -453,7 +461,7 @@ Proof besides: `menu_tour --compare`, `charge_cycle`, `api_check`; the size by m
 
 ## How the unit shows it works
 
-After every gate, on the units it needs (AGENTS.md: the build and the platform on both boards, the rest on the unit on the probe):
+After every gate, on the Pico W on the probe (the owner, 2026-11-27: the whole ADR on the Pico W first, the riskier board; both boards built and compared on the PC at every gate; the Pico 2 W's runs after the last):
 - `rc_run.py flash`, then `menu_tour --compare` equal to the unit's baseline, snap for snap, then `charge_cycle`;
 - the size report within a few KB of before, on both boards (within 1 KB for gates 1 to 3, which change no code);
 - `release_records.py` and the host tests pass;
@@ -497,7 +505,17 @@ From the owner's direction of 2026-11-27 on later builds:
 - **The scale as one reader handed on** (above), in place of the draft's small fix. Recommended: yes.
 - **The more lines:** which the owner strikes, and what is missing.
 
-## The layout, a first draft (2026-11-27)
+## The layout, as gate 2 built it
+
+Every folder below is under `src/`. The table is the draft's of 2026-11-27, which the owner approved, with what gate 2 settled:
+- **A module's headers for others are in its `include/`**: 51 of the 54. A header no other module includes stays beside its sources (`dnsserver.h`, `generic_scale.h`, `remote_control.h`).
+- **A file a later gate splits went whole** to the module that keeps most of it: `menu.c` to `ui/menu` (its frame to the view in gate 6); `wireless.c`, `unit_id.c` and `servo_gate.c` to their services (their chip parts to `platform/rp2` in gate 7).
+- **`services/system`** is `system_control.c`, which the draft's table named only by the part gate 7 takes to the platform.
+- **`boards/common`** holds what both boards share today (the pin map, the flash layout, the third-party code's settings); `boards/pico2_w` its partition table. A board's own list of modules comes with gate 3.
+- **`platform/include`** has `update_slots.h`; the other interfaces' headers come up from `platform/rp2/include` one by one in gate 7.
+- **The portal** is `web/api/portal` (it was `src/web`, and `web/` is a layer now).
+- **`fonts/` and `scripts/` stay at the repository's root**, though the table gives the fonts to the view: `tools/ui_mock` on the PC reads the same files, and nothing of the build is clearer for moving them.
+- `src/generated/` is where the build writes, as before.
 
 Today's files by their module. A file split between a module and the platform is in both, its part named.
 
@@ -527,6 +545,7 @@ Today's files by their module. A file split between a module and the platform is
 | `services/` | `profile` | `profile.c` |
 | `services/` | `update` | `update.c` (the job, the slots' use) |
 | `services/` | `update_fetch` | `update_poll.c`, `https_client.c`, `github_roots.pem`: apart, as the part ADR-005's fallback leaves out |
+| `services/` | `system` | `system_control.c`, but for the restart and the USB loader |
 | `services/` | `wireless` | `wireless.c` but for cyw43, `access_point_mode.c`, `dnsserver.c`, `setup.c`, `unit_id.c` (its hashes) |
 | `drivers/` | `tmc2209` | `tmc2209.c`, `tmc_uart.c` |
 | `drivers/` | `uc1701` | `display.c` |
@@ -535,7 +554,7 @@ Today's files by their module. A file split between a module and the platform is
 | `common/` | `http_json` | `http_json.c` |
 | `common/` | `ring` | `FloatRingBuffer.cpp` |
 | `platform/` | `rp2` | `step_pulses.c`, `stepper.pio`, `ws2812.pio`, `gpio_irq_handler.h`, `update_slots.h` (to `include/`), `update_slots_rp2040.c`, `update_slots_rp2350.c`, `update_boot.h`, `picobin_image.c` (with the bootloader), `fault_handler.c`, `freertos_hooks.c`, `dhcpserver.c`; the restart and the USB loader of `system_control.c` (the web's clients closed first, by `app`); the cyw43 part of `wireless.c`, the servo's PWM register, the unit's unique id |
-| `boards/` | `pico_w`, `pico2_w` | `targets/` (the pin map, the flash layout, the partition table), `configuration.h`, `FreeRTOSConfig.h`, `lwipopts.h`, `lwipopts_examples_common.h`, `mbedtls_config.h` |
+| `boards/` | `common`, `pico2_w`; `pico_w` from gate 3 | `targets/` (the pin map, the flash layout, the partition table), `configuration.h`, `FreeRTOSConfig.h`, `lwipopts.h`, `lwipopts_examples_common.h`, `mbedtls_config.h` |
 
 The bootloader stays a program of its own, linking `platform/rp2`'s image reader.
 
