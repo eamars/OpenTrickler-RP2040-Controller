@@ -41,7 +41,11 @@ typedef enum {
     SCALE_DRIVER_RADWAG_PS_R2 = 6,
     SCALE_DRIVER_SARTORIUS = 7,
     SCALE_DRIVER_GENERIC_DRV = 8,
-    SCALE_DRIVER_SIMULATED = 9,
+    SCALE_DRIVER_FA_EN = 9,
+    // The remote control's stand-in and a choice for a bench with no scale. Never 9, which v1.21 released as the
+    // FA-E/EN; a stored driver's value is never renumbered or reused (AGENTS.md). Far from the real makes' run
+    // (0 to 9, and the next ones), so a make a maintenance release adds cannot meet it.
+    SCALE_DRIVER_SIMULATED = 100,
 } scale_driver_t;
 
 

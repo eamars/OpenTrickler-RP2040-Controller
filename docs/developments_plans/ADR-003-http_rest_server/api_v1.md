@@ -63,7 +63,7 @@ What may change within v1, and what a client does about it:
 | 414 | A request line over 256 bytes |
 | 415 | A write not sent as `application/json` (or `application/octet-stream` where bytes are taken) |
 | 500 | The unit failed to do it, such as a save the EEPROM did not take |
-| 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor, Sartorius, US Solid, JM Science and generic drivers cannot zero their scale (TODOs in their code); `actions` in `GET /api/v1/scale` says which can |
+| 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor, Sartorius, US Solid, JM Science, FA-E/EN and generic drivers cannot zero their scale (TODOs in their code); `actions` in `GET /api/v1/scale` says which can |
 
 **The API describes itself** (ADR-008, gate 2):
 - **A GET of an action** (a path that takes only a POST, a PUT or a PATCH) gives 200 `{"usage": <the action as the schema gives it, with an "example" body>, "see": "/api/v1/schema"}`, its `Allow` still saying what it takes. A GET still changes nothing.
@@ -319,7 +319,7 @@ The two are stored as one block, so they are saved together, and each one's `sav
 
 | Field | Type | Limits | When | Today |
 |---|---|---|---|---|
-| `driver` | choice | and_fxi, steinberg_sbs, gng_jjb, ussolid_jfdbs, jm_science, creedmoor, radwag_ps_r2, sartorius, generic, simulated | at restart (the reader task is made once; ADR-006). The stored choice: a test stand-in never shows here | `s0` (an index; an unknown one was stored) |
+| `driver` | choice | and_fxi, steinberg_sbs, gng_jjb, ussolid_jfdbs, jm_science, creedmoor, radwag_ps_r2, sartorius, generic, fa_en, simulated | at restart (the reader task is made once; ADR-006). The stored choice: a test stand-in never shows here | `s0` (an index; an unknown one was stored) |
 | `baud` | choice | 4800, 9600, 19200 | now | `s1` (an index; an unknown one set 0 baud) |
 | `format` | choice | 8n1, 7n1 | now | `s2` (an index) |
 | `settle_ms` | number or null | 0 to 30,000 ms; null: never calibrated. How long a small change takes from the reading's first move to its rest (ADR-009, step 1) | now | new |
@@ -390,7 +390,7 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | A colour or larger screen, or LVGL's frame | ADR-010 | `format` in `GET /api/v1/display`; the bytes apart at `/display/frame` |
 | Another chip | ADR-007 | `board`, `features`; what is chip-only (lwIP's pools) is under `debug` |
 | The scale's display, its fast report (TODOs in `and_scale.c`, `gng_scale.c`) | the scale drivers | `actions` in `GET /api/v1/scale`, and `POST /api/v1/scale/{action}` for each make that can |
-| Zero on scales whose drivers cannot yet (Steinberg, Creedmoor, Sartorius, US Solid, JM Science, generic: TODOs) | the scale drivers | 501 `not_supported` now; `actions` lists zero once a driver can |
+| Zero on scales whose drivers cannot yet (Steinberg, Creedmoor, Sartorius, US Solid, JM Science, FA-E/EN, generic: TODOs) | the scale drivers | 501 `not_supported` now; `actions` lists zero once a driver can |
 | The weight's unit for every make | the scale drivers | `unit`, null today but for the A&D |
 | Which unit is which, among several | OWMC's ADR-013 (the owner's review) | `hostname` and `unit_id` in the index, `GET /api/v1/network`, and the mDNS announcement with the API's and the firmware's versions |
 | The console and the API saying the same | ADR-001, the owner | One table of names for both (gate 3) |

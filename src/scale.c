@@ -26,6 +26,7 @@ extern scale_handle_t jm_science_scale_handle;
 extern scale_handle_t creedmoor_scale_handle;
 extern scale_handle_t radwag_ps_r2_scale_handle;
 extern scale_handle_t sartorius_scale_handle;
+extern scale_handle_t fa_en_scale_handle;
 extern scale_handle_t simulated_scale_handle;
 
 scale_config_t scale_config;
@@ -100,6 +101,11 @@ static void scale_use_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_GENERIC_DRV:
         {
             scale_config.scale_handle = &generic_scale_drv_handle;
+            break;
+        }
+        case SCALE_DRIVER_FA_EN:
+        {
+            scale_config.scale_handle = &fa_en_scale_handle;
             break;
         }
         case SCALE_DRIVER_SIMULATED:
@@ -260,6 +266,9 @@ const char * get_scale_driver_string() {
         case SCALE_DRIVER_GENERIC_DRV:
             scale_driver_string = "Generic Driver";
             break;
+        case SCALE_DRIVER_FA_EN:
+            scale_driver_string = "FA-E/EN";
+            break;
         case SCALE_DRIVER_SIMULATED:
             scale_driver_string = "Simulated Scale";
             break;
@@ -285,6 +294,7 @@ static const setting_choice_t scale_driver_choices[] = {
     {.held = SCALE_DRIVER_RADWAG_PS_R2, .text = "radwag_ps_r2", .label = "Radwag PS R2"},
     {.held = SCALE_DRIVER_SARTORIUS, .text = "sartorius", .label = "Sartorius"},
     {.held = SCALE_DRIVER_GENERIC_DRV, .text = "generic", .label = "Generic"},
+    {.held = SCALE_DRIVER_FA_EN, .text = "fa_en", .label = "FA-E/EN"},
     {.held = SCALE_DRIVER_SIMULATED, .text = "simulated", .label = "Simulated (no scale)", .short_label = "Simulated"},
 };
 

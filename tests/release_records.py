@@ -41,12 +41,9 @@ RECORDS = {
 PAST_LAYOUTS = {
     "eeprom_charge_mode_data_t": "src/charge_mode_layout.c (v1.19 and v2.0.0 inserted fields; ADR-009's review, B1)",
 }
-# Stored enum values whose meaning changed since v1.21, each with what closes it
-KNOWN_OPEN = {
-    ("scale_driver_t", 9): "v1.21's FA-EN; v2 gave 9 to the simulated scale (ADR-009's review, B2). Closed when v1.21 is "
-                           "merged into main with the simulated scale moved off 9 (the owner, 2026-11-26), and main "
-                           "into this branch",
-}
+# Stored enum values whose meaning changed since v1.21, each with what closes it. Empty since main's v1.21 merge
+# (#137, 2026-11-26) gave the scale driver's 9 back to FA-E/EN and moved the simulated scale to 100 (ADR-009's review, B2)
+KNOWN_OPEN = {}
 HEADERS = sorted({path for path in RECORDS.values()} | {"src/common.h"})
 
 

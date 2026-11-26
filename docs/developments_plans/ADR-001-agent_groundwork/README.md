@@ -62,7 +62,7 @@ This section was first written against a `main` that was 11 commits behind the r
 - Charge mode decides "cup removed" when the mean of five readings is below about −10, and "cup returned" at the first reading of 0 or more.
 - The motors' commanded speed is kept as `prev_velocity` in each `motor_config_t`. There is no getter.
 - *(Corrected.)* **Main already has a simulated scale** (`simulated_scale.c`, PR #107, merged 2026-07-14):
-  - it is scale driver 9, chosen like any other from the screen menu and the web page, and stored like any other;
+  - it was scale driver 9, and is 100 since 2026-11-26 (v1.21 released 9 for the FA-E/EN; see AGENTS.md, "Settings in the EEPROM"), chosen like any other from the screen menu and the web page, and stored like any other;
   - ten readings a second. While the motors turn, the weight grows by 5 gr/s for each rev/s of the coarse trickler and 1 gr/s for each of the fine one, read straight from `prev_velocity`, with ±0.05 gr of noise;
   - the weight is held at the target once it is within 0.1 gr of it, so it never overshoots;
   - three seconds after reaching the target it "removes the cup" by itself (−150 gr), and three seconds later puts it back (0), so charge mode runs cycle after cycle with nobody there;
