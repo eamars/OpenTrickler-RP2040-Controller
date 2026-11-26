@@ -167,7 +167,7 @@ class StandIn:
         profile = self.replies[f"/api/v1/powder_profiles/{index}"]
         for tube, least in (("coarse", coarse), ("fine", fine)):      # in the check's order
             if least is not None and least > profile[f"{tube}_max_speed_rps"]:
-                return f"{tube}_min_speed_rps is above {tube}_max_speed_rps"
+                return f"{tube.capitalize()} minimum speed is above its maximum"
         profile.update(fine_min_speed_rps=fine, coarse_min_speed_rps=coarse)
         return None
 

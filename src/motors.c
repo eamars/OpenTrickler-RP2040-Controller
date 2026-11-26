@@ -449,7 +449,7 @@ static const char *motor_settings_check(const void *proposed, int32_t id, const 
     const motor_persistent_config_t *config = proposed;
     if (config->min_speed_rps > config->max_speed_rps) {
         *field = "min_speed_rps";
-        return "min_speed_rps is above max_speed_rps";
+        return "Minimum speed is above the maximum speed";
     }
     return NULL;
 }

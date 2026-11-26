@@ -169,11 +169,11 @@ static const char *profile_settings_check(const void *proposed, int32_t id, cons
     }
     if (profile->coarse_min_flow_speed_rps > profile->coarse_max_flow_speed_rps) {
         *field = "coarse_min_speed_rps";
-        return "coarse_min_speed_rps is above coarse_max_speed_rps";
+        return "Coarse minimum speed is above its maximum";
     }
     if (profile->fine_min_flow_speed_rps > profile->fine_max_flow_speed_rps) {
         *field = "fine_min_speed_rps";
-        return "fine_min_speed_rps is above fine_max_speed_rps";
+        return "Fine minimum speed is above its maximum";
     }
     return NULL;
 }
