@@ -5,6 +5,7 @@
 #include <task.h>
 
 #include "events.h"
+#include "rtos_port.h"
 #include "setup.h"
 
 static const char *const setup_step_names[] = {"code", "wifi", "scale", "motors", "ready", "done"};
@@ -21,12 +22,12 @@ setup_step_t setup_step(void) {
 
 
 void setup_network(char *out, size_t room) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     size_t len = strnlen(setup_network_chosen, sizeof(setup_network_chosen));
     len = len < room - 1 ? len : room - 1;
     memcpy(out, setup_network_chosen, len);
     out[len] = '\0';
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 
@@ -37,7 +38,7 @@ uint32_t setup_changes(void) {
 
 void setup_set_step(setup_step_t step, const char *network, activity_by_t by) {
     size_t len = network != NULL ? strnlen(network, sizeof(setup_network_chosen) - 1) : 0;
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool changed = step != setup_now || len != strlen(setup_network_chosen) ||
                    (len > 0 && memcmp(setup_network_chosen, network, len) != 0);
     setup_now = step;
@@ -48,7 +49,7 @@ void setup_set_step(setup_step_t step, const char *network, activity_by_t by) {
     if (changed) {
         setup_change_count += 1;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (changed) {
         event_t event = {.source = EVENT_SOURCE_SETUP, .kind = EVENT_STEP, .by = (uint8_t) by,
                          .text = setup_step_names[step]};

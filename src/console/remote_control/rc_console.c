@@ -10,6 +10,7 @@
 #include <task.h>
 
 #include "chip.h"
+#include "rtos_port.h"
 
 #include "rc_console.h"
 #include "remote_control.h"
@@ -29,7 +30,7 @@
 // RTT has no interrupt, so the console is polled. A line of 128 characters arrives within a few polls
 #define RC_CONSOLE_POLL_MS 20
 
-#define RC_CONSOLE_TASK_STACK 768       // words: 2,164 bytes used under ADR-008's full workload
+#define RC_CONSOLE_TASK_STACK_BYTES 3072     // 2,164 used under ADR-008's full workload
 #define RC_CONSOLE_TASK_PRIORITY 2      // below the menu (6) and the modes
 
 // A test build (-DRC_TEST_FAULT=1 or 2, see CMakeLists.txt) faults this long after start-up
@@ -135,15 +136,14 @@ static void rc_test_fault_task(void *p) {
 
 
 bool rc_console_init(void) {
-    BaseType_t rtos_return = xTaskCreate(rc_console_task, "RC Console", RC_CONSOLE_TASK_STACK, NULL,
-                                         RC_CONSOLE_TASK_PRIORITY, NULL);
-    if (rtos_return != pdPASS) {
+    if (!rtos_task_start(rc_console_task, "RC Console", RC_CONSOLE_TASK_STACK_BYTES, NULL, RC_CONSOLE_TASK_PRIORITY,
+                         NULL)) {
         printf("Unable to create the remote control's console task\n");
         return false;
     }
 
 #ifdef RC_TEST_FAULT
-    xTaskCreate(rc_test_fault_task, "RC Test Fault", 512, NULL, RC_CONSOLE_TASK_PRIORITY, NULL);
+    rtos_task_start(rc_test_fault_task, "RC Test Fault", 2048, NULL, RC_CONSOLE_TASK_PRIORITY, NULL);
 #endif
 
     return true;

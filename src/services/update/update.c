@@ -30,6 +30,7 @@
 #include "http_json.h"
 #include "system_control.h"
 #include "jobs.h"
+#include "rtos_port.h"
 #include "update_slots.h"
 #include "version.h"
 #include "wireless.h"
@@ -762,16 +763,16 @@ static update_refusal_t update_image_end_in(uint32_t token, int *status) {
 static volatile int update_sector_users = 0;
 
 static void update_sector_enter(void) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     update_sector_users += 1;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 
 static void update_sector_leave(void) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     update_sector_users -= 1;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 

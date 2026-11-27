@@ -7,6 +7,7 @@
  * What it reads, the list of releases and the manifest, is read as it comes and never held whole (update_json_*).
  */
 #include "update_poll.h"
+#include "rtos_port.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +30,7 @@
 #include "update.h"
 #include "wireless.h"
 
-#define UPDATE_POLL_TASK_STACK_WORDS 1280       // a poll used 3,352 bytes, over HTTPS or HTTP (progress.md, gate 5)
+#define UPDATE_POLL_TASK_STACK_BYTES 5120       // a poll used 3,352, over HTTPS or HTTP (progress.md, gate 5)
 #define UPDATE_POLL_TASK_PRIORITY 2             // below the web server (3): a handshake is seconds of arithmetic
 #define UPDATE_POLL_DEFAULT_SOURCE "https://github.com/eamars/OpenTrickler-RP2040-Controller"
 // The bench host, asked before the stored source, as the Open Weapon Mount Computer's units ask theirs (ADR-010, gate
@@ -661,8 +662,8 @@ update_poll_ask_t update_poll_ask(void) {
     update_poll_now.state = UPDATE_POLL_CHECKING;
     update_poll_now.error[0] = '\0';
     xSemaphoreGive(update_poll_mutex);
-    if (xTaskCreate(update_poll_task, "Update poll", UPDATE_POLL_TASK_STACK_WORDS, NULL, UPDATE_POLL_TASK_PRIORITY,
-                    NULL) != pdPASS) {
+    if (!rtos_task_start(update_poll_task, "Update poll", UPDATE_POLL_TASK_STACK_BYTES, NULL, UPDATE_POLL_TASK_PRIORITY,
+                         NULL)) {
         xSemaphoreTake(update_poll_mutex, portMAX_DELAY);
         update_poll_running = false;
         update_poll_now.state = UPDATE_POLL_FAILED;

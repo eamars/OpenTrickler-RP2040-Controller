@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "chip.h"
+#include "rtos_port.h"
 
 #include "configuration.h"
 #include "scale.h"
@@ -416,7 +417,7 @@ bool scale_init() {
     set_scale_driver(scale_config.persistent_config.scale_driver);
 
     // Create the Task for the listener loop. Its handle is kept so the simulation can stand in for it
-    xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, &scale_task_handle);
+    rtos_task_start(scale_config.scale_handle->read_loop_task, "Scale Task", 1024, NULL, 9, &scale_task_handle);
 
     // Register to eeprom save all
     eeprom_register_handler(scale_config_save);
@@ -443,8 +444,8 @@ bool scale_simulation_start(void) {
     simulated_scale_handle.force_zero();
     scale_use_driver(SCALE_DRIVER_SIMULATED);
 
-    if (xTaskCreate(simulated_scale_handle.read_loop_task, "Sim Scale Task", configMINIMAL_STACK_SIZE, NULL, 9,
-                    &scale_simulation_task_handle) != pdPASS) {
+    if (!rtos_task_start(simulated_scale_handle.read_loop_task, "Sim Scale Task", 1024, NULL, 9,
+                         &scale_simulation_task_handle)) {
         scale_simulation_task_handle = NULL;
         scale_use_driver(scale_simulation_stored_driver);
         vTaskResume(scale_task_handle);

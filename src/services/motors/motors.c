@@ -12,6 +12,7 @@
 #include "configuration.h"
 #include "hardware/gpio.h"
 #include "chip.h"
+#include "rtos_port.h"
 #include "step_pulses.h"
 #include "fault_handler.h"
 
@@ -932,10 +933,10 @@ void motors_init(void) {
     driver_setup(&coarse_trickler_motor_config);
     driver_setup(&fine_trickler_motor_config);
 
-    if (xTaskCreate(motor_control_task, "Motors", configMINIMAL_STACK_SIZE, NULL, MOTOR_TASK_PRIORITY, NULL) != pdPASS) {
+    if (!rtos_task_start(motor_control_task, "Motors", 1024, NULL, MOTOR_TASK_PRIORITY, NULL)) {
         printf("Unable to create the motors' task\n");
     }
-    if (xTaskCreate(motor_status_task, "Motor Status", 2 * configMINIMAL_STACK_SIZE, NULL, MOTOR_STATUS_TASK_PRIORITY, NULL) != pdPASS) {
+    if (!rtos_task_start(motor_status_task, "Motor Status", 2048, NULL, MOTOR_STATUS_TASK_PRIORITY, NULL)) {
         printf("Unable to create the motor drivers' status task\n");
     }
 }

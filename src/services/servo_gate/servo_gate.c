@@ -8,6 +8,7 @@
 #include "eeprom.h"
 #include "common.h"
 #include "servo_gate.h"
+#include "rtos_port.h"
 #include "settings.h"
 
 // Attributes
@@ -317,14 +318,7 @@ bool servo_gate_init() {
     servo_gate.control_queue = xQueueCreate(1, sizeof(gate_ratio_t));
     servo_gate.move_ready_semphore = xSemaphoreCreateBinary();
 
-    xTaskCreate(
-        servo_gate_control_task,
-        "servo_gate_controller",
-        configMINIMAL_STACK_SIZE,
-        NULL,
-        8,
-        &servo_gate.control_task_handler
-    );
+    rtos_task_start(servo_gate_control_task, "servo_gate_controller", 1024, NULL, 8, &servo_gate.control_task_handler);
 
     // No, we don't set the servo gate state
 

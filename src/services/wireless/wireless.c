@@ -3,6 +3,7 @@
 #include <queue.h>
 
 #include "wireless.h"
+#include "rtos_port.h"
 #include "eeprom.h"
 #include "unit_id.h"
 #include "access_point_mode.h"
@@ -169,8 +170,8 @@ bool wireless_init() {
 
     // Create Wireless handler task
     // Its stack holds the set-up's join's store too, a settings write with two copies of the struct (ADR-008, gate 4:
-    // it took 1,640 bytes at most, measured with 1,024 words); `stats tasks` gives what it never touched
-    xTaskCreate(wireless_task, "Wireless Task", 768, NULL, 3, NULL);
+    // it took 1,640 bytes at most, measured with 4,096); `stats tasks` gives what it never touched
+    rtos_task_start(wireless_task, "Wireless Task", 3072, NULL, 3, NULL);
 
     // Register to eeprom save all
     eeprom_register_handler(wireless_config_save);
@@ -402,7 +403,7 @@ static uint8_t wireless_hotspot_channel = 0;
 
 static void wireless_station_set(station_state_t state, const char *ssid, const char *reason) {
     size_t len = ssid != NULL ? strnlen(ssid, sizeof(wireless_station_ssid) - 1) : 0;
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     wireless_station_state = state;
     if (ssid != NULL) {
         memcpy(wireless_station_ssid, ssid, len);
@@ -410,7 +411,7 @@ static void wireless_station_set(station_state_t state, const char *ssid, const 
     }
     wireless_station_reason = reason;
     wireless_station_since = xTaskGetTickCount();
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 
@@ -440,12 +441,12 @@ static void wireless_station_up(void) {
 void wireless_get_station(wireless_station_info_t *station) {
     static const char *const names[] = {"idle", "joining", "joined", "failed"};
     memset(station, 0, sizeof(*station));
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     station_state_t state = wireless_station_state;
     memcpy(station->ssid, wireless_station_ssid, sizeof(station->ssid));
     station->reason = wireless_station_reason;
     TickType_t since = wireless_station_since;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (state == STATION_JOINING) {
         station->joining_ms = (uint32_t) ((xTaskGetTickCount() - since) * portTICK_PERIOD_MS);
     }
@@ -496,7 +497,7 @@ static int wireless_scan_result(void *env, const cyw43_ev_scan_result_t *result)
     cyw43_auth_t auth = (result->auth_mode & 4) != 0 ? ((result->auth_mode & 2) != 0 ? AUTH_WPA2_MIXED_PSK
                                                                                       : AUTH_WPA2_AES_PSK)
                                                      : ((result->auth_mode & 2) != 0 ? AUTH_WPA_TKIP_PSK : AUTH_OPEN);
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     uint8_t idx = 0;
     while (idx < wireless_heard_count && (strlen(wireless_heard[idx].ssid) != result->ssid_len ||
                                           memcmp(wireless_heard[idx].ssid, result->ssid, result->ssid_len) != 0)) {
@@ -529,7 +530,7 @@ static int wireless_scan_result(void *env, const cyw43_ev_scan_result_t *result)
             wireless_access_points[ap].network = idx;
         }
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     return 0;
 }
 
@@ -559,10 +560,10 @@ static void wireless_scan_run(void) {
         wireless_scan_running = false;
         return;
     }
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     wireless_heard_count = 0;
     wireless_access_point_count = 0;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     wireless_station_up();
     TickType_t started = xTaskGetTickCount();
     for (int pass = 0; pass < WIRELESS_SCAN_PASSES; pass += 1) {
@@ -582,7 +583,7 @@ static void wireless_scan_run(void) {
     }
     // Strongest first, once, so a reader takes them in order a network at a time; the table itself stays as heard,
     // the access points pointing into it
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     for (uint8_t idx = 0; idx < wireless_heard_count; idx += 1) {
         uint8_t at = idx;
         while (at > 0 && wireless_heard[wireless_heard_order[at - 1]].rssi < wireless_heard[idx].rssi) {
@@ -591,7 +592,7 @@ static void wireless_scan_run(void) {
         }
         wireless_heard_order[at] = idx;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     wireless_scan_running = false;
     printf("Wi-Fi: scanned, %u networks heard in %lu ms\n", (unsigned) wireless_heard_count,
            (unsigned long) ((xTaskGetTickCount() - started) * portTICK_PERIOD_MS));
@@ -599,12 +600,12 @@ static void wireless_scan_run(void) {
 
 
 bool wireless_scan_start(void) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool free = !wireless_scan_running && wireless_station_state != STATION_JOINING;
     if (free) {
         wireless_scan_running = true;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (!free) {
         return false;
     }
@@ -623,12 +624,12 @@ bool wireless_scanning(void) {
 
 
 bool wireless_network_at(size_t idx, wireless_network_t *out) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool there = wireless_heard != NULL && idx < wireless_heard_count && !wireless_scan_running;
     if (there) {
         *out = wireless_heard[wireless_heard_order[idx]];
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     return there;
 }
 
@@ -639,13 +640,13 @@ static wireless_join_result_t wireless_join_ask(const char *ssid, const char *ke
     if (wireless_config.current_wireless_state != WIRELESS_STATE_AP_MODE_LISTEN) {
         return WIRELESS_JOIN_NOT_HOTSPOT;
     }
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool free = !wireless_scan_running && wireless_station_state != STATION_JOINING;
     if (free) {
         wireless_station_state = STATION_JOINING;
         wireless_station_reason = NULL;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (!free) {
         return WIRELESS_JOIN_BUSY;
     }
@@ -985,7 +986,8 @@ void wireless_task(void *p) {
     if (led_interface_task_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-        xTaskCreate(led_interface_task, "LED Interface Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &led_interface_task_handler);
+        rtos_task_start(led_interface_task, "LED Interface Task", 1024, NULL, current_task_priority - 1,
+                        &led_interface_task_handler);
     }
     else {
         vTaskResume(led_interface_task_handler);

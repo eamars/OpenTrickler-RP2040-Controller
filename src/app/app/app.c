@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "chip.h"
+#include "rtos_port.h"
 
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
@@ -138,7 +139,7 @@ int main()
     // console read its frame
     menu_set_view(menu_view_12864());       // the build's one view; the menu names none (ADR-006, gate 6)
     menu_init();
-    xTaskCreate(menu_task, "Menu Task", 1280, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
+    rtos_task_start(menu_task, "Menu Task", 5120, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
 
     // The remote control's console task, the screen's and the web server's commands handed to it first: it names
     // neither (ADR-006, gate 6)

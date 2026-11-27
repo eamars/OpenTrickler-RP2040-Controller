@@ -13,6 +13,7 @@
 #include <task.h>
 
 #include "chip.h"
+#include "rtos_port.h"
 
 #include "activity.h"
 #include "api_v1.h"
@@ -1601,7 +1602,7 @@ static void api_v1_restart_task(void *erase) {
 
 
 static bool api_v1_restart_later(bool erase) {
-    return xTaskCreate(api_v1_restart_task, "Restart", 512, erase ? (void *) 1 : NULL, 2, NULL) == pdPASS;
+    return rtos_task_start(api_v1_restart_task, "Restart", 2048, erase ? (void *) 1 : NULL, 2, NULL);
 }
 
 
