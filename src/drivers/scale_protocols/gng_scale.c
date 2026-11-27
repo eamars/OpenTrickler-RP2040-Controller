@@ -10,7 +10,6 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
-#include "app.h"
 
 const static char CMD_REQUEST_DATA_TRANSFER[] = "!p\r\n";
 const static char CMD_CALIBRATE_FUNC[] = "!q\r\n";

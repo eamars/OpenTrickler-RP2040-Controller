@@ -49,146 +49,35 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wa
 # SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 
-# Application
+# Python makes the version, the pages and the fonts
+find_package(Python COMPONENTS Interpreter REQUIRED)
+
+# The image
 add_executable("${TARGET_NAME}")
-
-# Our own code (ADR-006, gate 2): src/<layer>/<module>/, a module's headers for others in its include/. Until
-# each module is built on its own (gate 3) every module's include/ is on the one include path, as all of src/ was;
-# a header a module keeps to itself lies beside its sources and is found from there
-file(GLOB OT_INCLUDE_DIRS LIST_DIRECTORIES true ${SRC_DIRECTORY}/*/*/include)
-list(APPEND OT_INCLUDE_DIRS ${SRC_DIRECTORY}/platform/include ${SRC_DIRECTORY}/boards/common)
-include_directories(${OT_INCLUDE_DIRS})
-
-# Pull in FreeRTOS. Its location is given, not searched for: upstream's import file (V11.3.3), left to search,
-# finds the kernel as the SDK's sibling on its first pass and stops there with that pass's path to the RP2350 port,
-# which only Raspberry Pi's fork had. Given the location, it tries both paths and takes the RP2350 port from the
-# community ports (ADR-011).
-set(FREERTOS_KERNEL_PATH ${FREERTOS_SRC_DIRECTORY})
-include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
-
-# LVGL, configured by the view's lv_conf.h (src/ui/view_12864/include). Every source is compiled; what lv_conf.h switches off compiles to nothing.
-# At -Os in every build, as the owner decided after ADR-010's gate 1: code nobody steps through, and at -O0 the
-# Pico W's image did not fit its slot
-file(GLOB_RECURSE LVGL_SOURCES ${LVGL_DIRECTORY}/src/*.c)
-add_library(lvgl STATIC ${LVGL_SOURCES})
-target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTORY}
-                           ${SRC_DIRECTORY}/ui/view_12864/include)
-target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
-target_compile_options(lvgl PRIVATE -Os)
-
-# The firmware's modules (ADR-006): ot_module(), and the image linking each whole
-include(${CMAKE_SOURCE_DIR}/cmake/ot_module.cmake)
-
-# Pull in src
-add_subdirectory(${SRC_DIRECTORY})
-
-# Collect all source files
-file(GLOB SRC ${SRC_DIRECTORY}/*/*/*.c
-              ${SRC_DIRECTORY}/*/*/*.cpp)
-# But those a module builds (ADR-006, gate 1: two modules tried, the rest one program until gate 3)
-get_property(OT_MODULE_SOURCES GLOBAL PROPERTY OT_MODULE_SOURCES)
-list(REMOVE_ITEM SRC ${OT_MODULE_SOURCES})
 
 # What a build carries (ADR-008, gate 2; ADR-005's feature table): a feature is in the build or out of it, never built
 # a second way, and the unit reports each by name (the index's `features`). On by default on both boards
 option(FEATURE_SERVO_GATE "The servo gate: its module, its settings, its menu page and its API" ON)
-if (NOT FEATURE_SERVO_GATE)
-    list(REMOVE_ITEM SRC ${SRC_DIRECTORY}/services/servo_gate/servo_gate.c)
-endif()
 message(STATUS "Features: servo_gate=${FEATURE_SERVO_GATE}")
-
-# Include application source file
-target_sources("${TARGET_NAME}" PUBLIC
-    ${SRC}
-)
-
-# Include additional headers
 if (FEATURE_SERVO_GATE)
     target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=1)
 else()
     target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=0)
 endif()
 
-# Include libraries1
-target_link_libraries("${TARGET_NAME}"
-    pico_stdlib
-    hardware_pio
-    hardware_spi
-    hardware_i2c
-    hardware_pwm
-    FreeRTOS-Kernel
-    FreeRTOS-Kernel-Heap4
-    lvgl
-    app_version
-
-    # Required by cyw43 wireless module
-    pico_cyw43_arch_lwip_sys_freertos
-    pico_lwip_freertos
-    pico_lwip_mdns
-
-    # flash_safe_execute(): flash written with the other core held off it, as the ROM's confirmation of an image
-    # does (ADR-004)
-    pico_flash
-    # mbedTLS, with the boards' mbedtls_config.h: the SHA-256 an image is checked by before it is tried (ADR-004), and the
-    # TLS client the update's poll and download fetch by (ADR-010, gate 5; https_client.c)
-    pico_mbedtls
-)
-
-# Third-party code as a module sees it (ADR-006): its include paths and no source, under ESP-IDF's names for what
-# both platforms have, so a module's REQUIRES line is the same under ESP-IDF. The real libraries, which carry their
-# sources, are linked once, above.
-#   - rp2_sdk is the Pico SDK itself. Every module that requires it is one gate 7 has still to free of the chip.
-#   - lwip carries the radio's driver too (cyw43), until gate 7 puts it behind the network's interface.
-ot_third_party(rp2_sdk pico_stdlib hardware_pio hardware_spi hardware_i2c hardware_pwm pico_flash)
-ot_third_party(freertos FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
-ot_third_party(lwip pico_cyw43_arch_lwip_sys_freertos pico_lwip_freertos pico_lwip_mdns)
-ot_third_party(mbedtls pico_mbedtls)
-ot_third_party(lvgl lvgl)
-ot_image_settings("${TARGET_NAME}")
-ot_link_modules("${TARGET_NAME}")
-
-# SHA-256 optimised: at the build's -O0 an image's check took 5 s on the Pico W, and the web server, whose task it
-# runs in, answered nothing meanwhile (ADR-004). It is third-party code nobody steps through
-set_source_files_properties("${PICO_SDK_PATH}/lib/mbedtls/library/sha256.c" PROPERTIES COMPILE_OPTIONS "-O2")
-# The rest of mbedTLS at -Os in every build, as the owner decided after ADR-010's gate 1: at -O0 a handshake took
-# 148 s on the Pico 2 W, and its assembly multiply does not compile
-file(GLOB MBEDTLS_SOURCES ${PICO_SDK_PATH}/lib/mbedtls/library/*.c)
-list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
-set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
-# The rest of the third-party code at -Os in every build but FreeRTOS's kernel, as the owner decided in ADR-009
-# (2026-11-27): lwIP, the cyw43 driver and the Pico SDK's own code. At -O0 the Pico W's image missed its slot by 10 KB;
-# the kernel stays at the build's own level, the one third-party code stepped through
-file(GLOB_RECURSE THIRD_PARTY_OS_SOURCES ${PICO_SDK_PATH}/lib/lwip/src/*.c ${PICO_SDK_PATH}/lib/cyw43-driver/src/*.c
-     ${PICO_SDK_PATH}/src/*.c)
-# In the image only: the Pico W's bootloader (src/boards/common/flash_layout.cmake) compiles the SDK's sources at the build's own
-# level, as ADR-004 proved it
-set_source_files_properties(${THIRD_PARTY_OS_SOURCES} PROPERTIES
-                            COMPILE_OPTIONS "$<$<STREQUAL:$<TARGET_PROPERTY:NAME>,${TARGET_NAME}>:-Os>")
-
-# The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/services/update_fetch/github_roots.pem). A test build
-# (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),
-# two of the same kinds, so a fetch on the bench holds what a user's does (ADR-008: with all four, 3.3 KB more); no
-# other build does, and a test build reaches no GitHub, as the bench rules ask
-option(HTTPS_TEST_CA "Test build only: trust the local OTA server's test roots in place of GitHub's" OFF)
-set(HTTPS_CA_FILES ${SRC_DIRECTORY}/services/update_fetch/github_roots.pem)
-if (HTTPS_TEST_CA)
-    set(HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
-                       ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
+# Our own code is modules (ADR-006): src/<layer>/<module>/, each built on its own by its CMakeLists.txt, which names
+# what it needs. The board says which modules its build carries, links the third-party code into the image and
+# gives it to the modules by name
+include(${CMAKE_SOURCE_DIR}/cmake/ot_module.cmake)
+if (NOT EXISTS ${SRC_DIRECTORY}/boards/${PICO_BOARD}/board.cmake)
+    message(FATAL_ERROR "No board ${PICO_BOARD}: give -DPICO_BOARD=pico_w or pico2_w (src/boards/<board>/board.cmake)")
 endif()
-set(https_ca_text "")
-foreach(ca_file IN LISTS HTTPS_CA_FILES)
-    if (NOT EXISTS ${ca_file})
-        message(FATAL_ERROR "${ca_file} is missing: run tools/ota_server.py --make-certs --host <this PC's address>")
-    endif()
-    file(READ ${ca_file} ca_pem)
-    string(APPEND https_ca_text "${ca_pem}")
+include(${SRC_DIRECTORY}/boards/${PICO_BOARD}/board.cmake)
+ot_image_settings("${TARGET_NAME}")
+foreach(module IN LISTS OT_BOARD_MODULES)
+    add_subdirectory(${SRC_DIRECTORY}/${module})
 endforeach()
-string(REPLACE "\r" "" https_ca_text "${https_ca_text}")
-string(REPLACE "\n" "\\n\"\n    \"" https_ca_text "${https_ca_text}")
-file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/https/https_ca.h
-     CONTENT "// Made by CMakeLists.txt from HTTPS_CA_FILES\nstatic const char https_ca_pem[] =\n    \"${https_ca_text}\";\n"
-     @ONLY)
-target_include_directories("${TARGET_NAME}" PRIVATE ${CMAKE_BINARY_DIR}/https)
+ot_link_modules("${TARGET_NAME}")
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 

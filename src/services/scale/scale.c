@@ -12,7 +12,6 @@
 #include "configuration.h"
 #include "scale.h"
 #include "eeprom.h"
-#include "app.h"
 #include "scale.h"
 #include "common.h"
 #include "settings.h"

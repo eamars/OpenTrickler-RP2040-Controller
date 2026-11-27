@@ -10,7 +10,6 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
-#include "app.h"
 
 /* 
 Example data

@@ -9,7 +9,6 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
-#include "app.h"
 
 /*
   FA-E / FA-EN series analytical balance (aelabgroup.com), continuous output.
