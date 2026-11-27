@@ -1,7 +1,8 @@
 """Print what a firmware image is made of, from the linker's map file.
 
-Flash is summed by part (the radio, lwIP, the pages, the application and so on). RAM is what the image takes at
-link time: .data and .bss. Run it after a build; CI runs it for both boards (ADR-001, step 2).
+Flash is summed by part (the radio, lwIP, the pages, the application and so on), and the application's by module (a
+module is a library, libot_<module>.a: ADR-006, gate 9). RAM is what the image takes at link time: .data and .bss.
+Run it after a build; CI runs it for both boards (ADR-001, step 2).
 
 Usage:
     python tools/size_report.py build/app.elf.map --bin build/app.bin
@@ -36,6 +37,8 @@ RUNTIME_PART = "C and C++ runtime"
 # its source sits in the repository, never by where the repository or the toolchain is installed.
 TARGET_OBJECT_PREFIX = re.compile(r"^CMakeFiles/[^/]+\.dir/")
 OUTSIDE_THE_TREE = re.compile(r"^([A-Za-z]:)?/")
+# One of our modules, by its library (ADR-006): "src/services/scale/libot_scale.a(scale.c.obj)"
+MODULE_LIBRARY = re.compile(r"libot_(\w+)\.a\(")
 
 # Matched against the path from the repository's root. First match wins.
 PARTS = (
@@ -100,6 +103,7 @@ def read_map(map_path):
     Returns:
         A dict with:
             "flash_by_part": {part name: bytes},
+            "flash_by_module": {our module's name: bytes},
             "flash_by_object": {object file name: bytes},
             "ram_by_section": {output section name: bytes}, for the sections in RAM_SECTIONS_COUNTED,
             "regions": {memory region name: length in bytes}, from the map's memory configuration.
@@ -114,6 +118,7 @@ def read_map(map_path):
             regions[match.group(1)] = int(match.group(3), 16)
 
     flash_by_part = defaultdict(int)
+    flash_by_module = defaultdict(int)
     flash_by_object = defaultdict(int)
     ram_by_section = defaultdict(int)
     output_section = ""
@@ -160,9 +165,13 @@ def read_map(map_path):
         if in_flash or loaded_from_flash:
             flash_by_part[part_of(path)] += size
             flash_by_object[object_name(path)] += size
+            module = MODULE_LIBRARY.search(path.replace("\\", "/"))
+            if module:
+                flash_by_module[module.group(1)] += size
 
     return {
         "flash_by_part": dict(flash_by_part),
+        "flash_by_module": dict(flash_by_module),
         "flash_by_object": dict(flash_by_object),
         "ram_by_section": dict(ram_by_section),
         "regions": regions,
@@ -207,6 +216,9 @@ def render(sizes, title, bin_size, markdown):
     flash_rows = [(name, kb(size), f"{100 * size / flash_total:.1f}%")
                   for name, size in sorted(sizes["flash_by_part"].items(), key=lambda item: -item[1])]
     flash_rows.append(("Total", kb(flash_total), "100%"))
+    module_rows = [(name, kb(size))
+                   for name, size in sorted(sizes["flash_by_module"].items(), key=lambda item: -item[1])]
+    module_rows.append(("Total", kb(sum(sizes["flash_by_module"].values()))))
     object_rows = [(name, kb(size))
                    for name, size in sorted(sizes["flash_by_object"].items(), key=lambda item: -item[1])]
     object_rows = object_rows[:LARGEST_OBJECTS_SHOWN]
@@ -224,6 +236,7 @@ def render(sizes, title, bin_size, markdown):
 
     tables = (
         ("Flash by part", ("Part", "KB", "Share"), flash_rows),
+        ("Flash by module (ours)", ("Module", "KB"), module_rows),
         ("Largest objects in flash", ("Object", "KB"), object_rows),
         ("RAM at link time", ("Section", "KB"), ram_rows),
     )
