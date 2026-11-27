@@ -19,7 +19,18 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <FreeRTOS.h>
+#include <semphr.h>
+#include <task.h>
+
+#include "lvgl/lvgl.h"
+#include "pico/time.h"
+
+#include "display.h"
 #include "menu_view_12864.h"
+
+// The hidden hello's steps, shown in turn from 0
+#define MENU_VIEW_VISIT_STEPS 10
 #include "src/libs/qrcode/qrcodegen.h"
 
 #define VIEW_W 128
@@ -242,7 +253,7 @@ static void view_value_reverse(lv_obj_t *value, bool reverse) {
 
 // --- The objects
 
-void menu_view_init(lv_display_t *display) {
+static void menu_view_init(lv_display_t *display) {
     lv_obj_t *screen = lv_display_get_screen_active(display);
     lv_obj_remove_style_all(screen);
     lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
@@ -543,7 +554,7 @@ static void view_softkeys(const menu_screen_t *screen) {
 }
 
 
-void menu_view_draw(const menu_screen_t *screen) {
+static void menu_view_draw(const menu_screen_t *screen) {
     if (screen->version != view_version) {
         view_version = screen->version;
         view_first = 0;
@@ -708,7 +719,7 @@ static void view_code_ground(void) {
 }
 
 
-void menu_view_set_inverted(bool inverted) {
+static void menu_view_set_inverted(bool inverted) {
     if (inverted == view_panel_inverted) {
         return;
     }
@@ -717,7 +728,7 @@ void menu_view_set_inverted(bool inverted) {
 }
 
 
-void menu_view_paint(uint8_t *rows, const lv_area_t *area) {
+static void menu_view_paint(uint8_t *rows, const lv_area_t *area) {
     view_code_paint(rows, area);
     view_bubble_paint(rows, area);
     if (!view_chart_shown) {
@@ -1016,7 +1027,10 @@ static void view_bubble_paint(uint8_t *rows, const lv_area_t *area) {
 }
 
 
-bool menu_view_visit(int step, const char *name) {
+// The hidden hello (the owner, 2026-11-17): Claude-chan, saying `name` is watching, over the page. Its steps are
+// shown in turn, from 0; the end hides it. Its objects are made at the start, so a hello never waits on LVGL's heap.
+// False past the last step (MENU_VIEW_VISIT_STEPS)
+static bool menu_view_visit(int step, const char *name) {
     if (step < 0 || step >= MENU_VIEW_VISIT_STEPS) {
         return false;
     }
@@ -1041,7 +1055,182 @@ bool menu_view_visit(int step, const char *name) {
 }
 
 
-void menu_view_visit_end(void) {
+static void menu_view_visit_end(void) {
     view_show(view_visit, false);
     view_bubble_shown = false;
+}
+
+
+// --- The frame, and the view as the menu's task uses it (menu_view.h)
+
+// LVGL's one-bit frame starts with its palette: two colours of 4 bytes
+#define VIEW_PALETTE_BYTES 8
+// LVGL's heap beyond its own (LV_MEM_SIZE, 14 KB, in the image's RAM, which is full): a second pool from the FreeRTOS
+// heap. With the hello's overlay made at the start, the 14 KB were at most 11.1 KB used and 736 bytes free in one
+// piece at the least (the Pico W, 2026-11-17), where a draw takes up to 384 bytes and an allocation LVGL cannot make
+// faults the core. It is taken from what an HTTPS poll leaves the FreeRTOS heap at its low mark: 8,168 bytes with the
+// local test chains, about 9.5 KB with GitHub's (ADR-010, gate 5), so about 5 and 6.5 KB with this pool. 6 KB was
+// tried first: 7 KB in one piece for LVGL, but 2 to 3.5 KB left to a fetch
+#define VIEW_LVGL_POOL_BYTES (3 * 1024)
+
+// The screen's one frame, LVGL's: no second buffer, since the panel keeps the frame it shows (ADR-010, gate 4)
+static uint8_t view_frame[VIEW_PALETTE_BYTES + DISPLAY_FRAME_BYTES] __attribute__((aligned(4)));
+static lv_display_t *view_display = NULL;
+// Held while LVGL draws and while the frame is copied, so a copy is one whole frame
+static SemaphoreHandle_t view_frame_lock = NULL;
+// The panel's pages a draw changed, sent with the draw's last area
+static uint8_t view_frame_pages = 0;
+static menu_frame_times_t view_times;
+static uint32_t view_send_last_us = 0;
+// The panel shown inverted (its own command), changed under the frame's lock so a copy of the frame matches it: the
+// stored setting, or a hello's own
+static bool view_frame_inverted = false;
+
+
+static uint32_t view_tick(void) {
+    return (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
+
+
+// The frame's pages sent, and how long that took
+static void view_send(uint8_t pages) {
+    uint64_t start_us = time_us_64();
+    display_send_pages(view_frame + VIEW_PALETTE_BYTES, pages);
+    view_send_last_us = (uint32_t) (time_us_64() - start_us);
+    view_times.send_us = view_send_last_us;
+    if (view_send_last_us > view_times.send_max_us) {
+        view_times.send_max_us = view_send_last_us;
+    }
+}
+
+
+/*
+    An area LVGL drew (direct mode: into the one frame, which keeps the rest). Its pages are noted, and sent with the
+    draw's last area. LVGL's rows are bytes of 8 pixels across; the panel's pages are 8 rows deep (display.c)
+*/
+static void view_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px_map) {
+    (void) px_map;
+    menu_view_paint(view_frame + VIEW_PALETTE_BYTES, area);
+    int first = area->y1 < 0 ? 0 : area->y1 / 8;
+    int last = area->y2 >= DISPLAY_HEIGHT ? DISPLAY_PAGES - 1 : area->y2 / 8;
+    for (int page = first; page <= last; page += 1) {
+        view_frame_pages |= (uint8_t) (1u << page);
+    }
+    if (lv_display_flush_is_last(display)) {
+        view_send(view_frame_pages);
+        view_frame_pages = 0;
+    }
+    lv_display_flush_ready(display);
+}
+
+
+static bool view_prepare(void) {
+    view_frame_lock = xSemaphoreCreateMutex();
+    return view_frame_lock != NULL;
+}
+
+
+static void view_start(void) {
+    lv_init();
+    void *pool = pvPortMalloc(VIEW_LVGL_POOL_BYTES);
+    if (pool == NULL || lv_mem_add_pool(pool, VIEW_LVGL_POOL_BYTES) == NULL) {
+        configASSERT(false);
+    }
+    lv_tick_set_cb(view_tick);
+    view_display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    lv_display_set_color_format(view_display, LV_COLOR_FORMAT_I1);
+    // Direct: LVGL draws only the areas that changed, into the one frame, which keeps the rest
+    lv_display_set_buffers(view_display, view_frame, NULL, sizeof(view_frame), LV_DISPLAY_RENDER_MODE_DIRECT);
+    lv_display_set_flush_cb(view_display, view_flush);
+    menu_view_init(view_display);
+}
+
+
+static void view_draw(const menu_screen_t *screen) {
+    menu_view_draw(screen);
+
+    // LVGL draws what changed and sends it (view_flush), under the frame's lock: the draw's time is the rest
+    xSemaphoreTake(view_frame_lock, portMAX_DELAY);
+    view_send_last_us = 0;
+    uint64_t start_us = time_us_64();
+    lv_timer_handler();
+    uint32_t took_us = (uint32_t) (time_us_64() - start_us);
+    if (view_send_last_us > 0) {
+        view_times.frames += 1;
+        view_times.draw_us = took_us - view_send_last_us;
+        if (view_times.draw_us > view_times.draw_max_us) {
+            view_times.draw_max_us = view_times.draw_us;
+        }
+    }
+    xSemaphoreGive(view_frame_lock);
+}
+
+
+static void view_resend(void) {
+    xSemaphoreTake(view_frame_lock, portMAX_DELAY);
+    view_send(DISPLAY_ALL_PAGES);
+    xSemaphoreGive(view_frame_lock);
+}
+
+
+// The panel inverted or not, sent only when it changes
+static void view_set_inverted(bool inverted) {
+    if (inverted == view_frame_inverted) {
+        return;
+    }
+    xSemaphoreTake(view_frame_lock, portMAX_DELAY);
+    display_invert(inverted);
+    view_frame_inverted = inverted;
+    xSemaphoreGive(view_frame_lock);
+    menu_view_set_inverted(inverted);
+}
+
+
+// The frame as the panel shows it: inverted with it
+static void view_frame_copy(uint8_t *out) {
+    xSemaphoreTake(view_frame_lock, portMAX_DELAY);
+    memcpy(out, view_frame + VIEW_PALETTE_BYTES, DISPLAY_FRAME_BYTES);
+    if (view_frame_inverted) {
+        for (size_t idx = 0; idx < DISPLAY_FRAME_BYTES; idx += 1) {
+            out[idx] = (uint8_t) ~out[idx];
+        }
+    }
+    xSemaphoreGive(view_frame_lock);
+}
+
+
+static void view_frame_times(menu_frame_times_t *times) {
+    xSemaphoreTake(view_frame_lock, portMAX_DELAY);
+    *times = view_times;
+    xSemaphoreGive(view_frame_lock);
+}
+
+
+static void view_heap(uint32_t *max_used, uint32_t *biggest_free) {
+    lv_mem_monitor_t heap;
+    lv_mem_monitor(&heap);
+    *max_used = (uint32_t) heap.max_used;
+    *biggest_free = (uint32_t) heap.free_biggest_size;
+}
+
+
+const menu_view_t *menu_view_12864(void) {
+    static const menu_view_t view = {
+        .width = DISPLAY_WIDTH,
+        .height = DISPLAY_HEIGHT,
+        .frame_bytes = DISPLAY_FRAME_BYTES,
+        .format = MENU_FRAME_FORMAT,
+        .visit_steps = MENU_VIEW_VISIT_STEPS,
+        .prepare = view_prepare,
+        .init = view_start,
+        .draw = view_draw,
+        .resend = view_resend,
+        .set_inverted = view_set_inverted,
+        .visit = menu_view_visit,
+        .visit_end = menu_view_visit_end,
+        .frame_copy = view_frame_copy,
+        .frame_times = view_frame_times,
+        .heap = view_heap,
+    };
+    return &view;
 }

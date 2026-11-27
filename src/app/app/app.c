@@ -29,6 +29,7 @@
 #include "neopixel_led.h"
 #include "mini_12864_module.h"
 #include "menu.h"
+#include "menu_view_12864.h"
 #include "profile.h"
 #include "servo_gate.h"
 #include "rc_console.h"
@@ -103,6 +104,7 @@ int main()
     jobs_register(ACTIVITY_CALIBRATION, calibration_job_run);
     // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4). Its locks first: the web and the
     // console read its frame
+    menu_set_view(menu_view_12864());       // the build's one view; the menu names none (ADR-006, gate 6)
     menu_init();
     xTaskCreate(menu_task, "Menu Task", 1280, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
 

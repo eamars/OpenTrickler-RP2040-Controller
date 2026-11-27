@@ -12,9 +12,9 @@
 #include <task.h>
 #include <queue.h>
 
-#include "display.h"
 #include "menu.h"
 #include "menu_nav.h"
+#include "menu_view.h"
 #include "mini_12864_module.h"
 #include "remote_control.h"
 
@@ -27,7 +27,7 @@
 
 extern QueueHandle_t encoder_event_queue;
 
-static uint8_t remote_control_snap_buffer[DISPLAY_FRAME_BYTES];
+static uint8_t remote_control_snap_buffer[MENU_FRAME_BYTES_MAX];
 static char remote_control_snap_line[8 + (REMOTE_CONTROL_SNAP_CHUNK + 2) / 3 * 4 + 1];
 
 
@@ -212,14 +212,18 @@ static void remote_control_base64(const uint8_t *data, size_t len, char *out) {
 static bool remote_control_snap(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                 void *write_ctx) {
     // One copy, under the frame's lock: a whole frame
+    uint16_t width;
+    uint16_t height;
+    size_t frame_bytes;
+    menu_frame_info(&width, &height, &frame_bytes);
     menu_frame_copy(remote_control_snap_buffer);
 
-    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap %u %u %s", (unsigned) DISPLAY_WIDTH,
-             (unsigned) DISPLAY_HEIGHT, MENU_FRAME_FORMAT);
+    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap %u %u %s", (unsigned) width,
+             (unsigned) height, MENU_FRAME_FORMAT);
     if (write) {
         write(remote_control_snap_line, write_ctx);
     }
-    for (size_t offset = 0; offset < DISPLAY_FRAME_BYTES; offset += REMOTE_CONTROL_SNAP_CHUNK) {
+    for (size_t offset = 0; offset < frame_bytes; offset += REMOTE_CONTROL_SNAP_CHUNK) {
         strcpy(remote_control_snap_line, "@sd ");
         remote_control_base64(remote_control_snap_buffer + offset, REMOTE_CONTROL_SNAP_CHUNK,
                               remote_control_snap_line + 4);
