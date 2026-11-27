@@ -63,6 +63,9 @@ PAST_LAYOUTS = {
 # (#137, 2026-11-26) gave the scale driver's 9 back to FA-E/EN and moved the simulated scale to 100 (ADR-009's review, B2)
 KNOWN_OPEN = {}
 HEADERS = sorted({path for path in RECORDS.values()} | {"src/services/storage/include/common.h"})
+# The portal's reading of an old file's scale make, and the makes' names
+PORTAL = "src/web/api/portal/unit.js"
+SCALE_CHOICES = "src/services/scale/scale.c"
 
 
 def source(path: str, tag: str = None) -> str:
@@ -110,6 +113,34 @@ def enums(text: str) -> dict:
                 members[value] = parts.group(1)
         out[name] = (integer or None, members)
     return out
+
+
+def portal_scale_makes(then_enums: dict) -> list:
+    """
+    A backup from the release's web page holds the scale's make as its stored number (the old code s0), which the
+    portal reads by its own table: each number of the release must read as the make it was. It read v1.21's 9,
+    FA-E/EN, as the simulated scale until 2026-11-28.
+
+    Args:
+        then_enums: the release's stored enums, as enums() gives them.
+
+    Returns:
+        The failures, each a line.
+    """
+    found = re.search(r's0:\s*\["driver",\s*\[([^\]]*)\]\]', source(PORTAL))
+    if found is None:
+        return [f"{PORTAL}: the old scale makes' table (s0) not found"]
+    table = re.findall(r'"(\w+)"', found.group(1))
+    text = dict(re.findall(r'\.held = (SCALE_DRIVER_\w+), \.text = "(\w+)"', source(SCALE_CHOICES)))
+    failures = []
+    for value, member in sorted(then_enums["scale_driver_t"][1].items()):
+        read = table[value] if value < len(table) else None
+        if read != text.get(member):
+            failures.append(f"{PORTAL}: an old file's scale make {value} ({RELEASE}'s {member}) is read as "
+                            f"{read or 'nothing'}, not {text.get(member) or 'a make this firmware has'}")
+    if not failures:
+        print(f"{'the portal, s0':32s} every {RELEASE} scale make of an old file read as the make it was")
+    return failures
 
 
 def main() -> int:
@@ -193,6 +224,7 @@ def main() -> int:
     for key, why in KNOWN_OPEN.items():
         if key not in clashes:
             failures.append(f"{key[0]} {key[1]} no longer clashes: take it out of KNOWN_OPEN ({why})")
+    failures += portal_scale_makes(then_enums)
     for failure in failures:
         print("FAIL " + failure)
     print("VERDICT PASS" if not failures else f"VERDICT FAIL {len(failures)} found")

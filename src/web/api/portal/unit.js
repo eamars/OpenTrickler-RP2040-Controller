@@ -108,13 +108,15 @@ async function exportSettings() {
 
 // A backup from before API v1 (features: 73): each old path's codes read as v1's fields, so a person's file from an
 // older firmware still restores. [the v1 path, {code: field, or [field, the values by their old index]}]
+// The scale's make by its stored number, the release's (tests/release_records.py checks it): 9 is FA-E/EN
 const OLD_MOTOR = {m0: "acceleration_rps2", m1: "full_steps_per_rotation", m2: "current_ma", m3: "microsteps",
                    m4: "max_speed_rps", m5: "r_sense_mohm", m6: "min_speed_rps", m7: "gear_ratio", m8: "invert_enable",
                    m9: "invert_direction"};
+const OLD_MOTOR_NAMES = {"/rest/coarse_motor_config": "Coarse", "/rest/fine_motor_config": "Fine"};
 const OLD_PATHS = {
     "/rest/scale_config": ["/api/v1/settings/scale", {
         s0: ["driver", ["and_fxi", "steinberg_sbs", "gng_jjb", "ussolid_jfdbs", "jm_science", "creedmoor", "radwag_ps_r2",
-                        "sartorius", "generic", "simulated"]],
+                        "sartorius", "generic", "fa_en"]],
         s1: ["baud", [4800, 9600, 19200]], s2: ["format", ["8n1", "7n1"]]}],
     "/rest/charge_mode_config": ["/api/v1/settings/charge", {
         c1: "colour_good", c2: "colour_under", c3: "colour_over", c4: "colour_not_ready", c5: "coarse_stop_threshold",
@@ -137,8 +139,18 @@ const OLD_PROFILE = {p2: "name", p3: "coarse_kp", p4: "coarse_ki", p5: "coarse_k
                      p7: "coarse_max_speed_rps", p8: "fine_kp", p9: "fine_ki", p10: "fine_kd", p11: "fine_min_speed_rps",
                      p12: "fine_max_speed_rps"};
 
+// An old file's motor current is the figure before ADR-012, the current only with the driver's trimmer at full scale:
+// converted as the firmware converts a stored one (motors.c), by the factory trimmer's share, to 10 mA
+const OLD_TRIMMER_SHARE = 0.48;
+
+function trueCurrent(oldMa) {
+    return Math.round(oldMa * OLD_TRIMMER_SHARE / 10) * 10;
+}
+
+// {resources: {v1 path: fields}, currents: [[v1 path, the motor's name, the file's figure, the figure written]]}
 function oldBackupToV1(config) {
     const resources = {};
+    const currents = [];
     for (const [endpoint, values] of Object.entries(config)) {
         const profile = endpoint.match(/^\/rest\/profile_config\?pf=(\d+)$/);
         const [path, codes] = profile ? [`/api/v1/powder_profiles/${profile[1]}`, OLD_PROFILE] : (OLD_PATHS[endpoint] || [null, null]);
@@ -155,12 +167,32 @@ function oldBackupToV1(config) {
                 }
             } else if (field === "coarse_stop_gate_ratio" && value < 0) {
                 resources[path][field] = null;      // -1: the gate is not moved
+            } else if (field === "current_ma") {
+                resources[path][field] = trueCurrent(value);
+                currents.push([path, OLD_MOTOR_NAMES[endpoint], value, resources[path][field]]);
             } else if (field) {
                 resources[path][field] = value;
             }
         }
     }
-    return resources;
+    return {resources, currents};
+}
+
+// The currents of an old file, converted: said once, after its restore, with the way to raise them (the owner,
+// 2026-11-28)
+function tellCurrents(version, currents) {
+    const dialog = $("currents");
+    $("currents-from").textContent = `Firmware ${version || "1"} counted the motors' current another way. Each figure ` +
+                                     "was converted to the same real current, for a driver whose trimmer was left as it came:";
+    $("currents-figures").replaceChildren(...currents.map(([, name, from, to]) =>
+        element("span", {}, `${name} ${from} → ${to} mA`)));
+    dialog.returnValue = "";
+    dialog.onclose = () => {
+        if (dialog.returnValue === "motors") {
+            location.hash = "#settings/motors";
+        }
+    };
+    dialog.showModal();
 }
 
 // Every resource in the file written with the fields this unit's schema has and may write; what is refused named
@@ -177,8 +209,10 @@ async function importSettings() {
         say("Not restored: the file is not a settings file");
         return;
     }
+    const old = data.resources ? null : oldBackupToV1(data.config || {});
     const left = [];
-    for (const [path, values] of Object.entries(data.resources || oldBackupToV1(data.config || {}))) {
+    const written = new Set();
+    for (const [path, values] of Object.entries(data.resources || old.resources)) {
         const resource = await resourceOf(path);
         if (resource === null) {
             left.push(path);
@@ -187,7 +221,9 @@ async function importSettings() {
         const names = resource.fields.filter((f) => f.access === "read_write").map((f) => f.name);
         const body = Object.fromEntries(Object.entries(values).filter(([name]) => names.includes(name)));
         const reply = await api("PATCH", path, body);
-        if (!reply.ok) {
+        if (reply.ok) {
+            written.add(path);
+        } else {
             left.push(`${resource.label}: ${refusalText(reply)}`);
         }
     }
@@ -196,6 +232,10 @@ async function importSettings() {
         say(`Restored, but for: ${left.join("; ")}`);
     } else {
         stored.ok ? say("Restored and stored. Some settings take effect at the next restart.", "good") : refusal(stored, "Restored, not stored");
+    }
+    const currents = old === null ? [] : old.currents.filter(([path]) => written.has(path));
+    if (currents.length > 0) {
+        tellCurrents(data.firmware_version, currents);
     }
 }
 
