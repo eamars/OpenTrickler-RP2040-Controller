@@ -31,7 +31,10 @@
 #include "menu.h"
 #include "menu_view_12864.h"
 #include "profile.h"
+#include "gate.h"
+#if FEATURE_SERVO_GATE
 #include "servo_gate.h"
+#endif
 #include "rc_console.h"
 #include "http_server.h"
 #include "update.h"
@@ -117,8 +120,12 @@ int main()
     // Initialize profile data
     profile_data_init();
 
-    // Initialize the servo
+    // The servo gate, where the build carries it, handed to all that ask for a gate (ADR-006, gate 9): charge mode,
+    // the cleanup, the menu and the API. This is the one place that asks whether it is in the build
+#if FEATURE_SERVO_GATE
     servo_gate_init();
+    gate_set(servo_gate_calls());
+#endif
 
     // The update's channel and source, and its poll (ADR-010, gate 5): it polls once Wi-Fi joins
     if (!update_poll_init()) {

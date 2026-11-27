@@ -97,3 +97,74 @@ function(ot_link_modules image)
     # No PRIVATE: the image's other libraries are given by the plain signature, and CMake takes one or the other
     target_link_libraries(${image} "$<LINK_LIBRARY:WHOLE_ARCHIVE,${modules}>")
 endfunction()
+
+# A part a build may leave out (ADR-006, gate 9): a module of the board's list that is also a CMake option, on by
+# default, and named in the unit's `features`, present or not. Declared once, before ot_board_resolve():
+#   ot_feature(<name> <module's folder under src/> "<what the unit's features says of it>")
+# Its option is FEATURE_<NAME>. Only the start-up's wiring (app/) reads FEATURE_<NAME>: the rest of the firmware is
+# handed the part's calls or not (tools/module_graph.py holds this).
+function(ot_feature name module about)
+    string(TOUPPER "${name}" upper)
+    option(FEATURE_${upper} "Carry ${name}: ${about}" ON)
+    set_property(GLOBAL APPEND PROPERTY OT_FEATURES "${name}")
+    set_property(GLOBAL PROPERTY OT_FEATURE_MODULE_${name} "${module}")
+    set_property(GLOBAL PROPERTY OT_FEATURE_ABOUT_${name} "${about}")
+endfunction()
+
+# The board's list, as this build carries it: each part a build may leave out taken out where its option is off or
+# its board does not list it. Sets, in the caller's scope, OT_BOARD_MODULES as carried and OT_FEATURES_CARRIED (the
+# parts' modules carried, which the start-up's wiring requires); gives the image FEATURE_<NAME> 1 or 0; prints the
+# `Features:` line; and makes the table the unit's `features` is made from, in this build's folder (ot::features,
+# ot_features.h): a build of each board in its own folder, each with its own.
+function(ot_board_resolve image)
+    get_property(features GLOBAL PROPERTY OT_FEATURES)
+    set(modules ${OT_BOARD_MODULES})
+    set(carried "")
+    set(said "")
+    set(table "")
+    foreach(name IN LISTS features)
+        string(TOUPPER "${name}" upper)
+        get_property(module GLOBAL PROPERTY OT_FEATURE_MODULE_${name})
+        get_property(about GLOBAL PROPERTY OT_FEATURE_ABOUT_${name})
+        if (FEATURE_${upper} AND module IN_LIST modules)
+            set(present 1)
+            list(APPEND carried ${name})
+        else()
+            set(present 0)
+            list(REMOVE_ITEM modules ${module})
+        endif()
+        target_compile_definitions(${image} PRIVATE FEATURE_${upper}=${present})
+        list(APPEND said "${name}=${present}")
+        string(REPLACE "\\" "\\\\" about "${about}")
+        string(REPLACE "\"" "\\\"" about "${about}")
+        if (present)
+            string(APPEND table "    {\"${name}\", true, \"${about}\"},\n")
+        else()
+            string(APPEND table "    {\"${name}\", false, \"${about}\"},\n")
+        endif()
+    endforeach()
+    list(JOIN said " " said)
+    message(STATUS "Features: ${said}")
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/generated/ot_features.h" CONTENT
+"// What this build carries (ADR-006, gate 9): made by CMake from the board's list (cmake/ot_module.cmake), every
+// part a build may leave out, carried or not, the last entry's name NULL. Read by the API's index (`features`)
+#ifndef OT_FEATURES_H_
+#define OT_FEATURES_H_
+#include <stdbool.h>
+#include <stddef.h>
+typedef struct {
+    const char *name;
+    bool present;
+    const char *about;
+} ot_feature_t;
+static const ot_feature_t ot_features[] = {
+${table}    {NULL, false, NULL},
+};
+#endif
+")
+    add_library(ot_features INTERFACE)
+    add_library(ot::features ALIAS ot_features)
+    target_include_directories(ot_features INTERFACE "${CMAKE_BINARY_DIR}/generated")
+    set(OT_BOARD_MODULES ${modules} PARENT_SCOPE)
+    set(OT_FEATURES_CARRIED ${carried} PARENT_SCOPE)
+endfunction()

@@ -81,7 +81,7 @@ static void _servo_gate_set_current_state(float open_ratio) {
 
 
 void servo_gate_set_ratio(gate_ratio_t ratio, bool block_wait) {
-    float r = (ratio == SERVO_GATE_RATIO_DISABLED) ? SERVO_GATE_RATIO_DISABLED : clamp01(ratio);
+    float r = (ratio == GATE_RATIO_DISABLED) ? GATE_RATIO_DISABLED : clamp01(ratio);
     
     xSemaphoreTake(servo_gate.move_ready_semphore, 0); 
     
@@ -103,7 +103,7 @@ void servo_gate_control_task(void *p) {
         xQueueReceive(servo_gate.control_queue, &new_ratio, portMAX_DELAY);
 
         // --- DISABLE ---
-        if (new_ratio == SERVO_GATE_RATIO_DISABLED) {
+        if (new_ratio == GATE_RATIO_DISABLED) {
             servo_gate.gate_state = GATE_DISABLED;
 
             // Do NOT modify prev_open_ratio
@@ -305,6 +305,17 @@ bool servo_gate_init() {
     // No, we don't set the servo gate state
 
     return is_ok;
+}
+
+
+const gate_t *servo_gate_calls(void) {
+    static const gate_t calls = {
+        .enabled = servo_gate_enabled,
+        .state = servo_gate_state,
+        .ratio = servo_gate_ratio,
+        .set_ratio = servo_gate_set_ratio,
+    };
+    return &calls;
 }
 
 

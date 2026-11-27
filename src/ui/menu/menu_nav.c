@@ -26,7 +26,7 @@
 #include "motors.h"
 #include "profile.h"
 #include "scale.h"
-#include "servo_gate.h"
+#include "gate.h"
 #include "settings.h"
 #include "setup.h"
 #include "system_control.h"
@@ -94,6 +94,7 @@ struct menu_page {
     uint8_t row_count;
     bool cancel_first;      // a dialog that destroys: it opens with Cancel focused
     int (*focus_now)(void); // the shown row it opens on; NULL: the first that does something
+    bool (*shown)(void);    // NULL: always; else only while it answers true (a part a build may leave out)
 };
 
 typedef enum {
@@ -1132,34 +1133,33 @@ static bool chart_chosen(void) {
 // --- The servo gate: moved as the API moves it (PATCH /api/v1/gate), and so refused when it is
 
 static const char *gate_move(gate_ratio_t ratio) {
-    if (!FEATURE_SERVO_GATE) {
+    if (!gate_present()) {
         return "no servo gate in this build";
     }
-    if (!servo_gate_enabled()) {
+    if (!gate_enabled()) {
         return "the gate is off";
     }
     activity_lock();
     bool in_throw = activity_in_throw();
     if (!in_throw) {
-        servo_gate_set_ratio(ratio, false);
+        gate_set_ratio(ratio, false);
     }
     activity_unlock();
     return in_throw ? "not while a throw pours" : NULL;
 }
 
 
-// The gate's page, and what only it uses: in a build that carries the gate
-#if FEATURE_SERVO_GATE
+// The gate's page, and what only it uses: shown when a gate is handed over (gate.h)
 static void value_gate(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    snprintf(out, room, "%s", servo_gate_state() == GATE_OPEN ? "Open" :
-                              (servo_gate_state() == GATE_CLOSE ? "Closed" : "Off"));
+    snprintf(out, room, "%s", gate_state() == GATE_OPEN ? "Open" :
+                              (gate_state() == GATE_CLOSE ? "Closed" : "Off"));
 }
 
 
 static void act_gate(const menu_row_t *row) {
     (void) row;
-    const char *why = gate_move(servo_gate_state() == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
+    const char *why = gate_move(gate_state() == GATE_OPEN ? GATE_RATIO_CLOSED : GATE_RATIO_OPEN);
     if (why != NULL) {
         push_message("Not moved", why, NULL);
     }
@@ -1168,9 +1168,8 @@ static void act_gate(const menu_row_t *row) {
 
 // A shutter's end being set: the gate goes to it, so the end is seen as it is set
 static void gate_show_end(const menu_row_t *row) {
-    gate_move(strstr(row->name, "close") != NULL ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
+    gate_move(strstr(row->name, "close") != NULL ? GATE_RATIO_CLOSED : GATE_RATIO_OPEN);
 }
-#endif
 
 
 // --- The tree (menu_design.md)
@@ -1286,7 +1285,6 @@ static const menu_page_t page_display = {.id = "settings/display", .title = "Dis
                                          .row_count = ROW_COUNT(rows_display)};
 
 // The servo gate: on or off, the shutters moved, and their ends set while the servo shows them
-#if FEATURE_SERVO_GATE
 static const menu_row_t rows_gate[] = {
     {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/gate", .name = "enable"},
     {.label = "Shutters", .kind = ROW_ACTION, .value = value_gate, .act = act_gate},
@@ -1300,8 +1298,7 @@ static const menu_row_t rows_gate[] = {
      .stepped = gate_show_end},
 };
 static const menu_page_t page_gate = {.id = "settings/gate", .title = "Servo gate", .rows = rows_gate,
-                                      .row_count = ROW_COUNT(rows_gate)};
-#endif
+                                      .row_count = ROW_COUNT(rows_gate), .shown = gate_present};
 
 // Each motor's direction: a motor wired the other way, found at the bench
 static const menu_row_t rows_motors[] = {
@@ -1457,9 +1454,7 @@ static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge_settings},
     {.label = "Display", .kind = ROW_PAGE, .page = &page_display},
-#if FEATURE_SERVO_GATE
-    {.label = "Servo gate", .kind = ROW_PAGE, .page = &page_gate},
-#endif
+    {.label = "Servo gate", .kind = ROW_PAGE, .page = &page_gate, .shown = gate_present},
     {.label = "Motors", .kind = ROW_PAGE, .page = &page_motors},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
@@ -1491,11 +1486,7 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_calibration_powder, &page_scale, &page_charge_settings,
-    &page_display,
-#if FEATURE_SERVO_GATE
-    &page_gate,
-#endif
-    &page_motors, &page_firmware,
+    &page_display, &page_gate, &page_motors, &page_firmware,
     &page_factory_reset, &page_calibration_discard, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
@@ -1804,10 +1795,16 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
     }
     if (key == MENU_KEY_NEXT) {
         frame->focus = (int8_t) (frame->focus < CLEANUP_ZERO ? frame->focus + 1 : CLEANUP_ZERO);
+        if (frame->focus == CLEANUP_GATE && !gate_present()) {
+            frame->focus = CLEANUP_STOP;            // no gate in this build: no row for it
+        }
         return;
     }
     if (key == MENU_KEY_PREV) {
         frame->focus = (int8_t) (frame->focus > CLEANUP_TITLE ? frame->focus - 1 : CLEANUP_TITLE);
+        if (frame->focus == CLEANUP_GATE && !gate_present()) {
+            frame->focus = CLEANUP_SPEED;
+        }
         return;
     }
     switch (frame->focus) {
@@ -1818,8 +1815,8 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
             frame->editing = true;
             break;
         case CLEANUP_GATE: {
-            const char *why = gate_move(servo_gate_state() == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED :
-                                        SERVO_GATE_RATIO_OPEN);
+            const char *why = gate_move(gate_state() == GATE_OPEN ? GATE_RATIO_CLOSED :
+                                        GATE_RATIO_OPEN);
             if (why != NULL) {
                 push_message("Not moved", why, NULL);
             }
@@ -2565,13 +2562,28 @@ bool menu_nav_in_job(void) {
 
 // --- The console: pages by id
 
+static bool page_shown(const menu_page_t *page) {
+    return page->shown == NULL || page->shown();
+}
+
+
+// Every page this unit shows: a page of a part it does not have is not one
 size_t menu_nav_page_count(void) {
-    return ALL_PAGES_COUNT;
+    size_t count = 0;
+    for (size_t idx = 0; idx < ALL_PAGES_COUNT; idx += 1) {
+        count += page_shown(all_pages[idx]) ? 1 : 0;
+    }
+    return count;
 }
 
 
 const char *menu_nav_page_id(size_t idx) {
-    return idx < ALL_PAGES_COUNT ? all_pages[idx]->id : NULL;
+    for (size_t at = 0; at < ALL_PAGES_COUNT; at += 1) {
+        if (page_shown(all_pages[at]) && idx-- == 0) {
+            return all_pages[at]->id;
+        }
+    }
+    return NULL;
 }
 
 
@@ -2594,7 +2606,7 @@ static bool page_path(const menu_page_t *from, const menu_page_t *wanted, const 
 bool menu_nav_goto(const char *id) {
     const menu_page_t *wanted = NULL;
     for (size_t idx = 0; idx < ALL_PAGES_COUNT; idx += 1) {
-        if (strcmp(all_pages[idx]->id, id) == 0) {
+        if (strcmp(all_pages[idx]->id, id) == 0 && page_shown(all_pages[idx])) {
             wanted = all_pages[idx];
         }
     }
@@ -3154,19 +3166,22 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         screen_row(screen, text, flow, false);
         snprintf(text, sizeof(text), "%.1f rev/s", (double) cleanup.speed_rps);
         screen_row(screen, "Speed", text, false);
-        screen_row(screen, "Gate", servo_gate_state() == GATE_OPEN ? "Open" :
-                                   (servo_gate_state() == GATE_CLOSE ? "Closed" : "Off"), false);
+        if (gate_present()) {
+            screen_row(screen, "Gate", gate_state() == GATE_OPEN ? "Open" :
+                                       (gate_state() == GATE_CLOSE ? "Closed" : "Off"), false);
+        }
         if (fault) {
             snprintf(screen->softkey_right, MENU_TEXT, "OK");
             screen->softkey_focus = frame->softkey;
-            screen->focus = 3;
+            screen->focus = (int8_t) screen->row_count;
             return;
         }
         snprintf(screen->softkey_right, MENU_TEXT, "Zero");
-        // The focus: -1 the title, 1 and 2 the rows (row 0 is the line to read), 3 the softkeys
+        // The focus: -1 the title, then the rows (row 0 is the line to read; Gate only with a gate), past them the
+        // softkeys
         screen->title_back = true;
         screen->focus = (int8_t) (frame->focus == CLEANUP_TITLE ? -1 :
-                                  (frame->focus <= CLEANUP_GATE ? frame->focus + 1 : 3));
+                                  (frame->focus <= CLEANUP_GATE ? frame->focus + 1 : screen->row_count));
         screen->softkey_focus = (int8_t) (frame->focus == CLEANUP_STOP ? 0 : (frame->focus == CLEANUP_ZERO ? 1 : -1));
         screen->editing = frame->editing;
         return;

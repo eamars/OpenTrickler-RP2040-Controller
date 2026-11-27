@@ -55,16 +55,6 @@ find_package(Python COMPONENTS Interpreter REQUIRED)
 # The image
 add_executable("${TARGET_NAME}")
 
-# What a build carries (ADR-008, gate 2; ADR-005's feature table): a feature is in the build or out of it, never built
-# a second way, and the unit reports each by name (the index's `features`). On by default on both boards
-option(FEATURE_SERVO_GATE "The servo gate: its module, its settings, its menu page and its API" ON)
-message(STATUS "Features: servo_gate=${FEATURE_SERVO_GATE}")
-if (FEATURE_SERVO_GATE)
-    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=1)
-else()
-    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=0)
-endif()
-
 # Our own code is modules (ADR-006): src/<layer>/<module>/, each built on its own by its CMakeLists.txt, which names
 # what it needs. The board says which modules its build carries, links the third-party code into the image and
 # gives it to the modules by name
@@ -73,6 +63,9 @@ if (NOT EXISTS ${SRC_DIRECTORY}/boards/${PICO_BOARD}/board.cmake)
     message(FATAL_ERROR "No board ${PICO_BOARD}: give -DPICO_BOARD=pico_w or pico2_w (src/boards/<board>/board.cmake)")
 endif()
 include(${SRC_DIRECTORY}/boards/${PICO_BOARD}/board.cmake)
+# What a build carries (ADR-008, gate 2; ADR-005's feature table): a part is in the build or out of it, never built a
+# second way, and the unit reports each by name (the index's `features`), made from the board's list (ADR-006, gate 9)
+ot_board_resolve("${TARGET_NAME}")
 ot_image_settings("${TARGET_NAME}")
 foreach(module IN LISTS OT_BOARD_MODULES)
     add_subdirectory(${SRC_DIRECTORY}/${module})

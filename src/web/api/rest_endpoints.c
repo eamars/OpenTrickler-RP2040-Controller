@@ -12,7 +12,6 @@
 #include "neopixel_led.h"
 #include "profile.h"
 #include "cleanup_mode.h"
-#include "servo_gate.h"
 #include "system_control.h"
 #include "version.h"
 

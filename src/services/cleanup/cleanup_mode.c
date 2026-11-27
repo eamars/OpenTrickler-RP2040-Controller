@@ -11,7 +11,7 @@
 #include "common.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
-#include "servo_gate.h"
+#include "gate.h"
 #include "jobs.h"
 
 // How often a running cleanup looks at the motor drivers when no button is pressed (ADR-012, step 6)
@@ -103,8 +103,8 @@ uint8_t cleanup_mode_menu() {
     cleanup_mode_running = true;
 
     // Open servo gate (if enabled)
-    if (servo_gate_state() != GATE_DISABLED) {
-        servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, true);
+    if (gate_state() != GATE_DISABLED) {
+        gate_set_ratio(GATE_RATIO_OPEN, true);
     }
 
     // The title says a fault's reason, and only then: none yet
