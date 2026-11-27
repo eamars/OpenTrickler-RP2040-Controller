@@ -56,13 +56,25 @@ Another unit, powder or scale is another record, made by the same command. Nothi
 | `scale_map.py` | A controller across scales: overs and time against a scale's delay, reading period and hold |
 | `evenness.py` | How evenly the fine tube must pour at low speed for a finish to hold the tolerance |
 | `scale_step.py` | What a scale model shows of a weight set on its pan |
-| `legacy_pid.py` | Today's loop, ported from `charge_mode.cpp`, with the three settings thrown on the bench |
+| `legacy_pid.py` | Version 1's loop, ported line for line from `charge_mode.c`, with the three settings thrown on the bench. The firmware's controller with the forecast off (its default) is judged against it |
 | `flow_dose.py`, `calibrate.py` | The first candidate and its calibration, written before any bench session: they run on a record, their old figures are void, and the design that follows starts from them |
 | `controllers.py` | The controllers by name |
 | `throw.py` | One throw to its verdict; a session of throws on one rig |
 | `workers.py` | Jobs spread over half the PC's cores: fresh processes for every batch and a failed job run once more (its head says why) |
 | `geometry/` | The scripts that measured the tubes from their STLs |
 
-A controller has `start(target, now_ms)`, `on_tick(now_ms)` once a millisecond, `on_reading(now_ms, weight)` on each reading, and the attributes `coarse_rps`, `fine_rps` and `done`. That is the seam ADR-009's controller module would have.
+A controller has `start(target, now_ms)`, `on_tick(now_ms)` once a millisecond, `on_reading(now_ms, weight)` on each reading, and the attributes `coarse_rps`, `fine_rps` and `done`. The firmware's charge controller has the same seam (`src/services/charge_control`).
+
+## What the firmware is checked against
+
+ADR-009 built three parts of the firmware from this folder's Python, and the PC runs the firmware's C beside it, call for call:
+
+| Python | The firmware's C | The check |
+|---|---|---|
+| `calibration.py`: the calibration's method (the cup, the scale's settle time and lag, each tube's least speed) | `src/services/calibration_method/calibration_method.c` | `..\..\venv\Scripts\python ..\..\tests\calibration_sim.py` |
+| `step2.py`: the charge controller (the coarse tube's PID, the fine tube's PID on the forecast) | `src/services/charge_control/charge_controller.c` | `..\..\venv\Scripts\python ..\..\tests\step2_sim.py` |
+| `step2_tuner.py`: the auto-tuner, a window of throws at a time | `src/services/charge_control/charge_tuner.c` | the same |
+
+A change to one side is made to the other, and both checks are run. The other scripts here (`*_study.py`, `*_cases.py` and the like) are ADR-009's research; each one's opening lines say what it asks.
 
 The same seed gives the same throws. A session keeps the tubes' state from throw to throw, as a loading session does.

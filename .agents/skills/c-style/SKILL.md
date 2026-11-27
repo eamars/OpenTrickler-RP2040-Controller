@@ -7,7 +7,7 @@ description: Enforce and review this project's C/C++ coding style for RP2040/RP2
 
 This skill captures the C/C++ style used in this repository. Apply it proactively when writing or reviewing firmware code.
 
-This project is Pico SDK firmware for RP2040/RP2350-class boards, with FreeRTOS, LVGL, lwIP/CYW43 networking, EEPROM-backed configuration, PIO stepper control, and small C++ bridge islands. The strongest style signal is tracked project code under `src/` and target hardware configuration under `src/boards/`.
+This project is Pico SDK firmware for RP2040/RP2350-class boards, with FreeRTOS, LVGL, lwIP/CYW43 networking, EEPROM-backed configuration, and PIO stepper control. The strongest style signal is tracked project code under `src/` and target hardware configuration under `src/boards/`.
 
 Treat `library/` code as third-party unless the user explicitly asks to modify it. Generated files under `src/generated/` should normally be regenerated rather than hand edited.
 
@@ -17,7 +17,7 @@ The style is direct embedded C with pragmatic C++ where it helps integrate C++ h
 
 ## Rule 1 - Match the local module shape
 
-Keep code organized as small module pairs in `src/`: `feature.c` / `feature.h`, or `feature.cpp` / `feature.h` when C++ is required. Public APIs are declared in the header and implemented in the source file. File-local helpers, callbacks, buffers, task handles, and state should be `static` unless existing code deliberately shares them.
+Code lives in modules, `src/<layer>/<module>/` (ADR-006; AGENTS.md, "Where code goes"): a module's sources beside each other, and in its `include/` the headers other modules may include. A header the module keeps to itself lies beside its sources. Public APIs are declared in the header and implemented in the source file. File-local helpers, callbacks, buffers, task handles, and state should be `static` unless existing code deliberately shares them.
 
 Prefer existing module vocabulary and prefixes:
 
@@ -290,7 +290,7 @@ When reviewing: flag response buffer overflow risk, returning stack memory throu
 
 ## Rule 11 - Use memory allocation conservatively
 
-This firmware uses standard C allocation (`malloc`, `free`) in project code and C++ objects in selected C++ modules. Keep allocations bounded, check for `NULL`, and free on every failure path.
+This firmware uses standard C allocation (`malloc`, `free`) in project code. Keep allocations bounded, check for `NULL`, and free on every failure path. The Pico W's C heap is small (some 3.3 KB) and its `malloc` panics when it runs out, so a larger buffer comes from the FreeRTOS heap, as the storage's do (AGENTS.md).
 
 Prefer static buffers for small HTTP responses, display strings, and fixed hardware data where the existing module does. Avoid long-lived heap allocations in fast control loops unless there is a clear ownership model.
 
@@ -333,7 +333,7 @@ When reviewing: flag misleading comments and empty narration, but do not demand 
 
 ## Rule 13 - Keep C++ as a bridge, not a second architecture
 
-Our own code is C (ADR-006, gate 5): write new code in C. The C++ left is `mini_12864_module.cpp` and the interrupt class in `gpio_irq_handler.h`, which go with the platform's inputs (ADR-006, gate 7); do not add to it. Keep public headers C-callable with `extern "C"` guards: they let C++ code call ours, as ESP-IDF's own headers do.
+Our own code is C (ADR-006, gates 5 and 7): no C++ of ours is left, and new code is C. Keep public headers C-callable with `extern "C"` guards: they let C++ code call ours, as ESP-IDF's own headers do.
 
 When a file moves from C++ to C, the compiler does not flag every change of meaning: `abs()` of a float is the float's in C++ and the integer's in C (write `fabsf`), and the same holds for every overloaded maths call. Compare what each function calls before and after.
 

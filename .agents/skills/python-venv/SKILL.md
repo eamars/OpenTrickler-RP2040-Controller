@@ -14,12 +14,12 @@ The virtual environment **must** be located at the project root in a folder name
 ```
 <project_root>/
 ├── venv/          ← always here
-├── workspace/
 ├── .agents/
+├── AGENTS.md
 └── ...
 ```
 
-**Never create a venv inside `workspace/`, `.agents/`, or any subdirectory.** The project root is the directory that contains `workspace/` and `.agents/`.
+**Never create a venv inside `.agents/`, `tools/`, or any subdirectory.** The project root is the directory that contains `.agents/` and `AGENTS.md`. Its packages are listed in `requirements.txt` there.
 
 ## Workflow
 
