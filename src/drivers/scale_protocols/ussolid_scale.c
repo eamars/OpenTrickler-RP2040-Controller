@@ -9,7 +9,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 /* 
   Example data
@@ -86,7 +86,7 @@ void _ussolid_scale_listener_task(void *p) {
                 // Data is ready, send to decode
                 float weight = _decode_measurement_msg(&frame);
 
-                scale_publish_measurement(weight);
+                scale_make_host->publish_measurement(weight);
 
                 // Reset
                 string_buf_idx = 0;

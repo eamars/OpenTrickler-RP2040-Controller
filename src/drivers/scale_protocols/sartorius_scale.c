@@ -11,7 +11,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 // Sartorius typically sends data in format like: "+  123.456 g" or similar
 // We'll buffer until we get a complete line (ends with \r or \n)
@@ -83,7 +83,7 @@ void _sartorius_scale_listener_task(void *p) {
                     float weight = _decode_measurement_msg(buf.buffer, buf.index);
                     
                     // Publish it; a frame with no number is dropped there
-                    scale_publish_measurement(weight);
+                    scale_make_host->publish_measurement(weight);
                     
                     // Reset buffer
                     buf.index = 0;

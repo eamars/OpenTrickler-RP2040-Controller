@@ -1,5 +1,5 @@
 #include "generic_scale.h"
-#include "scale.h"
+#include "scale_make.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -69,7 +69,7 @@ void _generic_scale_listener_task(void *p) {
 
                 // If the conversion is successful then post the measurement.
                 if (endptr != startptr) {
-                    scale_publish_measurement(weight);
+                    scale_make_host->publish_measurement(weight);
                 }
 
                 // Reset buffer index

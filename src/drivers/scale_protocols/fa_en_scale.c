@@ -8,7 +8,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 /*
   FA-E / FA-EN series analytical balance (aelabgroup.com), continuous output.
@@ -89,7 +89,7 @@ void _fa_en_scale_listener_task(void *p) {
                     // A line that doesn't start with 'E' is the tail of a partial frame: drop it
                     if (buf[0] == 'E') {
                         // Publish it; a frame with no number (NaN) is dropped there and counted (ADR-013)
-                        scale_publish_measurement(_decode_measurement_msg(buf));
+                        scale_make_host->publish_measurement(_decode_measurement_msg(buf));
                     }
 
                     buf_idx = 0;
