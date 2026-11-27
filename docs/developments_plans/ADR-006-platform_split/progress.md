@@ -583,7 +583,7 @@ It ends `VERDICT FAIL 0 requirements go up, 0 modules in 0 loops, 21 modules on 
 
 The unit is left on 2.0.3-322 (`8afa8cb`), slot A, its settings as before gate 1. The Pico 2 W waits, by the owner's word; its image builds at every commit.
 
-**Gate 6 is built.**
+**Gate 6 is built**, and merged by #143 (the owner).
 
 ### For gate 7
 

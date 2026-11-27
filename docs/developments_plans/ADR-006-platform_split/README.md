@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other. The gates after 6 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved the same day. The gates after 7 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -77,6 +77,10 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 **2026-11-27, gate 6**
 - Approved: "Approve gate 6."
 - **The UI hands its parts down** (asked before cut 2, since the ADR had `ui/` above `web/` and `console/` and also had the web's mirror and the console's `snap` ask the view): `ui/` stays on top; the console's screen commands are the UI's and are registered with the console at start-up; the API is handed the frame and the hello. The other reading, `ui/` put below the web and the console so that they may name the menu, was not taken.
+- PR #143 merged by the owner: "PR merged, continue with the next gate."
+
+**2026-11-27, gate 7**
+- Approved, in the same words: "continue with the next gate."
 
 ## Why here
 
