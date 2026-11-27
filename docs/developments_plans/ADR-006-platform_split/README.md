@@ -81,6 +81,7 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 
 **2026-11-27, gate 7**
 - Approved, in the same words: "continue with the next gate."
+- **The interfaces are buses** (asked before cut 1, since the gate's list had storage as blocks, the display's bus with its pins inside and the inputs as events, while the drivers' line has the drivers above the platform on its serial port, SPI and I2C, and the motors' enable and direction pins fitted nothing on the list): GPIO (outputs, inputs, edges), I2C, SPI and a serial port, beside the step pulses, the image slots, the system, a task, an LED strip, a servo and the network. The CAT24C256, the UC1701, the TMC2209 and the scale's makes stay drivers above them, written once for every chip. The other reading, an interface per use, was not taken.
 
 ## Why here
 
