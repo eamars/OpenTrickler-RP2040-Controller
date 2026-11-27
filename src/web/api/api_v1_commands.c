@@ -150,6 +150,12 @@ static void api_busy(http_server_reply_t *reply, const char *message) {
 }
 
 
+// A start that needs the scale, with no make in the build for the stored one (ADR-006, gate 9)
+static void api_no_scale(http_server_reply_t *reply) {
+    api_error(reply, 409, "no_scale", NULL, "the stored make of scale is not in this build: no scale reads", NULL);
+}
+
+
 static void api_driver_fault(http_server_reply_t *reply) {
     char extra[64];
     const char *coarse = motor_driver_get_status_string(SELECT_COARSE_TRICKLER_MOTOR);
@@ -345,6 +351,9 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
             return;
         case CHARGE_START_NO_TARGET:
             api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
+            return;
+        case CHARGE_START_NO_SCALE:
+            api_no_scale(reply);
             return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
@@ -669,6 +678,9 @@ static void api_v1_calibration_start(const http_server_request_t *request, http_
             return;
         case CALIBRATION_START_DRIVER_FAULT:
             api_driver_fault(reply);
+            return;
+        case CALIBRATION_START_NO_SCALE:
+            api_no_scale(reply);
             return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
@@ -1097,7 +1109,12 @@ static void reply_scale(http_server_reply_t *reply, int status) {
         http_json_raw(out, room, &len, "null");
     }
     http_json_raw(out, room, &len, ",\"driver\":");
-    http_json_string(out, room, &len, scale_driver_api_name(scale_get_running_driver()));
+    if (scale_reads()) {
+        http_json_string(out, room, &len, scale_driver_api_name(scale_get_running_driver()));
+    }
+    else {
+        http_json_raw(out, room, &len, "null");     // none runs: the stored make is not in this build
+    }
     http_json_raw(out, room, &len, ",\"simulated\":");
     http_json_bool(out, room, &len, scale_simulation_is_on());
     http_json_raw(out, room, &len, ",\"usual_interval_ms\":");
@@ -1994,8 +2011,9 @@ static const char *const api_v1_schema_actions[] = {
     "it\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/start\"," API_V1_SCHEMA_CHARGE_FIELDS ","
     "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
-    "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 "
-    "no_target when none is set\",\"example\":{\"target\":30}}",
+    "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 409 "
+    "no_scale when the stored make of scale is not in this build; 400 no_target when none is set\","
+    "\"example\":{\"target\":30}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/purge/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
@@ -2016,7 +2034,8 @@ static const char *const api_v1_schema_actions[] = {
     "\"choice\",\"choices\":[\"cup\",\"scale\",\"powder\"],\"required\":true},{\"name\":\"profile\",\"type\":"
     "\"integer\",\"about\":\"a powder's part: the profile calibrated, the powder in the hopper; without it, the one "
     "the charge uses\"}],\"refused_while\":\"a_job_runs\",\"about\":\"starts a part of the calibration (202), the "
-    "empty cup on the scale first. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes\","
+    "empty cup on the scale first. 409 busy, 409 driver_fault, 409 no_scale (the stored make of scale is not in "
+    "this build). The scale's and a powder's parts turn the tubes\","
     "\"example\":{\"part\":\"powder\",\"profile\":2}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/answer\",\"fields\":[{\"name\":\"answer\","
     "\"type\":\"choice\",\"choices\":[\"next\",\"full\",\"keep\",\"done\",\"go_on\"],\"required\":true}],"

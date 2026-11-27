@@ -118,6 +118,12 @@ option(RC_TEST_HANG_AT_START "Test build only: the image hangs before it starts 
 if (RC_TEST_HANG_AT_START)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_HANG_AT_START=1)
 endif()
+# A test build that carries no A&D FX-i make (ADR-006, gate 9): a unit whose stored make is the A&D's starts with no
+# scale read in its place, and refuses a charge and a calibration
+option(RC_TEST_NO_AND_FXI "Test build only: the A&D FX-i's make left out" OFF)
+if (RC_TEST_NO_AND_FXI)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_NO_AND_FXI=1)
+endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # The flash layout and the image's metadata block (ADR-004)

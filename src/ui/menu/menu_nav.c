@@ -902,6 +902,9 @@ static void act_ack_charge(const menu_row_t *row) {
     else if (result == CHARGE_START_NO_TARGET) {
         push_message("No target", "Set a target first", NULL);
     }
+    else if (result == CHARGE_START_NO_SCALE) {
+        push_message("No scale", "Its make is not", "in this build");
+    }
     else if (result != CHARGE_START_OK) {
         push_message("Busy", "A job runs", NULL);
     }
@@ -1361,8 +1364,12 @@ static void calibration_start_row(calibration_part_t part, int profile) {
     if (motors_fault_shown("Calibration")) {
         return;
     }
-    if (calibration_request_start(part, profile, ACTIVITY_BY_BUTTON) == CALIBRATION_START_DRIVER_FAULT) {
+    calibration_start_result_t result = calibration_request_start(part, profile, ACTIVITY_BY_BUTTON);
+    if (result == CALIBRATION_START_DRIVER_FAULT) {
         push_message(motors_get_fault(), "Calibration", "cannot start");
+    }
+    else if (result == CALIBRATION_START_NO_SCALE) {
+        push_message("No scale", "Its make is not", "in this build");
     }
 }
 

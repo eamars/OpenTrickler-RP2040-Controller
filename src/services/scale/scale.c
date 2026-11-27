@@ -78,20 +78,16 @@ static scale_handle_t *scale_make_for(scale_driver_t driver) {
 }
 
 
-// The make that reads the scale: the one asked for; one the build does not carry, or a number that is no make, is
-// read as the A&D FX-i's, as an unknown number always was; and with no A&D either, by the simulated scale
+// The make that reads the scale: the one asked for, or none. A make the build does not carry, or a number that is no
+// make, has nothing read in its place (ADR-006, gate 9): no reading comes, and what needs one refuses (scale_reads())
 static void scale_use_driver(scale_driver_t scale_driver) {
     scale_running_driver = scale_driver;
+    scale_config.scale_handle = scale_make_for(scale_driver);
+}
 
-    scale_handle_t *handle = scale_make_for(scale_driver);
-    if (handle == NULL) {
-        handle = scale_make_for(SCALE_DRIVER_AND_FXI);
-    }
-    if (handle == NULL) {
-        printf("Scale: this build carries no make numbered %d; the simulated scale stands in\n", (int) scale_driver);
-        handle = &simulated_scale_handle;
-    }
-    scale_config.scale_handle = handle;
+
+bool scale_reads(void) {
+    return scale_config.scale_handle != NULL;
 }
 
 
@@ -146,7 +142,9 @@ static volatile uint32_t scale_zero_count = 0;
 
 void scale_ask_zero(void) {
     scale_zero_count += 1;
-    scale_config.scale_handle->force_zero();
+    if (scale_config.scale_handle != NULL) {
+        scale_config.scale_handle->force_zero();
+    }
 }
 
 
@@ -156,6 +154,9 @@ uint32_t scale_get_zero_count(void) {
 
 
 bool scale_can_zero(void) {
+    if (!scale_reads()) {
+        return false;
+    }
     // Read in the drivers: the others' force_zero does nothing (TODOs, or "Unsupported")
     switch (scale_running_driver) {
         case SCALE_DRIVER_AND_FXI:
@@ -212,6 +213,9 @@ void set_scale_baudrate(scale_baudrate_t baudrate) {
 
 const char * get_scale_driver_string() {
     const char * scale_driver_string = NULL;
+    if (!scale_reads()) {
+        return "none: the stored make is not in this build";
+    }
 
     switch (scale_running_driver) {
         case SCALE_DRIVER_AND_FXI:
@@ -413,8 +417,15 @@ bool scale_init() {
     printf("Scale driver: %x\n", scale_config.persistent_config.scale_driver);
     set_scale_driver(scale_config.persistent_config.scale_driver);
 
-    // Create the Task for the listener loop. Its handle is kept so the simulation can stand in for it
-    rtos_task_start(scale_config.scale_handle->read_loop_task, "Scale Task", 1024, NULL, 9, &scale_task_handle);
+    // Create the Task for the listener loop. Its handle is kept so the simulation can stand in for it. A stored make
+    // the build does not carry runs nothing in its place: said now, and a charge and a calibration refuse
+    if (scale_reads()) {
+        rtos_task_start(scale_config.scale_handle->read_loop_task, "Scale Task", 1024, NULL, 9, &scale_task_handle);
+    }
+    else {
+        printf("Scale: the stored make (%d) is not in this build: no scale reads, and a charge and a calibration "
+               "are refused\n", (int) scale_config.persistent_config.scale_driver);
+    }
 
     // Register to eeprom save all
     eeprom_register_handler(scale_config_save);
@@ -428,13 +439,16 @@ bool scale_simulation_start(void) {
     if (scale_simulation_task_handle != NULL) {
         return true;
     }
-    // A unit that runs the simulated driver already has it; there is nothing to stand in for
-    if (scale_task_handle == NULL || scale_running_driver == SCALE_DRIVER_SIMULATED) {
+    // A unit that runs the simulated driver already has it; there is nothing to stand in for. With no make in the
+    // build for the stored one there is no task to stand in for, and the simulation, asked, runs alone
+    if (scale_running_driver == SCALE_DRIVER_SIMULATED) {
         return false;
     }
 
     scale_simulation_stored_driver = scale_running_driver;
-    vTaskSuspend(scale_task_handle);
+    if (scale_task_handle != NULL) {
+        vTaskSuspend(scale_task_handle);
+    }
 
     // The simulated scale publishes only while it is the driver that runs. The stored settings do not change
     // (ADR-003, gate 3): no save stores the stand-in, and a restart brings the driver that ran back
@@ -445,7 +459,9 @@ bool scale_simulation_start(void) {
                          &scale_simulation_task_handle)) {
         scale_simulation_task_handle = NULL;
         scale_use_driver(scale_simulation_stored_driver);
-        vTaskResume(scale_task_handle);
+        if (scale_task_handle != NULL) {
+            vTaskResume(scale_task_handle);
+        }
         return false;
     }
     return true;
@@ -465,7 +481,9 @@ void scale_simulation_stop(void) {
     while (chip_serial_read(SCALE_UART) != CHIP_SERIAL_NONE) {
     }
     scale_config.current_scale_measurement = NAN;
-    vTaskResume(scale_task_handle);
+    if (scale_task_handle != NULL) {
+        vTaskResume(scale_task_handle);
+    }
 }
 
 

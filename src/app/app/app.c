@@ -101,7 +101,9 @@ int main()
     motors_init();
 
     // The scale's makes this build carries, each by its stored number, then the scale (ADR-006, gate 6)
-    scale_register_make(SCALE_DRIVER_AND_FXI, &and_fxi_scale_handle);
+#if !RC_TEST_NO_AND_FXI
+    scale_register_make(SCALE_DRIVER_AND_FXI, &and_fxi_scale_handle);   // a test build leaves it out (gate 9)
+#endif
     scale_register_make(SCALE_DRIVER_STEINBERG_SBS, &steinberg_scale_handle);
     scale_register_make(SCALE_DRIVER_GNG_JJB, &gng_scale_handle);
     scale_register_make(SCALE_DRIVER_USSOLID_JFDBS, &ussolid_scale_handle);

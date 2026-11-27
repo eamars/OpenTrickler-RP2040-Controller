@@ -1192,6 +1192,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     if (!motors_ready()) {
         return CHARGE_START_DRIVER_FAULT;
     }
+    if (!scale_reads()) {
+        return CHARGE_START_NO_SCALE;
+    }
     if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
         return CHARGE_START_NO_TARGET;
     }
