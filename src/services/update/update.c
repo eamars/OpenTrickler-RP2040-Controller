@@ -38,7 +38,6 @@
 #include "http_json.h"
 #include "http_server.h"
 #include "https_client.h"
-#include "menu.h"
 #include "jobs.h"
 #include "mini_12864_module.h"
 #include "picobin_image.h"
@@ -619,7 +618,7 @@ void update_status(update_status_t *status) {
     }
     else if (status->state == UPDATE_IDLE && update_giving_back) {
         // Idle once the menu is back at its forms, where a start is taken again
-        if (menu_get_current_form_id() >= 0) {
+        if (activity_screen_takes_starts()) {
             update_giving_back = false;
         }
         else {
@@ -656,7 +655,8 @@ static update_start_result_t update_request(activity_by_t by, bool download) {
         return UPDATE_START_ON_TRIAL;
     }
     activity_t asked_before;
-    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
+        !activity_screen_takes_starts()) {
         return UPDATE_START_BUSY;
     }
     activity_lock();
@@ -668,7 +668,7 @@ static update_start_result_t update_request(activity_by_t by, bool download) {
     if (!asked) {
         return UPDATE_START_BUSY;
     }
-    menu_wake();
+    activity_wake_screen();
     return UPDATE_START_OK;
 }
 

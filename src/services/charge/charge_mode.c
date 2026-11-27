@@ -21,7 +21,6 @@
 #include "profile.h"
 #include "common.h"
 #include "servo_gate.h"
-#include "menu.h"
 #include "jobs.h"
 #include "settings.h"
 #include "charge_controller.h"
@@ -1175,7 +1174,8 @@ void charge_mode_keep_target(decimal_places_t before) {
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile) {
     // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over
     activity_t asked_before;
-    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
+        !activity_screen_takes_starts()) {
         return CHARGE_START_BUSY;
     }
     // The drivers looked at afresh, as a start at the unit does: a fault is remembered until a mode asks, so the
@@ -1201,7 +1201,7 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     if (!asked) {
         return CHARGE_START_BUSY;
     }
-    menu_wake();
+    activity_wake_screen();
     return CHARGE_START_OK;
 }
 

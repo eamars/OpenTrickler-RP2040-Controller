@@ -23,6 +23,26 @@ static volatile bool activity_asked_taken = false;
 static volatile bool activity_stop_asked = false;
 static volatile activity_by_t activity_stop_by = ACTIVITY_BY_BUTTON;
 
+// The screen's two calls, handed over by the UI; NULL until then
+static const activity_screen_t *activity_screen = NULL;
+
+
+void activity_set_screen(const activity_screen_t *screen) {
+    activity_screen = screen;
+}
+
+
+void activity_wake_screen(void) {
+    if (activity_screen != NULL) {
+        activity_screen->wake();
+    }
+}
+
+
+bool activity_screen_takes_starts(void) {
+    return activity_screen != NULL && activity_screen->takes_starts();
+}
+
 
 /*
     Recursive: a task that holds the lock may take it again. The API's zero reads the charge's state while it holds

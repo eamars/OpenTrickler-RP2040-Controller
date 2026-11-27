@@ -21,7 +21,9 @@
 #include "eeprom.h"
 #include "scale.h"
 #include "display.h"
+#include "calibration.h"
 #include "charge_mode.h"
+#include "cleanup_mode.h"
 #include "rest_endpoints.h"
 #include "wireless.h"
 #include "neopixel_led.h"
@@ -88,11 +90,16 @@ int main()
         printf("Update: no room for the poll's lock\n");
     }
 
-    // The job task, where the charge, a cleanup and an update run, then the screen's (ADR-010, gate 2)
+    // The job task, where the charge, a cleanup and an update run, then the screen's (ADR-010, gate 2). Each job's
+    // run is handed to it here: the job task names none (ADR-006, gate 6)
     if (!jobs_init()) {
         printf("Jobs: no room for the job task\n");
         assert(false);
     }
+    jobs_register(ACTIVITY_CHARGE, charge_mode_menu);
+    jobs_register(ACTIVITY_CLEANUP, cleanup_mode_menu);
+    jobs_register(ACTIVITY_UPDATE, update_mode_menu);
+    jobs_register(ACTIVITY_CALIBRATION, calibration_job_run);
     // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4). Its locks first: the web and the
     // console read its frame
     menu_init();

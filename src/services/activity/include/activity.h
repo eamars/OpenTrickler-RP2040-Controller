@@ -33,12 +33,30 @@ typedef enum {
 // A start the menu has not taken in this long is dropped, so it never starts a job later
 #define ACTIVITY_REQUEST_MAX_MS 1500
 
+/*
+ * The screen, as the jobs see it (ADR-006, gate 6): whoever shows the unit's pages and takes a start asked from
+ * outside. The UI hands these over at its start, so no job names a screen. With none handed over nothing is woken,
+ * and no start is taken.
+ */
+typedef struct {
+    void (*wake)(void);             // something it shows has changed: look now, not at its next wake. From any task
+    bool (*takes_starts)(void);     // it is at its pages, where a start asked is taken; false while a job's screen
+                                    // or a person's own view is open
+} activity_screen_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Before any task that marks or locks
 void activity_init(void);
+
+// The UI, once, before its task runs: the screen's two calls. The struct is kept by its address
+void activity_set_screen(const activity_screen_t *screen);
+// Any task: the screen looks now (a start asked, a job's step or its end)
+void activity_wake_screen(void);
+// Whether the screen would take a start now. A job's start refuses when it would not (busy)
+bool activity_screen_takes_starts(void);
 
 // Held for a check and a write; never across a wait for anything but the lock
 void activity_lock(void);
@@ -48,7 +66,7 @@ bool activity_try_lock(unsigned wait_ms);
 
 /*
  * A start asked from outside the menu: refused (false) when a job runs or another start is asked already. The
- * caller wakes the menu (menu_wake()); the menu takes the request with activity_take_start().
+ * caller wakes the screen (activity_wake_screen()); the menu takes the request with activity_take_start().
  */
 bool activity_request_start(activity_t job, activity_by_t by);
 // The menu: a start asked and still fresh, taken (once); false when there is none

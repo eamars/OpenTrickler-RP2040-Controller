@@ -364,7 +364,16 @@ static void menu_draw(bool goto_asked) {
 }
 
 
+// The screen as the jobs see it (activity.h)
+static bool menu_takes_starts(void) {
+    return menu_current_form_id >= 0;
+}
+
+static const activity_screen_t menu_as_screen = {.wake = menu_wake, .takes_starts = menu_takes_starts};
+
+
 void menu_init(void) {
+    activity_set_screen(&menu_as_screen);
     menu_screen_lock = xSemaphoreCreateMutex();
     menu_goto_drawn = xSemaphoreCreateBinary();
     menu_frame_lock = xSemaphoreCreateMutex();

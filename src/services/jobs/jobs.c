@@ -4,12 +4,7 @@
 #include <queue.h>
 #include <task.h>
 
-#include "calibration.h"
-#include "charge_mode.h"
-#include "cleanup_mode.h"
 #include "jobs.h"
-#include "menu.h"
-#include "update.h"
 
 // As the menu's task had for the modes, which ran in it before (ADR-010, gate 2). On the Pico W a charge used 984
 // bytes of it, an update's download over HTTPS with its check 2,952 (gate 5, progress.md)
@@ -22,6 +17,17 @@ static volatile bool jobs_running = false;
 static volatile bool jobs_ended = false;
 static volatile uint8_t jobs_exit_form = JOBS_EXIT_MAIN_MENU;
 
+// What runs for each job, by its activity; NULL for an activity that is no job, or whose module the build leaves out
+#define JOBS_KINDS (ACTIVITY_CALIBRATION + 1)
+static uint8_t (*jobs_run[JOBS_KINDS])(void);
+
+
+void jobs_register(activity_t job, uint8_t (*run)(void)) {
+    if ((unsigned) job < JOBS_KINDS) {
+        jobs_run[job] = run;
+    }
+}
+
 
 static void jobs_task(void *p) {
     (void) p;
@@ -30,22 +36,11 @@ static void jobs_task(void *p) {
         xQueueReceive(jobs_queue, &job, portMAX_DELAY);
 
         uint8_t exit_form = JOBS_EXIT_MAIN_MENU;
-        switch (job) {
-            case ACTIVITY_CHARGE:
-                exit_form = charge_mode_menu();
-                break;
-            case ACTIVITY_CLEANUP:
-                exit_form = cleanup_mode_menu();
-                break;
-            case ACTIVITY_UPDATE:
-                exit_form = update_mode_menu();
-                break;
-            case ACTIVITY_CALIBRATION:
-                exit_form = calibration_job_run();
-                break;
-            default:
-                printf("Jobs: %s is no job\n", activity_name(job));
-                break;
+        if ((unsigned) job < JOBS_KINDS && jobs_run[job] != NULL) {
+            exit_form = jobs_run[job]();
+        }
+        else {
+            printf("Jobs: %s is no job\n", activity_name(job));
         }
 
         // Not running before ended: the menu, once it sees the end, may begin the next job at once
@@ -53,7 +48,7 @@ static void jobs_task(void *p) {
         jobs_running = false;
         jobs_ended = true;
         // The screen looks at once, not at its next wake
-        menu_wake();
+        activity_wake_screen();
     }
 }
 

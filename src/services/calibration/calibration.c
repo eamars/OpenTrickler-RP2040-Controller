@@ -17,7 +17,6 @@
 #include "charge_mode.h"
 #include "events.h"
 #include "jobs.h"
-#include "menu.h"
 #include "motors.h"
 #include "profile.h"
 #include "scale.h"
@@ -102,7 +101,7 @@ static void set_step(calibration_step_t step, const char *line) {
         snprintf(status.line, sizeof(status.line), "%s", line);
     }
     activity_unlock();
-    menu_wake();
+    activity_wake_screen();
 }
 
 
@@ -624,7 +623,7 @@ uint8_t calibration_job_run(void) {
 calibration_start_result_t calibration_request_start(calibration_part_t part, int profile, activity_by_t by) {
     activity_t asked_before;
     if (part == CALIBRATION_PART_NONE || activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
-        menu_get_current_form_id() < 0) {
+        !activity_screen_takes_starts()) {
         return CALIBRATION_START_BUSY;
     }
     if (!motors_ready()) {
@@ -635,7 +634,7 @@ calibration_start_result_t calibration_request_start(calibration_part_t part, in
     if (!activity_request_start(ACTIVITY_CALIBRATION, by)) {
         return CALIBRATION_START_BUSY;
     }
-    menu_wake();
+    activity_wake_screen();
     return CALIBRATION_START_OK;
 }
 
