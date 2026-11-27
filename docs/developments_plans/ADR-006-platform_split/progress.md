@@ -959,6 +959,16 @@ The unit is left on 2.0.3-351, slot A, its settings as before gate 1. The Pico 2
 
 **The Generic scale's frames**, its driver's file built on the PC with zig cc against the FreeRTOS stand-ins and fed frames, beside the parser as it was (`build_adr006/g10_generic_check.c`, not kept): 14 of 14 as they must read. Before the fix, five read as no number ("ST,GS,- 12.34 g", "- 0.02 gn", "+ 7.50 g", "US,GS,  -  1.5 gr", and "ST-GS 3.25 g", whose dash in the prefix stopped the search), and ".52 g" read as 52. A frame with no number ("OL", an empty line, "- g") reads as none, as before: it is still dropped, not counted (ADR-017).
 
+**The owner's question (2026-11-28): the upgrade path with the revision path gone.** The path took a record whose
+first two bytes equalled its module's old revision number (1 to 8), with no CRC. Checked in each version's source and
+in today's image: every stored record starts with its old revision field (two bytes, or four for the motors and the
+display, the motors' mark in the upper two); at v1.21, v2.0.2 and v2.0.3 every default sets those two bytes 0 and no
+save writes them otherwise; v1.21 loads all nine of its records at every start, and its old path zeroed them, so a unit
+that has run v1.21 once holds none the path could take. On a unit: the Pico W updated from v1.21 by a full install
+read the scale's, the charge's and the powders' records through the migration, the rest whole, every value given on
+v1.21 read back (above). Not run on a unit: an update from v2.0.2 or v2.0.3, whose records the source shows the same.
+A unit still on a firmware before v1.17 that skips v1.17 to v1.21 gets its defaults: below the floor.
+
 ### ADR-017
 
 Drafted, not approved, not placed in the order: [ADR-017](../ADR-017-storage_and_scale_faults/README.md). The five handed-on items, and two found on the way: the erase outside the EEPROM's lock (found in ADR-003 and handed on with no ADR named; HANDOVER.md), and a radio that does not start shown on the screen as "Not joined", as a unit set up and not yet joined is. Two gates, storage first; what to settle is in its README.
