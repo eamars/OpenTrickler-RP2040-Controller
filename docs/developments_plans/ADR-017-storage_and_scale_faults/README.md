@@ -1,6 +1,6 @@
 # ADR-017: the settings' storage and the scale's frames, when they fail
 
-Status: **Draft**, written 2026-11-27 from what ADR-006 handed on, revised 2026-11-28 with [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md) ("ADR-017: the draft"), each of its facts read again in the code. Not approved. Not placed in the order: the owner's to say. Nothing is built.
+Status: **Decided** 2026-11-28, approved by the owner; not built, gate 1 first. Written 2026-11-27 from what ADR-006 handed on, revised 2026-11-28 with [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md) ("ADR-017: the draft"), each of its facts read again in the code. Next in the order after ADR-006.
 
 ## What we want
 
@@ -17,6 +17,7 @@ Status: **Draft**, written 2026-11-27 from what ADR-006 handed on, revised 2026-
 - 2026-11-15 (ADR-012, step 6): fail early, a fault shown before a mode is entered.
 - 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append.
 - 2026-11-28: "The upgrade should be always from release to release": the compatibility floor is the latest release; a pre-release needs no compatibility.
+- **2026-11-28, the approval:** "Approve ADR-017". Read here as: the draft as revised, and each item under "To settle" as recommended there.
 - 2026-11-27 (ADR-006, gate 9): a stored make of scale the build does not carry runs nothing in its place.
 
 ## Why here
@@ -136,9 +137,9 @@ Shown, with no scale but the A&D:
 - The gate's move queue letting a write replace a move a mode waits for (`servo_gate.c`, found in ADR-003): a servo gate's, with no gate on the bench.
 - What ADR-016 asks of a throw's record.
 
-## To settle before approval
+## Settled at the approval
 
-Each with the agent's recommendation, the review agreeing:
+Each as the agent recommended, the review agreeing; taken with the ADR (the owner, 2026-11-28: "Approve ADR-017"):
 - **The order:** next after ADR-006; gate 1 before ADR-014; both gates before ADR-007.
 - **A record that fails its CRC:** run on the defaults, unwritten, and say so; blank stays silent; the damaged bytes stay on the chip until the user saves that module or resets it; a charge is not refused for it.
 - **An EEPROM that does not answer:** the menu and the console only, a charge and a calibration refused, the screen saying why.
