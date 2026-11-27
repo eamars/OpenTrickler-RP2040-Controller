@@ -39,6 +39,27 @@
 #include "jobs.h"
 
 
+// The network is up (the Wi-Fi's task): the pages and the API, the portal at / on any network, which opens the
+// set-up by itself on a unit never set up; then our own HTTP server (ADR-003, gate 2), in its own task, on lwIP's
+// sockets. The Wi-Fi names neither (ADR-006, gate 6)
+static void app_network_up(void) {
+    rest_endpoints_init();
+    static const http_server_network_t http_network = {
+        .host_is_own = wireless_host_is_own,
+        .own_address = wireless_own_address,
+        .listening = wireless_server_listening,
+    };
+    http_server_start(&http_network);
+}
+
+// What follows the network: the web started; an image on trial told the unit is on its network; the update's poll
+static const wireless_listener_t app_wireless_listener = {
+    .network_up = app_network_up,
+    .reachable = update_network_ready,
+    .station_joined = update_poll_station_joined,
+};
+
+
 int main()
 {
 #if RC_TEST_HANG_AT_START
@@ -69,7 +90,8 @@ int main()
     // Configure other functions from mini 12864 display
     mini_12864_module_init();
 
-    // Initialize wireless settings
+    // Initialize wireless settings; what follows the network handed to it first
+    wireless_set_listener(&app_wireless_listener);
     wireless_init();
 
     // The motors and their drivers. A driver that does not answer does not stop the start-up (ADR-012)
