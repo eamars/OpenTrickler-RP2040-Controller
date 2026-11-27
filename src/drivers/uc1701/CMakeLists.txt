@@ -1,3 +1,3 @@
 ot_module(SRCS display.c
           INCLUDE_DIRS include
-          PRIV_REQUIRES board freertos rp2_sdk)
+          PRIV_REQUIRES board freertos platform rp2_sdk)

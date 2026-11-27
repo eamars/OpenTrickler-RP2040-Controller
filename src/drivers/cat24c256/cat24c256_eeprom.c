@@ -8,7 +8,7 @@
 #include "cat24c256_eeprom.h"
 
 // Include only for PICO board with specific flash chip
-#include "pico/unique_id.h"
+#include "chip.h"
 
 
 #define PAGE_SIZE   64  // 64 byte page size
@@ -57,7 +57,7 @@ bool cat24c256_write(uint16_t base_addr, uint8_t * data, size_t len) {
         }
 
         is_ok = _cat24c256_write_page(base_addr + offset, data + offset, write_size);
-        busy_wait_us(5 * 1000ULL);
+        chip_busy_wait_us(5 * 1000u);
         if (!is_ok) {
             return false;
         }

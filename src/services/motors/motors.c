@@ -11,6 +11,7 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "hardware/gpio.h"
+#include "chip.h"
 #include "step_pulses.h"
 #include "fault_handler.h"
 
@@ -159,7 +160,7 @@ static SemaphoreHandle_t motor_driver_mutex = NULL;
 static bool motor_uart_exchange(const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len) {
     bool is_ok = true;
 
-    busy_wait_us(MOTOR_UART_IDLE_US);
+    chip_busy_wait_us(MOTOR_UART_IDLE_US);
 
     // Whatever is left from before is not this exchange's
     while (uart_is_readable(MOTOR_UART)) {

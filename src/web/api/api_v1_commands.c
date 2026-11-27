@@ -12,8 +12,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "hardware/watchdog.h"
-#include "pico/time.h"
+#include "chip.h"
 
 #include "activity.h"
 #include "api_v1.h"
@@ -794,7 +793,7 @@ static bool api_v1_events_more(void *ctx, char *buf, size_t room, size_t *len) {
         http_json_raw(buf, room, len, "{\"boot\":");
         http_json_unsigned(buf, room, len, api_v1_boot_id());
         http_json_raw(buf, room, len, ",\"now_ms\":");
-        write_u64(buf, room, len, time_us_64() / 1000u);
+        write_u64(buf, room, len, chip_time_us() / 1000u);
         http_json_raw(buf, room, len, ",\"first\":");
         http_json_integer(buf, room, len, (long) first);
         http_json_raw(buf, room, len, ",\"next\":");
@@ -909,7 +908,7 @@ _Static_assert(sizeof(api_v1_stream_t) <= HTTP_SERVER_CONTEXT_MAX, "the stream's
 
 
 static uint32_t stream_now_ms(void) {
-    return to_ms_since_boot(get_absolute_time());
+    return (uint32_t) (chip_time_us() / 1000u);
 }
 
 
@@ -1577,7 +1576,7 @@ static void api_v1_get_system(const http_server_request_t *request, http_server_
     http_json_raw(out, room, &len, ",\"unit_id\":");
     http_json_string(out, room, &len, unit_id);
     http_json_raw(out, room, &len, ",\"uptime_s\":");
-    http_json_integer(out, room, &len, (long) (time_us_64() / 1000000u));
+    http_json_integer(out, room, &len, (long) (chip_time_us() / 1000000u));
     http_json_raw(out, room, &len, ",\"activity\":");
     http_json_string(out, room, &len, activity_name(activity_get()));
     http_json_raw(out, room, &len, ",\"restart_pending\":");
@@ -1596,7 +1595,7 @@ static void api_v1_restart_task(void *erase) {
     if (erase != NULL) {
         eeprom_erase(true);     // restarts when done
     }
-    watchdog_reboot(0, 0, 0);
+    chip_restart(0);
     vTaskDelete(NULL);
 }
 

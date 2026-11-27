@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "mbedtls/sha256.h"
-#include "pico/unique_id.h"
+#include "chip.h"
 
 #include "unit_id.h"
 
@@ -14,14 +14,14 @@ static const char unit_key_alphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
 
 // SHA-256 of a word and the chip's unique id: each word gives a hash that tells nothing of another word's
 static void unit_id_hash(const char *word, uint8_t digest[32]) {
-    pico_unique_board_id_t chip;
-    pico_get_unique_board_id(&chip);
+    uint8_t chip[CHIP_ID_BYTES];
+    chip_id(chip);
 
-    uint8_t input[32 + PICO_UNIQUE_BOARD_ID_SIZE_BYTES];
+    uint8_t input[32 + CHIP_ID_BYTES];
     size_t word_len = strlen(word);
     memcpy(input, word, word_len);
-    memcpy(input + word_len, chip.id, PICO_UNIQUE_BOARD_ID_SIZE_BYTES);
-    mbedtls_sha256(input, word_len + PICO_UNIQUE_BOARD_ID_SIZE_BYTES, digest, 0);
+    memcpy(input + word_len, chip, CHIP_ID_BYTES);
+    mbedtls_sha256(input, word_len + CHIP_ID_BYTES, digest, 0);
 }
 
 

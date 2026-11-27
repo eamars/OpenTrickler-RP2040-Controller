@@ -7,8 +7,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "pico/stdlib.h"
-#include "hardware/watchdog.h"
+#include "chip.h"
 
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
@@ -65,11 +64,11 @@ int main()
 #if RC_TEST_HANG_AT_START
     // A test build (rc_run.py update --expect back): it never starts, and only the boot's own watchdog ends its trial
     while (true) {
-        tight_loop_contents();
+        // nothing: the hang is the test
     }
 #endif
     // The console, over RTT through the debug probe (ADR-001): first, so every printf below reaches it
-    stdio_init_all();
+    chip_console_start();
     printf("OpenTrickler starting\n");
 
     // What the unit is doing, and the lock its settings' writes share (ADR-003, gate 3), and its event log, which

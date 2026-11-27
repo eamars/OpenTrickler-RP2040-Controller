@@ -17,7 +17,7 @@
 #include <semphr.h>
 #include <task.h>
 
-#include "pico/time.h"
+#include "chip.h"
 
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
@@ -220,7 +220,7 @@ static bool https_handshake(https_conn_t *conn, const https_url_t *url, int hop)
     }
     mbedtls_ssl_set_bio(&https_ssl, &conn->fd, https_bio_send, https_bio_recv, NULL);
 
-    uint64_t started = time_us_64();
+    uint64_t started = chip_time_us();
     while ((ret = mbedtls_ssl_handshake(&https_ssl)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
             uint32_t flags = mbedtls_ssl_get_verify_result(&https_ssl);
@@ -232,7 +232,7 @@ static bool https_handshake(https_conn_t *conn, const https_url_t *url, int hop)
             return false;
         }
     }
-    https_report.handshake_ms[hop] = (uint32_t) ((time_us_64() - started) / 1000);
+    https_report.handshake_ms[hop] = (uint32_t) ((chip_time_us() - started) / 1000);
     return true;
 }
 
@@ -498,7 +498,7 @@ bool https_get(const char *url, const https_sink_t *sink) {
     memset(&https_report, 0, sizeof(https_report));
     https_report.mbedtls_peak = (uint32_t) https_in_use;
     https_report.heap_free_before = (uint32_t) xPortGetFreeHeapSize();
-    uint64_t started = time_us_64();
+    uint64_t started = chip_time_us();
 
     bool ok = strlen(url) < HTTPS_URL_MAX;
     if (!ok) {
@@ -524,7 +524,7 @@ bool https_get(const char *url, const https_sink_t *sink) {
     https_teardown();
 
     https_report.hops = (uint8_t) hop;
-    https_report.total_ms = (uint32_t) ((time_us_64() - started) / 1000);
+    https_report.total_ms = (uint32_t) ((chip_time_us() - started) / 1000);
     https_report.heap_min_after = (uint32_t) xPortGetMinimumEverFreeHeapSize();
     https_report.stack_left = (uint32_t) (uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t));
     xSemaphoreGive(https_lock);

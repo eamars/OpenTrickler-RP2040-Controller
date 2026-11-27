@@ -1,4 +1,4 @@
-ot_module(SRCS dhcpserver.c fault_handler.c freertos_hooks.c picobin_image.c step_pulses.c update_slots_rp2.c
+ot_module(SRCS chip_rp2.c dhcpserver.c fault_handler.c freertos_hooks.c picobin_image.c step_pulses.c update_slots_rp2.c
                update_slots_rp2040.c update_slots_rp2350.c
           INCLUDE_DIRS include
           REQUIRES lwip rp2_sdk

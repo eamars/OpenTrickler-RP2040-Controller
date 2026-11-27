@@ -15,7 +15,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "pico/time.h"
+#include "chip.h"
 
 #include "lwip/sockets.h"
 #include "lwip/errno.h"
@@ -863,7 +863,7 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
             return false;
         }
         request->body_is_json = json;
-        server_last_write_us = time_us_64();
+        server_last_write_us = chip_time_us();
     }
     return true;
 }
@@ -871,7 +871,7 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
 
 bool http_server_wrote_within(uint32_t ms) {
     uint64_t last = server_last_write_us;
-    return last != 0 && time_us_64() - last < (uint64_t) ms * 1000u;
+    return last != 0 && chip_time_us() - last < (uint64_t) ms * 1000u;
 }
 
 
@@ -1355,7 +1355,7 @@ static bool slot_next_chunk(slot_t *slot) {
     size_t len = 0;
     char *data = slot->buf + HTTP_SERVER_CHUNK_HEAD;
     size_t room = sizeof(slot->buf) - HTTP_SERVER_CHUNK_HEAD - 2;
-    uint64_t started_us = time_us_64();
+    uint64_t started_us = chip_time_us();
     for (int empty = 0; empty < HTTP_SERVER_EMPTY_CHUNKS_MAX; empty += 1) {
         len = 0;
         slot->more_done = !slot->more(slot->more_ctx, data, room, &len);
@@ -1363,7 +1363,7 @@ static bool slot_next_chunk(slot_t *slot) {
             break;
         }
     }
-    stream_make_us += time_us_64() - started_us;
+    stream_make_us += chip_time_us() - started_us;
     if (slot->live && len == 0 && !slot->more_done) {
         slot->live_waiting = true;      // nothing for now: it waits for its ready
         return false;

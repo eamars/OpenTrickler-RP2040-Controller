@@ -9,7 +9,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "pico/stdlib.h"
+#include "chip.h"
 
 #include "rc_console.h"
 #include "remote_control.h"
@@ -74,14 +74,14 @@ static void rc_console_task(void *p) {
     bool discarding = false;  // dropping the rest of an over-long line until its line ending
 
     // Never run what was typed before the task started
-    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
+    while (chip_console_read(0) != CHIP_CONSOLE_NONE) {
     }
 
     printf("@hello remote control ready\n");
 
     while (true) {
-        int c = getchar_timeout_us(0);
-        if (c == PICO_ERROR_TIMEOUT) {
+        int c = chip_console_read(0);
+        if (c == CHIP_CONSOLE_NONE) {
             vTaskDelay(pdMS_TO_TICKS(RC_CONSOLE_POLL_MS));
             continue;
         }

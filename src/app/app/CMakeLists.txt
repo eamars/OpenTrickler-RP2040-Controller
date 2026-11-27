@@ -2,7 +2,7 @@ ot_module(SRCS app.c
           INCLUDE_DIRS include
           REQUIRES storage
           PRIV_REQUIRES activity api board calibration charge cleanup events freertos http_server jobs leds menu
-                        mini_12864 motors profile remote_control rp2_sdk scale servo_gate uc1701 update
+                        mini_12864 motors platform profile remote_control scale servo_gate uc1701 update
                         update_fetch view_12864 wireless)
 
 # The version (scripts/gen_version.py), made at every build into src/generated. A module that reads it requires it

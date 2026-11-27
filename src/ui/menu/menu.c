@@ -15,7 +15,7 @@
 #include <semphr.h>
 #include <task.h>
 
-#include "pico/time.h"
+#include "chip.h"
 
 #include "activity.h"
 #include "api_v1.h"
@@ -168,7 +168,7 @@ bool menu_visit(const char *name, bool *flash) {
         return false;
     }
     xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
-    uint64_t now_us = time_us_64();
+    uint64_t now_us = chip_time_us();
     *flash = menu_visit_last_us == 0 || now_us - menu_visit_last_us >= (uint64_t) MENU_VISIT_QUIET_MS * 1000u;
     menu_visit_last_us = now_us;
     snprintf(menu_visit_asked_name, sizeof(menu_visit_asked_name), "%s", name);
@@ -214,7 +214,7 @@ static void menu_visit_run(void) {
     }
     xSemaphoreGive(menu_screen_lock);
 
-    uint64_t now_us = time_us_64();
+    uint64_t now_us = chip_time_us();
     if (activity_get() == ACTIVITY_CHARGE) {
         menu_visit_end();
         return;
@@ -244,7 +244,7 @@ static void menu_visit_run(void) {
 static uint32_t menu_wait_ms(void) {
     uint32_t wait = menu_nav_in_job() ? MENU_REFRESH_JOB_MS : MENU_REFRESH_PAGE_MS;
     if (menu_visiting) {
-        uint64_t spent_ms = (time_us_64() - menu_visit_step_us) / 1000;
+        uint64_t spent_ms = (chip_time_us() - menu_visit_step_us) / 1000;
         uint32_t left = spent_ms >= MENU_VISIT_STEP_MS ? 0 : (uint32_t) (MENU_VISIT_STEP_MS - spent_ms);
         wait = left < wait ? left : wait;
     }
@@ -326,7 +326,7 @@ void menu_task(void *p) {
     menu_draw(false);
 
     uint64_t heap_looked_us = 0;
-    uint64_t resent_us = time_us_64();
+    uint64_t resent_us = chip_time_us();
     while (true) {
         ButtonEncoderEvent_t event = button_wait_for_input_ms(menu_wait_ms());
         bool goto_asked = event == MENU_REMOTE_SCREEN;
@@ -351,13 +351,13 @@ void menu_task(void *p) {
         menu_nav_refresh();
         menu_draw(goto_asked);
 
-        if (time_us_64() - resent_us >= (uint64_t) MENU_RESEND_MS * 1000u) {
-            resent_us = time_us_64();
+        if (chip_time_us() - resent_us >= (uint64_t) MENU_RESEND_MS * 1000u) {
+            resent_us = chip_time_us();
             menu_view->resend();
         }
 
-        if (time_us_64() - heap_looked_us >= (uint64_t) MENU_HEAP_LOOK_MS * 1000u) {
-            heap_looked_us = time_us_64();
+        if (chip_time_us() - heap_looked_us >= (uint64_t) MENU_HEAP_LOOK_MS * 1000u) {
+            heap_looked_us = chip_time_us();
             uint32_t max_used;
             uint32_t biggest_free;
             menu_view->heap(&max_used, &biggest_free);

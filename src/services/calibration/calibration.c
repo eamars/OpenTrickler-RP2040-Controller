@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "pico/time.h"
+#include "chip.h"
 
 #include "activity.h"
 #include "calibration.h"
@@ -178,7 +178,7 @@ static bool recent_steady(float *weight) {
  * reading into *weight. False when the job is to end or the time ran out (then *weight is NAN)
  */
 static bool wait_steady(bool (*test)(float weight), uint32_t timeout_ms, float *weight) {
-    uint64_t start = time_us_64();
+    uint64_t start = chip_time_us();
     recent_count = 0;
     *weight = NAN;
     while (true) {
@@ -194,7 +194,7 @@ static bool wait_steady(bool (*test)(float weight), uint32_t timeout_ms, float *
                 return true;
             }
         }
-        if (timeout_ms > 0 && time_us_64() - start > (uint64_t) timeout_ms * 1000u) {
+        if (timeout_ms > 0 && chip_time_us() - start > (uint64_t) timeout_ms * 1000u) {
             return false;
         }
     }
@@ -234,7 +234,7 @@ static int bench_watch(void *ctx, float seconds, calibration_sample_t *out, int 
     uint32_t usual_ms = scale_get_usual_interval_ms();
     uint64_t lost_us = (uint64_t) (usual_ms * CALIBRATION_LOST_INTERVALS > CALIBRATION_LOST_MIN_MS ?
                                    usual_ms * CALIBRATION_LOST_INTERVALS : CALIBRATION_LOST_MIN_MS) * 1000u;
-    uint64_t start = time_us_64();
+    uint64_t start = chip_time_us();
     uint64_t end = start + (uint64_t) (seconds * 1e6f);
     uint64_t last_reading = start;
     int count = 0;
@@ -242,7 +242,7 @@ static int bench_watch(void *ctx, float seconds, calibration_sample_t *out, int 
         if (calibration_should_end()) {
             return -1;
         }
-        uint64_t now = time_us_64();
+        uint64_t now = chip_time_us();
         if (now >= end) {
             return count;
         }
@@ -258,7 +258,7 @@ static int bench_watch(void *ctx, float seconds, calibration_sample_t *out, int 
         if (!scale_block_wait_for_next_measurement(wait_ms > 0 ? wait_ms : 1, &reading) || !isfinite(reading)) {
             continue;
         }
-        last_reading = time_us_64();
+        last_reading = chip_time_us();
         if (reading <= -CALIBRATION_LIFTED_GR) {
             snprintf(bench_trouble, sizeof(bench_trouble), "Cup: lifted mid-run");
             return -1;
@@ -372,7 +372,7 @@ static float pour_left = 0.0f;
 
 static answer_t fill_until_full(void) {
     float rps = fminf(CALIBRATION_FILL_RPS, (float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR));
-    uint64_t last = time_us_64();
+    uint64_t last = chip_time_us();
     int turning = 0;            // the way the tube was set to turn: 1 forward, -1 back, 0 still
     answer_t given = ANSWER_NONE;
     activity_lock();
@@ -380,7 +380,7 @@ static answer_t fill_until_full(void) {
     answer_given = ANSWER_NONE;
     activity_unlock();
     while (!calibration_should_end()) {
-        uint64_t now = time_us_64();
+        uint64_t now = chip_time_us();
         float elapsed = (float) (now - last) / 1e6f;
         last = now;
         activity_lock();

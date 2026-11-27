@@ -30,8 +30,7 @@
 #include "version.h"
 #include "wireless.h"
 
-#include "pico/rand.h"
-#include "pico/time.h"
+#include "chip.h"
 
 
 
@@ -473,7 +472,7 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         http_json_raw(buf, room, len, ",\"boot\":");
         http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");
-        http_json_integer(buf, room, len, (long) (time_us_64() / 1000000u));
+        http_json_integer(buf, room, len, (long) (chip_time_us() / 1000000u));
         // What this build carries (ADR-008, gate 2): each feature that can be left out, by name, present or not
         http_json_raw(buf, room, len, ",\"features\":[{\"name\":\"servo_gate\",\"present\":");
         http_json_bool(buf, room, len, FEATURE_SERVO_GATE);
@@ -648,7 +647,7 @@ static void api_v1_get_motor_settings(const http_server_request_t *request, http
 
 bool api_v1_init(void) {
     bool ok = true;
-    api_v1_boot = get_rand_32();
+    api_v1_boot = chip_random32();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1", api_v1_get_index);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings/motors", api_v1_get_motor_settings);

@@ -7,7 +7,7 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include "pico/time.h"
+#include "chip.h"
 
 #include "configuration.h"
 #include "scale.h"
@@ -494,7 +494,7 @@ void scale_tap_frame(const uint8_t * bytes, size_t len, float value) {
     // One line, built whole and printed with one call, so lines of other tasks do not cut into it. Hex, because
     // a frame that does not parse may hold anything, its line ending included.
     char line[96];
-    size_t pos = snprintf(line, sizeof(line), "@sf %lu %g ", (unsigned long) (time_us_64() / 1000), value);
+    size_t pos = snprintf(line, sizeof(line), "@sf %lu %g ", (unsigned long) (chip_time_us() / 1000), value);
     for (size_t idx = 0; idx < len && pos + 3 < sizeof(line); idx += 1) {
         pos += snprintf(line + pos, sizeof(line) - pos, "%02x", bytes[idx]);
     }

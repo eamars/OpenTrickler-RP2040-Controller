@@ -23,7 +23,7 @@
 #include "settings.h"
 #include "charge_controller.h"
 #include "charge_tuner.h"
-#include "pico/time.h"
+#include "chip.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -639,7 +639,7 @@ void charge_mode_wait_for_complete() {
     }
     if ((room_used && charge_room == NULL) ||
         !charge_controller_start(controller, room_used ? charge_room : NULL, charge_mode_config.target_charge_weight,
-                                 (double) time_us_64() / 1000.0)) {
+                                 (double) chip_time_us() / 1000.0)) {
         charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
         return;
     }
@@ -682,16 +682,16 @@ void charge_mode_wait_for_complete() {
             return;
         }
 
-        uint32_t began_us = time_us_32();
-        charge_controller_tick(controller, (double) time_us_64() / 1000.0);
-        charge_cost_add(time_us_32() - began_us, &charge_tick_most_us, &charge_tick_sum_us, &charge_tick_count);
+        uint32_t began_us = (uint32_t) chip_time_us();
+        charge_controller_tick(controller, (double) chip_time_us() / 1000.0);
+        charge_cost_add((uint32_t) chip_time_us() - began_us, &charge_tick_most_us, &charge_tick_sum_us, &charge_tick_count);
 
         float current_weight;
         if (scale_take_new_measurement(&current_weight)) {
             last_reading_tick = xTaskGetTickCount();
-            began_us = time_us_32();
-            charge_controller_reading(controller, (double) time_us_64() / 1000.0, current_weight);
-            charge_cost_add(time_us_32() - began_us, &charge_reading_most_us, &charge_reading_sum_us,
+            began_us = (uint32_t) chip_time_us();
+            charge_controller_reading(controller, (double) chip_time_us() / 1000.0, current_weight);
+            charge_cost_add((uint32_t) chip_time_us() - began_us, &charge_reading_most_us, &charge_reading_sum_us,
                             &charge_reading_count);
             size_t heap_free = xPortGetFreeHeapSize();
             charge_heap_low = heap_free < charge_heap_low ? heap_free : charge_heap_low;
@@ -713,7 +713,7 @@ void charge_mode_wait_for_complete() {
             }
             snprintf(title_string, sizeof(title_string), "Target: %s", target_weight_string);
             // Both motors stood through the pause: counted from standing, and given the settled weight at once
-            double now_ms = (double) time_us_64() / 1000.0;
+            double now_ms = (double) chip_time_us() / 1000.0;
             charge_controller_resume(controller, now_ms);
             charge_controller_reading(controller, now_ms, current_weight);
             coarse_set = 0.0;

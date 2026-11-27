@@ -31,6 +31,8 @@
 #include "pico/stdlib.h"
 #include "pico/critical_section.h"
 
+#include "chip.h"
+
 #include "configuration.h"
 #include "gpio_irq_handler.h"
 #include "mini_12864_module.h"
@@ -64,7 +66,7 @@ static critical_section_t knob_tap_lock;
 static void knob_tap_add(char kind) {
     critical_section_enter_blocking(&knob_tap_lock);
     if (knob_tap_count < KNOB_TAP_SIZE) {
-        knob_tap[knob_tap_count].at_us = time_us_32();
+        knob_tap[knob_tap_count].at_us = (uint32_t) chip_time_us();
         knob_tap[knob_tap_count].kind = kind;
         knob_tap_count += 1;
     }
@@ -187,7 +189,7 @@ void _isr_on_button_enc_update(uint gpio, uint32_t event) {
     static bool down = false;
     static uint32_t changed_us = 0;
 
-    uint32_t now_us = time_us_32();
+    uint32_t now_us = (uint32_t) chip_time_us();
     bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
     if (pressed == down || now_us - changed_us < KNOB_DEBOUNCE_US) {
         knob_tap_add(pressed ? 'X' : 'x');

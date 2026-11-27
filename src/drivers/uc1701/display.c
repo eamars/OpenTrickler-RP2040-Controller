@@ -11,6 +11,8 @@
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 
+#include "chip.h"
+
 #include "configuration.h"
 #include "display.h"
 
@@ -53,7 +55,7 @@ static void display_delay_ms(uint32_t ms, BaseType_t scheduler_state) {
         vTaskDelay(pdMS_TO_TICKS(ms));
     }
     else {
-        busy_wait_us(ms * 1000ULL);
+        chip_busy_wait_us(ms * 1000u);
     }
 }
 
