@@ -82,8 +82,6 @@ typedef struct {
 
     SemaphoreHandle_t mutex;
     TaskHandle_t neopixel_control_task_handler;
-    pio_config_t mini12864_pio_config;
-    pio_config_t pwm3_pio_config;
 } neopixel_led_config_t;
 
 

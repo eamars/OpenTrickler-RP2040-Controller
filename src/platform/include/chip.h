@@ -6,6 +6,7 @@
  * restart, the chip's own id, a random number and the console. A platform interface; the RP chips' is the Pico SDK's
  * (platform/rp2/chip_rp2.c). What a hard fault stops first is fault_handler.h.
  */
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -40,6 +41,9 @@ void chip_console_start(void);
 // A character typed on the console, waited for at most `timeout_us` (0: only if one is there); CHIP_CONSOLE_NONE if none
 #define CHIP_CONSOLE_NONE (-1)
 int chip_console_read(uint32_t timeout_us);
+
+// The bytes the console's output has room for now: a line longer is dropped whole (RTT drops it). SIZE_MAX where none is
+size_t chip_console_room(void);
 
 #ifdef __cplusplus
 }

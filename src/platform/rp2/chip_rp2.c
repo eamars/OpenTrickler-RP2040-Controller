@@ -3,12 +3,17 @@
  */
 #include "chip.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #include "hardware/watchdog.h"
 #include "pico/rand.h"
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
+
+#if LIB_PICO_STDIO_RTT
+#include "SEGGER_RTT.h"
+#endif
 
 _Static_assert(CHIP_ID_BYTES == PICO_UNIQUE_BOARD_ID_SIZE_BYTES, "the chip's id is the flash's unique id");
 
@@ -48,4 +53,13 @@ void chip_console_start(void) {
 int chip_console_read(uint32_t timeout_us) {
     int c = getchar_timeout_us(timeout_us);
     return c == PICO_ERROR_TIMEOUT ? CHIP_CONSOLE_NONE : c;
+}
+
+
+size_t chip_console_room(void) {
+#if LIB_PICO_STDIO_RTT
+    return SEGGER_RTT_GetAvailWriteSpace(0);
+#else
+    return SIZE_MAX;
+#endif
 }

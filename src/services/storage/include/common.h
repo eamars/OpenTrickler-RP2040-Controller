@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <FreeRTOS.h>
-#include "hardware/pio.h"
 
 
 typedef enum {
@@ -15,12 +14,6 @@ typedef enum {
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct {
-    PIO pio;
-    int sm;
-} pio_config_t;
-
 
 /*
     A weight as text, with the buffer's length: never written past it, and an empty string for a number of decimals

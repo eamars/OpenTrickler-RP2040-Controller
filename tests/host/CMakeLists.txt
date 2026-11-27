@@ -56,13 +56,12 @@ endfunction()
 
 # ---- The stand-ins ----
 # Third-party code a module names, as the PC has it: headers with only what the files built here use. They are this
-# build's meter (ADR-006): three of FreeRTOS's and three of the Pico SDK's at gate 4, three and one since gate 6;
-# at the ADR's end the SDK's are gone.
-foreach(name freertos rp2_sdk)
-    add_library(ot_${name} INTERFACE)
-    target_include_directories(ot_${name} INTERFACE stand_ins/${name})
-    add_library(ot::${name} ALIAS ot_${name})
-endforeach()
+# build's meter (ADR-006): three of FreeRTOS's and three of the Pico SDK's at gate 4, three and one since gate 6, the
+# RTOS's three alone since gate 7. A module built here that names the Pico SDK (rp2_sdk) fails to configure: it is
+# not free of the chip.
+add_library(ot_freertos INTERFACE)
+target_include_directories(ot_freertos INTERFACE stand_ins/freertos)
+add_library(ot::freertos ALIAS ot_freertos)
 
 # ---- The modules ----
 # Whole: every module that requires nothing of the chip or the RTOS. One that comes to include an SDK header no
