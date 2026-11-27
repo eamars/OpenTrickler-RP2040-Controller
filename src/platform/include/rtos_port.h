@@ -33,6 +33,10 @@ bool rtos_task_start(TaskFunction_t run, const char *name, uint32_t stack_bytes,
 void rtos_critical_enter(void);
 void rtos_critical_exit(void);
 
+// The same section from an interrupt: what its enter returns is given to its exit
+UBaseType_t rtos_critical_enter_from_isr(void);
+void rtos_critical_exit_from_isr(UBaseType_t saved);
+
 #ifdef __cplusplus
 }
 #endif

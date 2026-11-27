@@ -33,9 +33,6 @@
 // How often LVGL's heap is looked at, for `screen`
 #define MENU_HEAP_LOOK_MS 2000
 
-extern QueueHandle_t encoder_event_queue;
-extern mini_12864_module_config_t mini_12864_module_config;
-
 // The build's one view, handed over by the start-up's wiring before menu_init()
 static const menu_view_t *menu_view = NULL;
 
@@ -102,22 +99,18 @@ int menu_get_current_form_id(void) {
 
 
 void menu_wake(void) {
-    ButtonEncoderEvent_t event = MENU_WAKE;
-    if (encoder_event_queue != NULL) {
-        xQueueSend(encoder_event_queue, &event, 0);
-    }
+    button_send(MENU_WAKE, 0);
 }
 
 
 bool menu_goto_screen(const char *id, bool *found) {
-    if (menu_goto_drawn == NULL || encoder_event_queue == NULL) {
+    if (menu_goto_drawn == NULL) {
         return false;
     }
     // An answer left over from a call that timed out must not be taken for this one
     xSemaphoreTake(menu_goto_drawn, 0);
     snprintf(menu_goto_id, sizeof(menu_goto_id), "%s", id);
-    ButtonEncoderEvent_t event = MENU_REMOTE_SCREEN;
-    if (xQueueSend(encoder_event_queue, &event, pdMS_TO_TICKS(100)) != pdTRUE ||
+    if (!button_send(MENU_REMOTE_SCREEN, 100) ||
         xSemaphoreTake(menu_goto_drawn, pdMS_TO_TICKS(1000)) != pdTRUE) {
         return false;
     }
@@ -198,7 +191,7 @@ static void menu_visit_end(void) {
         return;
     }
     menu_visiting = false;
-    menu_panel_invert(mini_12864_module_config.inverted_display);
+    menu_panel_invert(mini_12864_inverted_display());
     menu_view->visit_end();
 }
 
@@ -322,7 +315,7 @@ void menu_task(void *p) {
     (void) p;
     menu_view->init();
     menu_nav_init();
-    menu_panel_invert(mini_12864_module_config.inverted_display);
+    menu_panel_invert(mini_12864_inverted_display());
     menu_draw(false);
 
     uint64_t heap_looked_us = 0;
@@ -346,7 +339,7 @@ void menu_task(void *p) {
         menu_jobs();
         menu_visit_run();
         if (!menu_visiting) {
-            menu_panel_invert(mini_12864_module_config.inverted_display);
+            menu_panel_invert(mini_12864_inverted_display());
         }
         menu_nav_refresh();
         menu_draw(goto_asked);

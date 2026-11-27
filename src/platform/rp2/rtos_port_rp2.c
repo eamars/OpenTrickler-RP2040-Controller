@@ -20,3 +20,13 @@ void rtos_critical_enter(void) {
 void rtos_critical_exit(void) {
     taskEXIT_CRITICAL();
 }
+
+
+UBaseType_t rtos_critical_enter_from_isr(void) {
+    return taskENTER_CRITICAL_FROM_ISR();
+}
+
+
+void rtos_critical_exit_from_isr(UBaseType_t saved) {
+    taskEXIT_CRITICAL_FROM_ISR(saved);
+}
