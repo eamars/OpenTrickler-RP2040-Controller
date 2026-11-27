@@ -1,13 +1,19 @@
-"""The firmware's own C, compiled for this PC and run: the parts a unit is not needed for (tests/host).
+"""The firmware's own C, built for this PC and run: the parts a unit is not needed for (tests/host).
 
-Each test is a C file in tests/host with the firmware sources it needs, compiled with the host's C compiler: $CC,
-else `zig cc` (on Windows the Pico extension brings zig into %USERPROFILE%\\.pico-sdk\\zig), else cc, gcc or clang.
-The firmware's headers that need the Pico SDK or FreeRTOS come from tests/host/stubs. Ends with VERDICT PASS or FAIL.
+tests/host is the PC build (ADR-006, gate 4): a CMake project that takes the firmware's modules by their own build
+files, with stand-ins for the Pico SDK's and FreeRTOS's headers, and makes each test from them. This configures it
+into build_host/, builds it whole (so a module that stopped being free of the chip fails here), runs each test and
+ends with VERDICT PASS or FAIL.
 
     venv\\Scripts\\python tests\\host_test.py
+
+- The compiler: $CC, else `zig cc` (on Windows the Pico extension brings zig into %USERPROFILE%\\.pico-sdk\\zig), else
+  cc, gcc or clang.
+- CMake and Ninja: those on the path, else the ones toolchain.env names, where setup_toolchain fetched them.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -16,14 +22,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 HOST = REPO / "tests" / "host"
 OUT = REPO / "build_host"
-# The firmware's headers (ADR-006, gate 2): each module's include/ folder. Gate 4 takes them from the modules' own
-# build files instead
-FIRMWARE_INCLUDES = [arg for folder in sorted((REPO / "src").glob("*/*/include")) for arg in ("-I", str(folder))]
+# The versions, from toolchain.env (ADR-011): one NAME=value a line
+VERSIONS = dict(re.findall(r"^([A-Z_]+)=(\S+)", (REPO / "toolchain.env").read_text(encoding="utf-8"), re.M))
 
-# Each test: its C file, and the firmware's sources and the host's own it is built with
-TESTS = {
-    "config_migration_test": ["src/services/storage/common.c", "src/services/charge/charge_mode_layout.c", "tests/host/fake_eeprom.c"],
-}
+# The tests that are programs: each a target of tests/host/CMakeLists.txt, run with no argument
+TESTS = ("config_migration_test",)
 
 
 def compiler() -> list:
@@ -39,26 +42,76 @@ def compiler() -> list:
     raise SystemExit("VERDICT FAIL no host C compiler: set CC, or install zig, gcc or clang")
 
 
-def main() -> int:
+def tool(name: str) -> str:
     """
-    Build and run each test.
+    Find CMake or Ninja.
+
+    Args:
+        name: "cmake" or "ninja".
 
     Returns:
-        0 when every test passed, 1 otherwise.
+        The program's path: the one on the path, else the version toolchain.env names where setup_toolchain.ps1
+        (%USERPROFILE%\\.pico-sdk) or setup_toolchain.sh (.toolchain/ in the repository) fetched it.
     """
-    cc = compiler()
-    OUT.mkdir(exist_ok=True)
+    found = shutil.which(name)
+    if found:
+        return found
+    version = VERSIONS[name.upper()]
+    inner = "bin/" if name == "cmake" else ""
+    for candidate in (Path.home() / ".pico-sdk" / name / f"v{version}" / f"{inner}{name}.exe",
+                      REPO / ".toolchain" / f"{name}-{version}" / f"{inner}{name}"):
+        if candidate.is_file():
+            return str(candidate)
+    raise SystemExit(f"VERDICT FAIL {name} {version} not found: run setup_toolchain first")
+
+
+def host_build(*targets: str) -> str:
+    """
+    Build the PC build, configuring it first when it has not been.
+
+    Args:
+        targets: the targets to build; none for all of it.
+
+    Returns:
+        "" when it built, else the build's output.
+    """
+    cmake = tool("cmake")
+    if not (OUT / "build.ninja").is_file():
+        # CMake takes a compiler of two words (`zig cc`) only from CC
+        env = dict(os.environ, CC=" ".join(part.replace("\\", "/") for part in compiler()))
+        made = subprocess.run([cmake, "-S", str(HOST), "-B", str(OUT), "-G", "Ninja",
+                               f"-DCMAKE_MAKE_PROGRAM={Path(tool('ninja')).as_posix()}"],
+                              capture_output=True, text=True, env=env)
+        if made.returncode != 0:
+            shutil.rmtree(OUT / "CMakeFiles", ignore_errors=True)       # so the next run configures again
+            (OUT / "CMakeCache.txt").unlink(missing_ok=True)
+            return made.stdout + made.stderr
+    command = [cmake, "--build", str(OUT)] + (["--target", *targets] if targets else [])
+    built = subprocess.run(command, capture_output=True, text=True)
+    return "" if built.returncode == 0 else built.stdout + built.stderr
+
+
+def library_path(name: str) -> Path:
+    """Where the PC build puts a test's library (a target of tests/host/CMakeLists.txt) for Python to load."""
+    return OUT / "bin" / (name + (".dll" if os.name == "nt" else ".so"))
+
+
+def main() -> int:
+    """
+    Build the PC build and run each test.
+
+    Returns:
+        0 when it built and every test passed, 1 otherwise.
+    """
+    problem = host_build()
+    if problem:
+        print(problem)
+        print("VERDICT FAIL the PC build did not build")
+        return 1
     failed = []
-    for name, sources in TESTS.items():
-        exe = OUT / (name + (".exe" if os.name == "nt" else ""))
-        command = cc + ["-std=c11", "-Wall", "-O1", "-I", str(HOST / "stubs"), "-I", str(HOST)] + FIRMWARE_INCLUDES + [
-                        str(HOST / (name + ".c"))] + [str(REPO / source) for source in sources] + ["-o", str(exe), "-lm"]
-        build = subprocess.run(command, capture_output=True, text=True)
-        if build.returncode != 0:
-            print(build.stdout + build.stderr)
-            failed.append(f"{name} did not build")
-            continue
-        run = subprocess.run([str(exe)], capture_output=True, text=True)
+    for name in TESTS:
+        run = subprocess.run([str(OUT / "bin" / (name + (".exe" if os.name == "nt" else "")))],
+                             capture_output=True, text=True)
         print(run.stdout.rstrip())
         if run.returncode != 0:
             failed.append(name)

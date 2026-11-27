@@ -1,8 +1,8 @@
 """The charge controller and the auto-tuner in C (src/services/charge_control/charge_controller.c, src/services/charge_control/charge_tuner.c) run on the simulation
 beside the Python (tools/charge_sim/step2.py, step2_tuner.py): ADR-009, step 2, gate 2, with no unit.
 
-The C is compiled for this PC as a library (tests/host/charge_lib.c; the host's compiler as tests/host_test.py finds
-it). Three runs on the twin's rigs:
+The C is built for this PC as a library by the PC build (tests/host: the module itself, and charge_lib.c over it;
+tests/host_test.py's host_build). Three runs on the twin's rigs:
 - the controller, judged: step2.py's Step2 throws on the twin and drives it; the C is given the same calls (each
   millisecond's tick and each reading) and must ask the same speeds and stop at the same millisecond; at each throw's
   rest both carry its own weight a turn, which must agree;
@@ -23,27 +23,23 @@ import argparse
 import ctypes
 import dataclasses
 import statistics
-import os
-import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-# The firmware's module with the controller and the tuner, free of the chip (ADR-006)
-CONTROL = REPO / "src" / "services" / "charge_control"
 sys.path.insert(0, str(REPO / "tools" / "charge_sim"))
 sys.path.insert(0, str(REPO / "tests"))
 
 import rigs  # noqa: E402
 import step2  # noqa: E402
 import step2_tuner  # noqa: E402
-from host_test import compiler  # noqa: E402
+from host_test import host_build, library_path  # noqa: E402
 from legacy_pid import AR2209_PICOW_168, LegacyPid  # noqa: E402
 from step2_variants import BENCH  # noqa: E402
 from throw import Session  # noqa: E402
 from workers import Workers  # noqa: E402
 
-LIBRARY = REPO / "build_host" / ("charge_lib.dll" if os.name == "nt" else "charge_lib.so")
+LIBRARY = library_path("charge_lib")
 LAG_POINTS = 5
 TARGET = 10.0
 CLOSE_RPS = 1e-4                # two speeds this near are the same: the C's settings are floats, the Python's doubles
@@ -105,14 +101,9 @@ def python_controller(profile, records, rig):
 
 def build_library() -> None:
     """The controller and the tuner built for this PC as a library."""
-    LIBRARY.parent.mkdir(exist_ok=True)
-    command = compiler() + ["-shared", "-std=c11", "-Wall", "-Wextra", "-O1", "-fPIC",
-                            "-I", str(CONTROL / "include"),
-                            str(REPO / "tests" / "host" / "charge_lib.c"), str(CONTROL / "charge_controller.c"),
-                            str(CONTROL / "charge_tuner.c"), "-o", str(LIBRARY)]
-    built = subprocess.run(command, capture_output=True, text=True)
-    if built.returncode != 0 or built.stderr.strip():
-        raise SystemExit(built.stdout + built.stderr + "\nVERDICT FAIL the controller did not build cleanly")
+    problem = host_build("charge_lib")      # a warning in the module or the library fails it (tests/host)
+    if problem:
+        raise SystemExit(problem + "\nVERDICT FAIL the controller did not build cleanly")
 
 
 def load_library() -> ctypes.CDLL:

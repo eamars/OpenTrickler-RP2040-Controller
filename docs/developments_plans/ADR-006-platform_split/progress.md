@@ -296,3 +296,57 @@ The Pico 2 W waits, by the owner's word.
 
 - A module's build file is data now: the PC build can take the five free modules, and `storage`'s loader, by the same call with another `ot_module()`.
 - `storage` requires FreeRTOS and the Pico SDK through `common.h`, which every user of a stored record includes. The host test stands in for both today.
+
+## Gate 4: the PC build
+
+2026-11-27, approved by the owner ("Gate 4 approved. please continue."), after PR #140 merged gate 3. On the branch `adr006_gate4`. No firmware source and no firmware build file changed: this gate needs no unit.
+
+**The verdict: the three host tests are built from the modules' own build files, on Windows and on Linux, and a module free of the chip that names an SDK header no longer builds there.**
+
+### What was built
+
+- **`tests/host/CMakeLists.txt`, the PC build.** It gives `ot_module()` for the PC (a static library by the PC's compiler, some twenty lines), then adds the modules' folders as they are: the same build files the firmware reads.
+- **Four modules whole:** `http_json`, `tmc2209`, `calibration_method`, `charge_control`. They require nothing, so they get nothing: not even the stand-ins are on their include path.
+- **The stand-ins are the PC's `freertos` and `rp2_sdk`**, the names a module requires: `tests/host/stand_ins/freertos` and `stand_ins/rp2_sdk` (the old `stubs/`, sorted by what each stands for).
+- **The tests are its targets:** `config_migration_test` (a program), `charge_lib` and `calibration_lib` (libraries Python loads). Each names the modules it links.
+- **`tests/host_test.py`** configures and builds it into `build_host/` (`host_build`), then runs each test. `step2_sim.py` and `calibration_sim.py` ask it for their library. The three lists by hand (sources, and every `include/` folder under `src/` by a glob) are gone.
+
+### Found on the way
+
+- **The loader's test cannot take its modules whole, and the gate's text had not said so.** It needs `common.c` of `storage` and `charge_mode_layout.c` of `charge`, and neither module is free of the chip: `storage`'s other source needs `system`, `charge`'s the motors, the menu and the scale. So the PC build takes a module **in part**: its headers and what they require from its own build file, and of its sources only those the PC build names. Six modules today: `storage` and `charge` with a source each; `profile` for its header, which the test reads; `activity`, `events` and `leds` because the charge record's header includes theirs. Two source names by hand are what is left of the old lists.
+- **That list is a second meter, beside the stand-ins.** A part is a module the cut has not reached. Gates 6 to 8 shorten it: the loader in a module of its own would make `storage`'s part a whole module.
+- **`zig cc` has no archiver CMake knows by name:** the PC build gives the archive rule as `zig ar`. CMake takes the two-word compiler only from `CC`, which `host_build` sets.
+- **`common/ring` is the fifth free module and is not in the PC build:** it is C++, and the PC build is C only. It joins when gate 5 makes it C.
+- **The PC's compilers warn of four `printf` formats in `common.c`** that Arm's does not (`%d` for a `size_t`, `%lX` for a `uint32_t`: right on the chip, where both are 32 bits, wrong on a 64-bit PC). They print in error paths only. Left for gate 10's small fixes; the PC build does not fail on a warning there, only in `charge_control`, where the simulation always has.
+- **CI's host test now needs CMake and Ninja.** It takes the toolchain's own from `.toolchain`, fetched before that step; nothing is installed on the runner.
+
+### The meter
+
+| | Gate 4 | At the ADR's end |
+|---|---|---|
+| Stand-in headers, FreeRTOS's | 3 (`FreeRTOS.h`, `task.h`, `semphr.h`) | these |
+| Stand-in headers, the Pico SDK's | 3 (`hardware/pio.h`, `hardware/dma.h`, `pico/time.h`) | none |
+| Modules built whole | 4 | every module meant to be free |
+| Modules taken in part | 6 (2 with a source) | none |
+
+The three SDK headers are all `storage`'s: `common.h` names the PIO's type, `common.c` includes the other two.
+
+### The proofs
+
+- **Windows, `zig cc` (Clang 18.1.6), CMake 4.3.4 and Ninja 1.13.2 from `toolchain.env`:**
+  - `tests/host_test.py`: `VERDICT PASS`, from an empty `build_host/`.
+  - `tests/calibration_sim.py`: `VERDICT PASS`.
+  - `tests/step2_sim.py`: `VERDICT PASS`: the C asks the same speeds and takes the same tuner steps as the Python, on every rig.
+- **Linux, gcc 15.2 (WSL's Ubuntu), the same project:** it configures and builds; `config_migration_test` passes (`PASS: 0 failed`); Python loads both libraries and finds their entry points. `charge_control` builds with no warning under `-Wextra -Werror` there too.
+- **A free module made to include what it does not name, tried twice and not kept:**
+  - `tmc2209.c` with `#include "pico/time.h"`: `fatal error: 'pico/time.h' file not found`. The stand-in of that name exists, and the module does not get it.
+  - `http_json.c` with `#include "FreeRTOS.h"`: refused the same way.
+- **The firmware's build is as it was:** nothing under `src/` changed, and of `cmake/ot_module.cmake` one comment.
+
+CI's run on the PR is the gate's last proof (the host test on the runner's gcc).
+
+**Gate 4 is built.**
+
+### For gate 5
+
+- `ring` in C joins `HOST_MODULES`, and the check of the new ring against the old class can be a test of the PC build.
