@@ -10,8 +10,8 @@
 #include "tmc2209.h"
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "hardware/gpio.h"
 #include "chip.h"
+#include "chip_gpio.h"
 #include "rtos_port.h"
 #include "step_pulses.h"
 #include "fault_handler.h"
@@ -255,21 +255,16 @@ static bool driver_setup(motor_config_t * motor_config) {
 
 
 bool driver_io_init(motor_config_t * motor_config) {
-    gpio_init(motor_config->en_pin);
-    gpio_set_dir(motor_config->en_pin, GPIO_OUT);
-
     // If enable is inverted the GPIO shall output enable state directly, otherwise invert it. 
     // If not inverted the GPIO shall be the opposite state of the enable signal
-    gpio_put(motor_config->en_pin, motor_config->persistent_config.inverted_enable ? false : true); 
+    chip_gpio_output(motor_config->en_pin, motor_config->persistent_config.inverted_enable ? false : true);
 
     // Note: STEP PIN is controlled by PIO block
     // gpio_init(motor_config->step_pin);
     // gpio_set_dir(motor_config->step_pin, GPIO_OUT);
     // gpio_put(motor_config->step_pin, 1);
 
-    gpio_init(motor_config->dir_pin);
-    gpio_set_dir(motor_config->dir_pin, GPIO_OUT);
-    gpio_put(motor_config->dir_pin, motor_config->step_direction);
+    chip_gpio_output(motor_config->dir_pin, motor_config->step_direction);
 
     return true;
 }
@@ -556,7 +551,7 @@ static void motor_tick(motor_config_t * motor_config, float dt_s) {
             }
             else {
                 motor_config->step_direction = wanted_direction;
-                gpio_put(motor_config->dir_pin, wanted_direction);
+                chip_gpio_put(motor_config->dir_pin, wanted_direction);
             }
         }
     }
@@ -633,7 +628,7 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
     if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
         bool en_signal = coarse_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-        gpio_put(coarse_trickler_motor_config.en_pin, en_signal);
+        chip_gpio_put(coarse_trickler_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -644,7 +639,7 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
     if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
         bool en_signal = fine_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-        gpio_put(fine_trickler_motor_config.en_pin, en_signal);
+        chip_gpio_put(fine_trickler_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -945,8 +940,8 @@ void motors_init(void) {
 void motors_fault_stop(void) {
     // Register writes only: the pulses off, then the drivers
     step_pulses_fault_stop();
-    gpio_put(coarse_trickler_motor_config.en_pin, coarse_trickler_motor_config.persistent_config.inverted_enable ? false : true);
-    gpio_put(fine_trickler_motor_config.en_pin, fine_trickler_motor_config.persistent_config.inverted_enable ? false : true);
+    chip_gpio_put(coarse_trickler_motor_config.en_pin, coarse_trickler_motor_config.persistent_config.inverted_enable ? false : true);
+    chip_gpio_put(fine_trickler_motor_config.en_pin, fine_trickler_motor_config.persistent_config.inverted_enable ? false : true);
 }
 
 
