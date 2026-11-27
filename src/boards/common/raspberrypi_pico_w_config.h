@@ -47,7 +47,7 @@
 #define SCALE_UART_TX 0
 #define SCALE_UART_RX 1
 
-#define EEPROM_I2C i2c1
+#define EEPROM_I2C 1
 #define EEPROM_SDA_PIN 10
 #define EEPROM_SCL_PIN 11
 #define EEPROM_ADDR 0x50
