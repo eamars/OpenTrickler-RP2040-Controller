@@ -943,9 +943,9 @@ The unit is left on 2.0.3-351, slot A, its settings as before gate 1. The Pico 2
 
 ## Gate 10: the small fixes, and the close
 
-2026-11-27, approved by the owner ("The last PR for gate 9 has been merged. I want you to proceed to the remainder of the gates"), after PR #146 merged gate 9. On the branch `adr006_gate10`, from main at a51f88b: the fixes `077f109`, ADR-017's draft `ae172b4`.
+2026-11-27, approved by the owner ("The last PR for gate 9 has been merged. I want you to proceed to the remainder of the gates"), after PR #146 merged gate 9. On the branch `adr006_gate10`, from main at a51f88b: the fixes `077f109`, ADR-017's draft `ae172b4`, the Pico 2 W's update `9744d36`.
 
-**Where it stands: the fixes are built and proven on the Pico W, ADR-017 is drafted, and the Pico W's end checks pass. Left: the owner's real throw and the Pico 2 W's runs** (below, "Left"). The owner stopped for the day there (23:22).
+**The verdict: the fixes are built and proven, ADR-017 is drafted, and the end's checks pass on both boards; the owner waived the real throw.** The Pico 2 W's runs found that it had taken no update since ADR-009 put the SDK at `-Os`; fixed and proven on it (below). The Pico W ran first; the owner then waived the throw and moved the Pico 2 W onto the probe the same night.
 
 ### The fixes
 
@@ -982,8 +982,39 @@ Drafted, not approved, not placed in the order: [ADR-017](../ADR-017-storage_and
 
 The unit is left on 2.0.3-355, slot A, its settings as before gate 1, powder 0 selected.
 
-### Left
+### The owner's two words, later that night
 
-- **The owner's real throw**, the end's first check: powder in the hopper, the owner at the unit.
-- **The Pico 2 W's runs**, which waited for the whole ADR on the Pico W (the owner): its settings copied, gate 10's image flashed and the settings compared, `menu_tour --compare` (ADR-009's review changed four pages its baseline does not have: saved again for them alone), `charge_cycle`, `pulses` with its two fault images (gates 1 to 3 changed how the image is linked), `slot_trial` confirmed and back (its slots are the RP2350's own), an update from the local OTA server, `api_check`. They cover ADR-009's handed-on run of the `-Os` build on it too.
-- Then the ADR closed in its branch, and its PR.
+- **The real throw waived, on a condition:** "I will not actually throw on ADR-006, if every throw related calls are indendepently verified using your tests." Checked against what ADR-006 ran: a charge from zero to the cup's return (`charge_cycle`) after every gate, on both boards at the end; the step pulses stopping on a probe reset, an assert and a hard fault (`pulses`), at gates 1, 2, 3, 6 and 7 on the Pico W and at the end on the Pico 2 W; the A&D's frames read as numbers through the make and the scale (`scale_frames`, gates 6 and 7), which hand each reading to the charge by the door the simulated scale uses too (`scale_publish_measurement`); both drivers set up three times without a retry (`tmc ... setup 3`, gate 7); a charge and a purge started and stopped by the API (`api_check`); the controller and the calibration's method against their Python twins (`step2_sim`, `calibration_sim`, gates 4 and 5). **ADR-013's faults during a charge had not been run since gate 5 made the charge C:** they were run on the Pico 2 W (below), each handled. Not among them: a calibration's whole run on a unit (its start and its refusal were run; its method on the PC), and a gate's shutter moving (no gate on the bench; its registers through the probe, gate 7).
+- **The Pico 2 W:** "I will switch to Pico2W for a simple verification", then "Pico 2W is connected, hopper is empty." The A&D stayed on the Pico W's side: no scale on the Pico 2 W (`weight=nan`), so each run that turns a motor was given `--no-cup-check` with the owner's word that the hopper is empty.
+
+### The Pico 2 W
+
+The unit came up at 192.168.2.101 by DHCP (192.168.2.166 before), on 2.0.3-258 (`46346ba`), whose console's control block lies where no image on this PC says: its settings were copied over the web (`logs/adr006/pico2w_before_gate10`).
+
+| Image | Runs |
+|---|---|
+| gate 10, 2.0.3-356 (`5e566b3`) | `flash` `VERDICT PASS`. The settings, every one of 198 fields, the same across the flash but `cup_weight` (445.01), which ADR-009's review took out of the API (O1, its progress; the record keeps it). `menu_tour --compare`: four pages differ, none by ADR-006: `settings/calibration/powder` and `calibration/discard` new and `settings/calibration`'s Powder row a ">" (ADR-009's review), and on `settings/calibration` and `settings/charge` the weights without their unit, the scale not connected to tell it (its baseline was saved with the A&D on it); the cup 442.96 where the baseline has 249.65, the unit calibrated again since. Not saved again: without the A&D the pictures would lose their units. `charge_cycle` (14.6 s); **ADR-013's faults** with the simulated scale, each `--expect not-seen`, `VERDICT PASS`: a frame that does not parse (the fine trickler went on at 0.21 to 0.18 rev/s near the target, no full speed, no early end), the scale quiet (the tricklers paused within 300 ms of the last reading, "Charge: paused, no reading for 300 ms", then "Charge: ended, Scale: no reading"), the web's purge speed during the charge (not taken); `pulses` with its two fault images, all three stopped |
+| | **`slot_trial --expect back` failed: `@err refused update try: wrong_board: built for another board`** (below) |
+| a test image of the fix, never confirming (2.1.1), under 2.0.3-356 | `slot_trial --expect back` `VERDICT PASS`: tried on slot B, back on slot A by the trial's watchdog 69.5 s after it was asked: a firmware from before the fix takes an image built with it |
+| the fix, 2.0.3-357 (`9744d36`) | `flash` `VERDICT PASS`; `slot_trial --expect back` with a test image built by the old rule, its board's item on an odd byte (0x10080e45): back on slot A in 69.7 s; `slot_trial --expect confirmed` with a test image (2.1.0) that confirms itself: confirmed on slot B 7.0 s after it was asked, still slot B after a restart; then 2.0.3-357 flashed back into slot A, the settings as before but `cup_weight` |
+
+The unit is left on 2.0.3-357, slot A, its settings as copied before gate 10 (`logs/adr006/pico2w_end_gate10`).
+
+### Found on the Pico 2 W: no update since the SDK went to `-Os`
+
+- **What:** the Pico 2 W refused every update image as built for another board. The image says its board in the SDK's binary information, a table of pointers to items; the reader took an item only on a word (`(entry & 3u) != 0`, skipped as "one kept in RAM"). The SDK declares its items packed (`structure.h`), which leaves them wherever the compiler puts them, and since ADR-009 compiled the SDK at `-Os` (`0ed6172`, 2026-11-27 01:51) the compiler no longer rounds them up to a word: the Pico 2 W's board item at 0x1008116d. The Pico W's lay on a word by chance (0x100891c4). Read in the images on the PC: v2.0.3 and 2.0.3-162 on a word, 2.0.3-273 (the first after `0ed6172` on this PC) and every one since not.
+- **Why not seen:** neither unit had run an update on the `-Os` build; ADR-009's handover listed exactly that check, and on the Pico W, where gates 6 and 7 ran updates, the item was on a word.
+- **The fix, both sides** (the owner's pick, asked first): the reader takes an item at any byte, read by bytes (`update_image_word`; the RP2040 faults on a word read off one); and the SDK's `standard_binary_info.c` stays at the build's level, so the board's item is on a word again and a unit on an earlier firmware (v2.0.3, ADR-009's builds, ADR-006's gates) takes the next image. Both boards' images: the item on a word (the Pico W 0x100891f4, the Pico 2 W 0x10081198); the symbols against gate 9's as before, but `update_image_board` and the new `update_image_word`.
+- **On the Pico W** the change is proven by its build and its symbols: its item was on a word before and after, and the reader reads it by bytes now. Its next turn on the probe runs a slot trial.
+
+## Closed (2026-11-27)
+
+Closed as Built in its README, here and in the index, on its branch `adr006_gate10`, before its PR.
+
+- **Done:** ten gates, each approved alone and proven on the Pico W, the first nine merged (#139 to #146): every module a folder by what it does, built on its own with what it needs named and linked whole; a PC build for the tests; our code in C; no requirement upward and no loop; no SDK outside the platform and the boards; stored enums one byte by their own type; a part a build may leave out handed over by the start-up alone; the small fixes; ADR-017 for the rest. The end's checks: `tools/module_graph.py` `VERDICT PASS` (no SDK or radio include outside `platform/` and `boards/`, no requirement upward, no loop, no part's switch outside `app/`); the PC build's stand-ins FreeRTOS's alone; a unit updated from v1.21 keeping every value it was given; the Pico W built without the servo gate and reading its record back with it; the three kinds of pick (gate 9); the lines' lists and each interface against ESP-IDF here; the Pico 2 W's runs above.
+- **Waived by the owner:** the real throw, on the condition above, which the runs above meet but for a calibration's whole run on a unit.
+- **Not done, with the occasion that does each** (the handover says so):
+  - the Pico W's slot trial of the reader's fix: its next turn on the probe;
+  - the Pico 2 W's menu baseline for ADR-009's four pages: saved again with the A&D on it;
+  - a calibration's whole run on a unit: with ADR-009's runs with powder (the handover);
+  - the servo seen at a shutter's end: ADR-010's, the day a gate is fitted (AGENTS.md).
