@@ -17,6 +17,7 @@
 
 #include "activity.h"
 #include "api_v1.h"
+#include "system_control.h"
 #include "calibration.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
@@ -1574,7 +1575,7 @@ static void api_v1_get_system(const http_server_request_t *request, http_server_
     http_json_raw(out, room, &len, ",\"build\":");
     http_json_string(out, room, &len, build_type);
     http_json_raw(out, room, &len, "},\"board\":");
-    http_json_string(out, room, &len, api_v1_board_name());
+    http_json_string(out, room, &len, system_board_name());
     http_json_raw(out, room, &len, ",\"unit_id\":");
     http_json_string(out, room, &len, unit_id);
     http_json_raw(out, room, &len, ",\"uptime_s\":");

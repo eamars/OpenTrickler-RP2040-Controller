@@ -13,7 +13,6 @@
 
 #include "access_point_mode.h"
 #include "activity.h"
-#include "api_v1.h"
 #include "charge_mode.h"
 #include "calibration.h"
 #include "cleanup_mode.h"
@@ -585,7 +584,7 @@ static void act_check_update(const menu_row_t *row) {
 
 static void value_board(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    snprintf(out, room, "%s", api_v1_board_name());
+    snprintf(out, room, "%s", system_board_name());
 }
 
 

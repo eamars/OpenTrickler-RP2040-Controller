@@ -17,6 +17,7 @@
 #include "hardware/watchdog.h"
 
 #include "remote_control.h"
+#include "system_control.h"
 #include "charge_mode.h"
 #include "scale.h"
 #include "profile.h"
@@ -36,13 +37,6 @@
 
 // `reboot` restarts this long after its reply is out, so the host has read it
 #define REMOTE_CONTROL_REBOOT_DELAY_MS 500
-
-#if PICO_RP2350
-#define REMOTE_CONTROL_BOARD "pico2_w"
-#else
-#define REMOTE_CONTROL_BOARD "pico_w"
-#endif
-
 
 typedef struct {
     const char *name;
@@ -83,7 +77,7 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
              charge_mode_config.target_charge_weight,
              get_scale_driver_string(),
              version_string, vcs_hash, build_type,
-             REMOTE_CONTROL_BOARD,
+             system_board_name(),
              unit_id,
              (unsigned long) up_s,
              (int) sizeof(profile->name), profile->name,

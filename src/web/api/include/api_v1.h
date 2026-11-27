@@ -30,9 +30,6 @@ const char *api_v1_job_state(void);
 
 // A random number new at each start, so a client sees a restart (the index's and the event log's `boot`)
 uint32_t api_v1_boot_id(void);
-// "pico_w", "pico2_w"
-const char *api_v1_board_name(void);
-
 /*
  * The unit's screen as the API gives it (ADR-006, gate 6): its frame, for the page's mirror, and the hello an agent
  * says. The UI hands these over at its start, so the API names no screen. With none handed over the display's two

@@ -30,12 +30,11 @@
 #include "pico/flash.h"
 
 #include "activity.h"
-#include "api_v1.h"
 #include "common.h"
 #include "eeprom.h"
 #include "events.h"
 #include "http_json.h"
-#include "http_server.h"
+#include "system_control.h"
 #include "https_client.h"
 #include "jobs.h"
 #include "picobin_image.h"
@@ -304,7 +303,7 @@ static update_refusal_t update_check_free(picobin_image_t *image) {
     }
     char board[32];
     if (!update_image_board(update_slots.free_read_at, update_slots.free_size, update_slots.free_runs_at, board,
-                            sizeof(board)) || strcmp(board, api_v1_board_name()) != 0) {
+                            sizeof(board)) || strcmp(board, system_board_name()) != 0) {
         return update_refuse("wrong_board", "built for another board");
     }
     if (!update_hash_holds(image, update_slots.free_read_at, update_slots.free_size)) {
@@ -483,7 +482,7 @@ static int update_try(uint32_t version) {
     update_note.version = version;
     update_note_stage(UPDATE_STAGE_ASKED);
     update_slots_note_write(UPDATE_NOTE_MAGIC | (uint32_t) (1 - update_slots.running), version);
-    http_server_close_all(1000);    // each client told the unit has gone, not left with a request that hangs
+    system_prepare_restart();       // the web's clients told the unit has gone (system_control.h)
     int refused = update_slots_try_other();
     update_clear_note();
     update_note.tried = 0;
@@ -635,9 +634,9 @@ void update_status(update_status_t *status) {
     update_version_text(update_running_version(), status->block, sizeof(status->block));
     // The release manifest's name for the image this unit takes: one for the Pico 2 W, one a slot for the Pico W
 #if PICO_RP2350
-    snprintf(status->takes, sizeof(status->takes), "%s", api_v1_board_name());
+    snprintf(status->takes, sizeof(status->takes), "%s", system_board_name());
 #else
-    snprintf(status->takes, sizeof(status->takes), "%s_%c", api_v1_board_name(),
+    snprintf(status->takes, sizeof(status->takes), "%s_%c", system_board_name(),
              update_slot_name(1 - update_slots.running));
 #endif
 }

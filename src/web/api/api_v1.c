@@ -16,6 +16,7 @@
 #include "lwip/memp.h"
 
 #include "api_v1.h"
+#include "system_control.h"
 #include "http_server.h"
 #include "http_json.h"
 #include "charge_mode.h"
@@ -47,15 +48,6 @@ static uint32_t api_v1_uploads_aborted = 0;
 
 static uint32_t api_v1_now_ms(void) {
     return (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
-}
-
-
-const char *api_v1_board_name(void) {
-#if PICO_RP2350
-    return "pico2_w";
-#else
-    return "pico_w";
-#endif
 }
 
 
@@ -474,7 +466,7 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         http_json_raw(buf, room, len, ",\"build\":");
         http_json_string(buf, room, len, build_type);
         http_json_raw(buf, room, len, "},\"board\":");
-        http_json_string(buf, room, len, api_v1_board_name());
+        http_json_string(buf, room, len, system_board_name());
         http_json_raw(buf, room, len, ",\"unit_id\":");
         http_json_string(buf, room, len, unit_id);
         http_json_raw(buf, room, len, ",\"hostname\":");

@@ -1,5 +1,5 @@
 ot_module(SRCS update.c
           INCLUDE_DIRS include
           REQUIRES activity
-          PRIV_REQUIRES api events freertos http_json http_server jobs mbedtls platform rp2 rp2_sdk storage
-                        update_fetch version wireless)
+          PRIV_REQUIRES events freertos http_json jobs mbedtls platform rp2 rp2_sdk storage system update_fetch
+                        version wireless)
