@@ -424,7 +424,7 @@ Nothing outside the two modes and the ring changed its name or size. `tools/size
 
 The Pico 2 W waits, by the owner's word; its image builds, and compares as the Pico W's does.
 
-**Gate 5 is built.**
+**Gate 5 is built**, and merged by #142 (the owner, after his review).
 
 ### For gate 6
 
