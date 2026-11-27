@@ -590,3 +590,211 @@ The unit is left on 2.0.3-322 (`8afa8cb`), slot A, its settings as before gate 1
 - The 21 modules on the Pico SDK are its list. `ui/menu` is on it for the time alone.
 - A hand-over at start-up is how a platform interface reaches a module too: the hard fault's stop is the first one made.
 - The makes read the serial port by the SDK's own calls: they are the first drivers to move to the platform's serial port.
+
+## Gate 7: the platform's interfaces
+
+2026-11-27, approved by the owner ("PR merged, continue with the next gate"), after PR #143 merged gate 6. On the branch `adr006_gate7`, a commit an interface, a34d94f to d5ab3b8.
+
+**The verdict: no file outside `platform/` and `boards/` includes the Pico SDK or the radio's driver, and only `platform/rp2` requires the SDK.** `tools/module_graph.py` ends `VERDICT PASS`: 21 modules on the SDK at gate 6, none now, and the search for an SDK include, which the tool now makes itself, finds none. The PC build's stand-ins are FreeRTOS's alone. On the Pico W every path an interface touched runs as before.
+
+### The owner's pick: buses
+
+The gate's list had storage as blocks, the display's bus with its three pins inside and the inputs as events; the ADR's drivers' line had the drivers above the platform, on its serial port, SPI and I2C, and the motors' enable and direction pins fitted nothing on the list. Asked before cut 1 (2026-11-27): **buses.** GPIO (outputs, inputs, edges), I2C, SPI and a serial port, beside the step pulses, the image slots, the system, a task, an LED strip, a servo and the network. The CAT24C256, the UC1701, the TMC2209 and the scale's makes stay drivers above them, written once for every chip.
+
+### The interfaces
+
+Each a header in `src/platform/include`, its rules written in it, given for the RP chips by a file in `src/platform/rp2`. The new ones are named `chip_`: no header or call of ESP-IDF's or the Pico SDK's is so named (the paper check, below), where `spi_bus_` is ESP-IDF's and `led_strip_` its LED component's.
+
+| Cut | Header | What it is | From |
+|---|---|---|---|
+| 1 | `step_pulses.h` | the step pulses, lifted as they were | `platform/rp2/include` |
+| 2 | `update_slots.h` | the slots as they were, and what an image says of itself (as it comes, and whole), its hash, a piece written into the free slot, the trial's watchdog, the running version | `update.c`'s picobin, flash and watchdog calls |
+| 3 | `chip.h`, `fault_handler.h` | the time, a busy wait, the restart, the chip's id, a random number, the console; the fault's hook lifted as it was | the timer, watchdog, unique id, random and stdio calls of 19 files |
+| 4 | `rtos_port.h` | a task's start with its stack in bytes; a critical section, from a task or (cut 9) an interrupt | the 15 `xTaskCreate` and the 12 `taskENTER_CRITICAL` |
+| 5, 9 | `chip_gpio.h` | outputs; inputs and their edges, each pin's own call | the motors', the display's and the knob's pins; the C++ interrupt class |
+| 6 | `chip_i2c.h` | a bus by its number; a write, and a write then a read with no stop between | the CAT24C256's |
+| 7 | `chip_serial.h` | a port by its number, its format and rate; a byte or none, a byte within a time, a write | the scale's, its ten makes' and the motor drivers' |
+| 8 | `chip_spi.h` | a bus written only, back once the last bit is out | the UC1701's |
+| 10 | `chip_leds.h` | a WS2812 strip a number, each LED's bits | the LEDs' PIO |
+| 11 | `chip_servo.h` | two pulses at 50 Hz on one timer, both widths at once | the servo gate's PWM slice |
+| 12 | `chip_net.h` | the station's join, leave, link, addresses, signal and scan; the hotspot with its DHCP and DNS servers; mDNS's name and services; the radio's LED | `wireless.c`'s and `access_point_mode.c`'s cyw43 and raw lwIP |
+| 13 | (the pin map) | the ports plain numbers; the board's target carries nothing of the SDK; the module graph's search | `configuration.h` and `base.cmake` |
+
+### Where it went past the gate's text
+
+- **The image slots grew.** "`update_slots.h`, as it is" left `update.c` on the flash, the image's format and the watchdog. They are the slots' now, which is how ESP-IDF's update calls group them too. The hash's and the board's readers moved as they were (the image's symbols: the same sizes).
+- **The console** was on no interface: `chip.h` has its start, its read within a time and its room (RTT drops a line that does not fit).
+- **A critical section** joined the task's call: the paper check found ESP-IDF's takes a lock, so our 12 calls with no argument would not compile there. The knob's tap took its own lock from the SDK; it is the RTOS's section now, from the interrupt as from a task.
+- **The DNS server moved to the platform** with the DHCP server: both are lwIP's raw API, which ESP-IDF does not support. mDNS's responder is too.
+- **The pin map is plain numbers** (`SCALE_UART 0`, not `uart0`), and the board's target no longer hands every module the SDK's and lwIP's paths.
+- **The module graph holds the search.** FreeRTOS's and lwIP's headers on the Pico carry the SDK's include paths, so the compiler cannot refuse an SDK include in a module that names either: the tool searches every file outside `platform/` and `boards/`, and its verdict counts what it finds.
+- **The two variables the menu reached by `extern`** (gate 6's), the knob's queue and the display's inversion, are calls (`button_send`, `mini_12864_inverted_display`).
+- **No call for the USB loader:** nothing of ours asks for it.
+- The image is **1.4 KB smaller** on the Pico W (941,916 bytes at gate 6, 940,508 now): at `-O0` each file kept its own copy of the SDK's inline helpers (the UART's in each of ten makes), and the C++ class is gone.
+
+### Found on the way
+
+- **A scale frame can be cut where its task is handed over** (`scale_frames`' hand-overs: 2 of 167 at cut 7). Not new: ADR-013's runs of 2026-11-15 cut 7 of 2,521 and 12 of 2,520 the same way. The idle and restart phases read every frame.
+- **An RGBW strip's white is sent as 0.** Each LED's word is moved up 8 bits for the state machine, which suits a 24-bit LED; for a 32-bit one the white's byte falls off. Kept as it was, and said in `chip_leds.h`; seen in the code only, the bench has no RGBW strip.
+- **Shutter 0's width drives SERVO1's pin, and shutter 1's SERVO0's.** The slice's register was always written so; kept, and said in `servo_gate.c`. The bench has no gate fitted.
+- **An output now drives its level from its first moment.** The SDK's set-up drove a pin low before the code set it, and the TMC2209's enable pin is low for "on": with the enable not inverted (the default), the drivers were on for that moment at every start. Not measured.
+- **The chip's input override reaches what the firmware reads, not the edge detector.** That is how the knob was proven with no hand on it (below): the override sets the level, and the pin's interrupt-force bit fires the interrupt.
+- `wireless.c` used the SDK's `MAX()`, which reached it through FreeRTOS's port: written out.
+
+### Each call against ESP-IDF, on paper
+
+ESP-IDF v6.1.1's documentation for the ESP32-S3, read 2026-11-27, nothing built (the managed components `espressif/led_strip` 3.1.1 and `espressif/mdns` 1.15.1). A row is a call of ours, the ESP-IDF call that would give it, and what differs. "Not settled" is where the pages read do not say. The full notes, with a page for each claim, are kept in the gate's scratch (`build_adr006/esp_idf_rows.md`, untracked).
+
+**Step pulses** (`step_pulses.h`, lifted as it was)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `step_pulses_init(channel, pin)` | `rmt_new_tx_channel`, `rmt_enable`; a PCNT unit on the same pin for the count | The S3 has 4 RMT transmit channels: two steppers and two LED strips take all of them |
+| `step_pulses_set_rate`, `step_pulses_feed` every ms | each feed a transaction, `rmt_transmit` with `loop_count` the millisecond's steps, a short queue | A period in ticks, not a rate; the fraction of a step carried by the feed. Whether two transactions follow with no gap: not settled |
+| `step_pulses_get_stats` | `pcnt_unit_get_count` | A 16-bit counter, widened by `accum_count` |
+| `step_pulses_fault_stop` | none public: a register stop is HAL's, which is not public API | With no fault hook either (below), the stop is the queue running dry |
+
+**The image slots** (`update_slots.h`, grown by the image's reading, its write and the trial's watchdog)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `update_slots_read` | `esp_ota_get_running_partition`, `esp_ota_get_next_update_partition`, `esp_ota_get_state_partition` | A slot is a partition handle; "on trial" is `PENDING_VERIFY` |
+| `update_slots_read_first` | `esp_image_header_t`, then `esp_app_desc_t` at byte 32: its `version` at bytes 48 to 79 | The version is text there, read into our number; an image runs from either slot (`fits` always) and carries no trial mark (`trial` always) |
+| `update_slots_write` | `esp_ota_begin` (it erases), `esp_ota_write_with_offset` | |
+| `update_slots_read_free`, `update_slots_free_hash_holds` | `esp_ota_end` validates; `esp_ota_get_partition_description` | Whether `esp_ota_end` checks the appended SHA-256: not settled. The board's name has no field: ours to add |
+| `update_slots_try_other` | `esp_ota_set_boot_partition`, `esp_restart`, with the bootloader's rollback on | |
+| `update_slots_confirm` | `esp_ota_mark_app_valid_cancel_rollback` | The same model: the new image confirms itself |
+| `update_slots_trial_watchdog`, `_feed` | the bootloader's RTC watchdog kept on into the app (`BOOTLOADER_WDT_DISABLE_IN_USER_CODE`), fed and stopped by `wdt_hal_*` | HAL calls, not public API |
+| `update_slots_note_write`, `_read` | `RTC_NOINIT_ATTR` memory; the cause by `esp_reset_reason` | Whether it survives a watchdog reset: not settled |
+| `update_slots_running_version` | `esp_app_get_description()->version` | Text, parsed |
+
+**The system** (`chip.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_time_us` | `esp_timer_get_time` | Signed, from just before `app_main`; tasks and interrupts alike |
+| `chip_busy_wait_us` | `esp_rom_delay_us` | |
+| `chip_restart(after_ms)` | `esp_restart`, after an `esp_timer` one-shot for a delay | `esp_register_shutdown_handler` is `system_before_restart`'s like |
+| `chip_id` (8 bytes) | `esp_efuse_mac_get_default`: 6 bytes | The 6 padded, or the id defined as a hash of what the chip gives |
+| `chip_random32` | `esp_random` | Truly random only with the radio on |
+| `chip_console_start`, `chip_console_read`, `chip_console_room` | the USB Serial/JTAG console: `usb_serial_jtag_driver_install`, `usb_serial_jtag_read_bytes` | Ticks, not microseconds. No RTT: OpenOCD's apptrace carries no input, so the console through the probe is a USB port or a UART there |
+| `fault_handler_set_stop` | **none documented**: a linker wrap of an internal panic function is all there is | For ADR-007 to decide |
+| (the USB loader) | none documented | Nothing of ours asks for it: no call was made |
+
+**The RTOS's port** (`rtos_port.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `rtos_task_start(..., stack_bytes, ...)` | `xTaskCreate`: its stack in bytes already | The reason for the call: the RP chips' port counts words |
+| `rtos_critical_enter`, `_exit`, `_enter_from_isr`, `_exit_from_isr` | `taskENTER_CRITICAL(&lock)`, `taskENTER_CRITICAL_ISR(&lock)` with one `portMUX_TYPE` of ours | Found by this check: our 12 calls with no argument would not compile there |
+| (the tick, 1000 Hz) | Kconfig's `FREERTOS_HZ`, 100 by default | Set to 1000 there, not by our `FreeRTOSConfig.h` |
+
+**GPIO** (`chip_gpio.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_gpio_output`, `chip_gpio_put` | `gpio_config`, `gpio_set_level` | |
+| `chip_gpio_input`, `chip_gpio_get` | `gpio_config` with its pull-up, `gpio_get_level` | Whether `gpio_get_level` may run in an interrupt: not stated |
+| `chip_gpio_on_edges(pin, edges, call)` | `gpio_install_isr_service`, `gpio_isr_handler_add` per pin, `GPIO_INTR_ANYEDGE` or `_NEGEDGE` | A handler is told no edge, so ours is told only the pin and reads the level, as every one of ours does |
+
+**I2C** (`chip_i2c.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_i2c_open(bus, pins, rate, pull_ups)` | `i2c_new_master_bus` | The rate is a device's: a device handle a (bus, address), made by the platform at its first use |
+| `chip_i2c_write` | `i2c_master_transmit` | |
+| `chip_i2c_write_read` | `i2c_master_transmit_receive` | One call, as ESP-IDF has only that for a write with no stop before its read |
+
+**A serial port** (`chip_serial.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_serial_open`, `_format`, `_baud` | `uart_param_config`, `uart_set_pin`, `uart_driver_install`; `uart_set_word_length`, `_parity`, `_stop_bits`, `uart_set_baudrate` | |
+| `chip_serial_read` (a byte, or none) | `uart_get_buffered_data_len`, then `uart_read_bytes(…, 1, 0)` | Through the driver's ring buffer: a byte lags the wire by up to its read timeout |
+| `chip_serial_read_within(timeout_us)` | `uart_read_bytes(…, ticks)` | Ticks: the TMC2209's 2 ms is 2 ticks at 1000 Hz |
+| `chip_serial_write` | `uart_write_bytes` | |
+
+**SPI** (`chip_spi.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_spi_open(bus, pins, rate)` | `spi_bus_initialize`, `spi_bus_add_device` with no chip select | |
+| `chip_spi_write` (any length, back once the last bit is out) | `spi_device_polling_transmit` | Without DMA at most 64 bytes a transfer, the UC1701's page 132: the platform splits it, or uses DMA. Lengths in bits |
+
+**An LED strip** (`chip_leds.h`; not `led_strip.h`, which is the component's)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_leds_open(strip, pin, rgbw)` | `led_strip_new_rmt_device`, its format GRB or GRBW | An RMT channel a strip |
+| `chip_leds_put(strip, bits)` | `led_strip_set_pixel`, then `led_strip_refresh` | The component takes colours and sends a frame; ours sends each LED's bits as it is given them. The ESP32-S3's side would keep the frame and refresh it |
+
+**A servo** (`chip_servo.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_servo_open(pin0, pin1)` | LEDC: `ledc_timer_config` at 50 Hz, `ledc_channel_config` twice on its timer | 14 bits at most on the S3: some 1.2 µs a step |
+| `chip_servo_set(width0, width1)` | `ledc_set_duty_and_update` twice | Not one write: the two take effect at the next period each |
+
+**The network** (`chip_net.h`)
+
+| Ours | ESP-IDF | What differs |
+|---|---|---|
+| `chip_net_start` | `esp_netif_init`, `esp_event_loop_create_default`, `esp_wifi_init`, `esp_wifi_set_storage(WIFI_STORAGE_RAM)` | The settings are the EEPROM's, not the Wi-Fi driver's flash |
+| `chip_net_station_up` | `esp_netif_create_default_wifi_sta`, `esp_netif_set_hostname` | |
+| `chip_net_join(ssid, key, security, bssid, timeout)` | `esp_wifi_set_config`, `esp_wifi_connect`, then the events (`IP_EVENT_STA_GOT_IP`, `WIFI_EVENT_STA_DISCONNECTED` and its reason) | No timeout of its own and no retry: the ESP32-S3's side waits on the events with ours |
+| `chip_net_leave` | `esp_wifi_disconnect` | |
+| `chip_net_joined`, `_station_address`, `_hotspot_address`, `_rssi` | kept from the events; `esp_netif_get_ip_info`, `esp_wifi_sta_get_rssi` | |
+| `chip_net_scan_start`, `chip_net_scanning` | `esp_wifi_scan_start`, `WIFI_EVENT_SCAN_DONE`, `esp_wifi_scan_get_ap_records` | A scan only in station or station-and-hotspot mode: the set-up's scan beside the hotspot needs both |
+| `chip_net_hotspot_start`, `_stop`, `_addresses_given` | `esp_wifi_set_mode(WIFI_MODE_APSTA)`, the `.ap` config; esp_netif's DHCP server; a DNS server on a socket (the `captive_portal` example's); `IP_EVENT_ASSIGNED_IP_TO_CLIENT` counted | Our DHCP and DNS servers are lwIP's raw API, which ESP-IDF does not support: they stay the RP chips' |
+| `chip_net_announce` | the `espressif/mdns` component: `mdns_init`, `mdns_hostname_set`, `mdns_service_add` with its text items | lwIP's own responder is raw API too |
+| `chip_net_led` | none: a plain pin on an S3 board | |
+| (lwIP's sockets, `select`) | the same | 10 sockets by default: ours want some 9 |
+
+### The proofs, on the PC
+
+- Both boards build at every commit. `app.bin`: the Pico W 941,916 bytes at gate 6, 940,508 at the end (1,408 fewer); the Pico 2 W 926,892 and 925,796 (1,096 fewer). Cut 13 changed no code: every symbol of the image the same as cut 12's (`tools/symbols_compare.py`).
+- `tools/size_report.py`, the Pico W: flash 918.5 KB at gate 6, 917.2 KB of its 1,016 KB slot; **RAM at link time 252.4 KB of 256 KB, as at gate 6.** The Pico 2 W: flash 903.2 KB of 1,792 KB, RAM 285.3 KB of 512 KB.
+- A build without the servo gate (`-DFEATURE_SERVO_GATE=OFF`, 933,708 bytes), the two fault test images, the update's test images and the hotspot's probe image build.
+- `tests/host_test.py`, `release_records.py`, `features_check.py`, `tools/module_graph.py`: `VERDICT PASS`.
+- **Cut 13's build found five files** that had a standard header (`string.h`, `stdio.h`, `stdlib.h`, `ctype.h`) only through the SDK's, which the board's target had brought them: each includes its own.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, the same session). Each cut was flashed and its path run before the next; every run below ended `VERDICT PASS`.
+
+| After | Image | Run |
+|---|---|---|
+| cut 2 | 2.0.3-326 | `slot_trial --expect back` with a test image that never confirms (block 2.1.1): fed 60 s, then the watchdog, back on slot A 67.8 s after the trial was asked; an update over the air from the local OTA server (block 2.1.0, 942,444 bytes, fetched by the unit itself), confirmed on slot B; the settings the same |
+| cut 3 | 2.0.3-327 | the unit's id, and its hotspot's name and key (the set-up code's fingerprint) as at gate 6; `menu_tour`; `pulses`, its two fault images built at the cut; `charge_cycle` (12.9 s); `api_check`, its restart among it |
+| cut 4 | 2.0.3-328 | `stats tasks` 25 s after a start, against cut 3's: within what two starts of one image differ by (up to 140 bytes; the poll's priority 2, or 4 inherited from a lock it held); `charge_cycle` (13.0 s), `api_check`, `menu_tour`, `wifi scan` (5 networks), an update over the air again, confirmed |
+| cut 5 | 2.0.3-329 | `menu_tour`, `charge_cycle` (12.8 s), the coarse motor turned both ways with no late feed; the panel's pages sent in 5.1 ms |
+| cut 6 | 2.0.3-330 | the settings the same after the flash; `api_check` (12 resources stored, a restart); the settings the same; `settings_roundtrip` |
+| cut 7 | 2.0.3-331 | `scale_frames` with the A&D (104, 167 and 115 frames; above, the hand-overs'); `tmc coarse setup 3`, `tmc fine setup 3`: no retry; a real reading in `state`; `charge_cycle` (12.9 s) |
+| cut 8 | 2.0.3-332 | `menu_tour`; the pages sent in 5.1 ms |
+| cut 9 | 2.0.3-333 | the knob driven through the probe (`knob_probe.py`, below): the tap `r l d X… u x…`, the click opened the focused row, the reset button went back, as on cut 8; `reach`, `menu_tour`, `charge_cycle` (13.0 s) |
+| cut 10 | 2.0.3-334 | the LEDs' two state machines running on their pins (pio1, 13 and 28); `charge_cycle` (12.9 s), which lights them by its states; `menu_tour`; the settings the same |
+| cut 11 | 2.0.3-335 | the servo slice's registers through the probe the same as cut 10's at rest, closed and open (divider 38.1875, top 65,465, widths 5,898 and 2,097, then swapped) |
+| cut 12 | 2.0.3-336 | the settings the same, `menu_tour`; the unit's name by mDNS (`ping opentrickler-4A82.local`) and both its services with their three text items; `api_check`, `stream_check`, `web_robust`; a soak of 600 s with `--load` (24 charges; 1 web read of 6,335 missed, a reset; every event; no late feed; no lwIP allocation failed) whose heap read quiet ended 96 bytes below its start: the unit had restarted just before (`stream_check`), and something kept from then on was made during the run, for a second soak of 300 s gave every byte back (51,616 before and after), and the day's earlier soaks, on gate 6's code, began at 51,608, within 8 bytes of where this one ended; the set-up's join from the hotspot, on a probe image (`-DRC_TEST_AP_PROBE=ON`): the hotspot up on the strongest network's channel after a scan, a scan beside it (4 networks), then `wifi join`: the stored network joined on the hotspot's channel, the hotspot kept up; the API's network the hotspot at 192.168.4.1 and the station joined |
+
+- **The knob with no hand on it** (`build_adr006/knob_probe.py`, scratch): the chip's input override (IO_BANK0's INOVER) holds a pin's level low or lets it be, and the pin's interrupt-force bit fires its interrupt, which runs again while the bit is set, each time reading the same levels. A turn A-first ends in one detent clockwise whatever the repeats; the button's first run is its press, the repeats bounces. Each override is put back at the end. Run on cut 8's image first, then on cut 9's: the same.
+- **The LEDs' light** is the owner's eye, as the gate says: the 12864's backlight. What the probe shows is their state machines claimed and running on their pins.
+
+### At the gate's end
+
+2.0.3-338 (`d5ab3b8`), flashed by the probe; every run `VERDICT PASS`:
+- the settings the same as before gate 1 (`logs/adr006/picow_before_gate1`), after the flash and at the end; `menu_tour`; `charge_cycle` (12.8 s, and 13.0 s again later); `api_check`; `settings_roundtrip`; `reach`;
+- the knob through the probe (the tap `r l d X… u x…`); the servo slice's registers as at cut 10; `scale_frames` with the A&D, every frame a number (105, 168 and 116); `pulses`, its fault images built at the cut;
+- **an update over the air** from the local OTA server: a test image built at the cut (block 2.1.0, 940,508 bytes), fetched by the unit itself, tried in slot B and confirmed on its network; then the gate's image flashed back into slot A;
+- **the stacks never touched,** after a tour and a charge, as gate 6 read them: the job task's 2,968 bytes (2,968 at gate 6), the menu's 1,352 (1,352); the scale's 728 (736: the serial read is a call deeper).
+
+The test release is kept out of the served folder, in `logs/adr006/gate7_release_v2.1.0`; the local OTA server was stopped after each use. The unit is left on 2.0.3-338, slot A, its settings as before gate 1. The Pico 2 W waits, by the owner's word; its image builds at every commit.
+
+**Gate 7 is built.**
+
+### For gate 8 and ADR-007
+
+- **The fault's hook has no ESP-IDF counterpart.** A linker wrap of an internal panic function is all there is: ADR-007's to decide, with the step pulses' stop, which has only HAL calls there.
+- **The console through the probe** is RTT's; ESP-IDF's would be a USB port or a UART.
+- **The network there is events,** with no join timeout: `chip_net_join` is that side's to build on them. The set-up's scan beside the hotspot needs the station and the hotspot both.
+- **The chip's id is 6 bytes there**, 8 here: ADR-007 pads it, or makes the id a hash of what the chip gives.
+- The tick is 1000 Hz in our `FreeRTOSConfig.h`; there it is Kconfig's.

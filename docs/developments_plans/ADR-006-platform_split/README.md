@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved the same day. The gates after 7 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it. The gates after 7 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -485,6 +485,14 @@ The order is by what is nearest done, so the first ones show the way:
 Last, `common.h` without the SDK. At the end no `pico/`, `hardware/` or cyw43 include outside `platform/` and `boards/`, shown by a search and by the PC build's stand-ins, the RTOS's only.
 
 Both boards, each interface (drivers, the PIO, timing against the chip); the network on the Pico W.
+
+**Built 2026-11-27** ([progress](progress.md)): `tools/module_graph.py` ends `VERDICT PASS`: no module but `platform/rp2` requires the Pico SDK (21 at gate 6), and no file outside `platform/` and `boards/` includes it or the radio's driver, which the tool now searches for itself. The PC build's stand-ins are FreeRTOS's alone. Each call is in progress.md beside the ESP-IDF call that would give it (v6.1.1's documentation, read). On the Pico W each interface's path was run before the next. What differs from the steps above:
+- **the interfaces are buses** (the owner's pick, before cut 1): GPIO, I2C, SPI and a serial port, the drivers above them, in place of storage as blocks, the display's bus and the inputs as events;
+- **the image slots grew** by what an image says of itself, its write into the free slot and the trial's watchdog: `update.c` named the flash, the image's format and the watchdog itself;
+- **the console** (RTT) is in the system's interface, which the list did not name; **a critical section** is in the task's, which the paper check found ESP-IDF's port to differ in;
+- **the hotspot's DNS server went to the platform** with the DHCP server: both are lwIP's raw API, which ESP-IDF does not support, and so is lwIP's mDNS responder;
+- **the pin map is plain numbers**, and the board's target no longer carries the SDK to every module;
+- the Pico 2 W was built at every commit and not run, by the owner's word: the whole ADR on the Pico W first.
 
 ### Gate 8: stored records apart from the compiler
 
