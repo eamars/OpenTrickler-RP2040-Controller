@@ -861,3 +861,82 @@ The owner took the enum with a fixed type (d599e89). Both builds' images are the
 
 - The filler rule (an appended field never starts in the old struct's tail padding) is still checked by no tool: handed on, with the other fixes, to the ADR of its own (the README, "Handed on").
 - Whether `bool` and the alignments are the same with ESP-IDF's compiler, and whether it takes `enum : uint8_t` in the C mode ESP-IDF builds in, is not checked: ADR-007's to see, on its first build.
+
+## Gate 9: what a board carries
+
+2026-11-27, approved by the owner ("merged, please proceed"), after PR #145 merged gate 8. On the branch `adr006_gate9`, f2f60a9 to 1effd85.
+
+**The verdict: a part a build may leave out is declared once, and only the start-up's wiring asks whether it is in the build.** The Pico W built without the servo gate runs with no trace of it on the screen, in the pages' API or in its index and schema, and built with it again reads its record back as stored. A board's list with no view, or two, is refused as the build configures. A stored make of scale the build does not carry has nothing read in its place: the unit says so, and a charge and a calibration are refused.
+
+### The owner's two choices (before cut 1)
+
+- **The gate handed over:** an always-present `services/gate`, which `app.c` hands the servo gate to, in place of the servo gate's header answering "no gate" when its source was left out. Each later optional part needs no stub header of its own, and `app.c` is the one place that asks.
+- **An absent make refused, nothing standing in:** in place of today's fallback to the A&D's driver, and with no A&D to the simulated scale.
+
+### What was there already
+
+Each module hands its settings table and its EEPROM save handler over in its own init (`settings_register`, `eeprom_register_handler`), and no console command names the gate: step 1's "parts handed over" came down to the servo gate's users.
+
+### The cuts
+
+| Cut | What | Where |
+|---|---|---|
+| 1 | The gate's calls in `services/gate` (`gate.h`): its ratio and states, a struct of its calls, `gate_set()`, and each call answering as a unit with no gate when none is handed. The servo gate gives its calls (`servo_gate_calls()`); `app.c` hands them over when the build carries it. Charge mode, the cleanup, the menu and the API ask the gate; the API adds the gate's routes, its index line and its schema entries only then; the menu shows its page (a page's `shown`, new), its row in Settings and the purge screen's Gate row only then | `services/gate`, `app.c`, `api_v1.c`, `api_v1_commands.c`, `menu_nav.c`, the charge and the cleanup |
+| 2 | `ot_feature(servo_gate services/servo_gate "...")`: its option, its module out of the board's list when off, `FEATURE_<NAME>` for `app/`, the `Features:` line, and `ot_features.h` in each build's folder, which the index's `features` is made from. `tools/module_graph.py` fails on a part's switch read outside `app/` | `cmake/ot_module.cmake`, `base.cmake`, `api_v1.c` |
+| 3 | `ot_fills(platform)` (`platform/rp2`) and `ot_fills(view)` (`view_12864`); `ot_check_places(platform view)` refuses none or two | `cmake/ot_module.cmake`, the root `CMakeLists.txt` |
+| 4 | `OT_MODULE_OPTIONS_<module>` in a board's file, applied after the image's own; neither board names one | `cmake/ot_module.cmake`, both `board.cmake` |
+| 5 | A stored make the build does not carry, or a number no make has: no make runs, the start says so, `GET /api/v1/scale`'s `driver` is null, a charge and a calibration are refused (`409 no_scale`, the console's `@err no_scale`, the screen's "No scale"); the simulation still runs when asked. A test build leaves the A&D's make out (`-DRC_TEST_NO_AND_FXI=ON`) | `scale.c`, the charge, the calibration, the API, the console, the menu |
+| - | `tools/size_report.py` gives our flash by module (each module's library) | |
+
+### Found on the way
+
+- **Before cut 5 the simulated scale could stand in for a real one.** A stored make the build did not carry, or a number no make has, was read by the A&D's driver, and in a build without the A&D by the simulated scale, whose weight follows the motors while they pour real powder. No build lacked the A&D, so only a damaged record reached the first.
+- **The purge screen showed "Gate: Off" in a build without the gate**, and its click said there was none: the row is gone there.
+- **What the hand-over costs:** the gate's API and menu code is in every build, unused without a gate. The Pico W's image without the gate is 4.3 KB smaller than the base build's (938,132 bytes against 942,516), where at gate 7 it was 8.2 KB smaller, that code compiled out.
+- **The schema's gate entries now come after the others,** in its actions and its states: their order only.
+- **The base build's image grew 2,008 bytes** on the Pico W (940,508 at gate 8, 942,516): each index entry and each menu page a pointer more (its `present` or `shown`), the `features` loop, the gate's calls and the absent make's checks, all at `-O0`.
+- **A module at `-Os` by its board,** tried once with the menu (`-DOT_MODULE_OPTIONS_menu=-Os`, not kept): its files compile `-Og -O0 -Os`, the last holding, every other module's at `-O0`; the Pico W's image 15 KB smaller (926,516 bytes).
+- Two headers used `uint8_t` and `bool` with no include of their own (`neopixel_led.h`, `mini_12864_module.h`; gate 8 found it): they include them.
+
+### The lines' lists
+
+**What still names a tubes' module** (`charge`, `charge_control`, `cleanup`, `calibration`, `calibration_method`, `motors`, `servo_gate`, `tmc2209`; the step pulses in `platform/rp2`; the simulated scale in `scale`), each besides the tubes' modules themselves, from `tools/module_graph.py --modules`:
+
+| Module | Names | What for |
+|---|---|---|
+| `app/app` | `charge`, `cleanup`, `calibration`, `motors`, the servo gate where carried | the wiring: each started and handed over |
+| `ui/menu` | `charge`, `cleanup`, `calibration`, `motors`; the gate through `services/gate` | the menu's table and the jobs' screens |
+| `web/api` | `charge`, `cleanup`, `calibration`, `motors`; the gate through `services/gate` | the API's commands |
+| `console/remote_control` | `charge`, `calibration`, `motors` | the console's `charge`, `motor`, `tmc`, `sim` |
+| `services/scale` | `motors` | the simulated scale follows the tubes' speeds |
+
+As the ADR expected, but for two: the job task names none (handed its runs at gate 6), nor the hard fault's handler (handed the motors' stop); the console and the scale's simulation were not on its list. This table is where the thrower's ADR starts.
+
+**What names the screen outside `ui/`:** nothing but `app/`'s wiring. No service, no module of the web and not the console requires `menu`, a view, `mini_12864` or `uc1701`.
+
+### The proofs, on the PC
+
+- Every build at 1effd85: the Pico W 942,516 bytes, flash 919.1 KB of its 1,016 KB slot, RAM at link time 252.4 KB of 256 KB as at gate 8; the Pico 2 W 928,156 bytes (905.5 KB of 1,792 KB, RAM 285.3 KB); the Pico W without the gate (`Features: servo_gate=0`) 938,132; the test build without the A&D 942,068.
+- **Our flash by module** (`size_report.py`, the Pico W): 380.7 KB in all, the API 104.2 (the pages 41.6 of it), the menu 45.2, the settings 21.1, the view 20.8, the HTTP server 19.5, the platform's RP side 17.6, the update's fetch 17.5, the charge 16.8; the servo gate 2.9, the gate 0.2.
+- **Tried once each, not kept:** a board's list without the view (refused: "no module for the view"), and with a second view module (refused: "2 modules for the view (view_12864, view_second)"); a part's switch read in `menu_nav.c` (`module_graph.py`: `VERDICT FAIL`, the file named).
+- `tools/module_graph.py`, `tests/host_test.py`, `tests/release_records.py`, `tests/features_check.py`: `VERDICT PASS`. No new warning.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, the same session). Its settings copied first (`logs/adr006/picow_before_gate9`); its gate's record is not the defaults (shutter 0 closes at 0.032).
+
+| Image | Runs |
+|---|---|
+| the base build, 2.0.3-351 (`1effd85`) | `VERDICT PASS` each: the settings the same as before gate 1; `menu_tour --compare`; `charge_cycle` (12.7 s); `reach`; `api_check` |
+| without the servo gate | the index's `features`: `servo_gate` not present; `GET /api/v1/gate` 404 "no such path on this build"; neither the index's resources nor the schema names the gate; `screen list` 17 pages, no `settings/gate`; `menu_tour --compare`: Settings differs by its scroll bar alone (the "Servo gate" row gone), `settings/gate` not found, every other judged page the same; the settings copy: `settings/gate` gone, nothing else; the purge screen Speed, then Stop and Zero, no Gate row; `charge_cycle` (13.0 s), `reach`, `api_check` (every resource saved): `VERDICT PASS` |
+| without the A&D's make (its stored make the A&D's, the A&D connected) | the start: "Scale: the stored make (0) is not in this build: no scale reads, and a charge and a calibration are refused"; `state` `scale="none: the stored make is not in this build"`, `weight=inf` (the Pico W prints NaN so): the A&D is read by nothing; `GET /api/v1/scale` `driver` null; `POST /api/v1/charge/start` and `/api/v1/calibration/start` 409 `no_scale`; the console's `charge 30` and `calibrate scale` `@err no_scale` (run with `--no-cup-check`, each start expected refused); the screen's start, "No scale / Its make is not / in this build" |
+| the base build again | the settings the same as before gate 9 and as before gate 1: the gate's record read back as stored (`saved=true`, shutter 0 at 0.032), after the build without it had saved every resource it had; the index's `servo_gate` present, `GET /api/v1/gate` 200; the A&D read again |
+
+The unit is left on 2.0.3-351, slot A, its settings as before gate 1. The Pico 2 W waits, by the owner's word; its image builds.
+
+**Gate 9 is built.**
+
+### For gate 10
+
+- The small fixes, the ADR for what was handed on, the end's checks (the owner's real throw among them), and the Pico 2 W's runs, which wait for the whole ADR.
+- The gate's API and menu code is in every build (above): a build that leaves the gate out for its flash keeps some 4 KB of it. Compiling it out would put the part's switch back outside `app/`; a later build that needs those 4 KB brings it up.
