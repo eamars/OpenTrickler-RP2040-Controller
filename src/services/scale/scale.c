@@ -409,7 +409,9 @@ bool scale_init() {
     // is kept so the simulation can stand in for it. A stored make the build does not carry runs nothing in its
     // place: said now, and a charge and a calibration refuse
     if (scale_running_make != NULL) {
-        if (!rtos_task_start(scale_reader_task, "Scale Task", 1024, (void *) scale_running_make, 9,
+        // 1,536: at 1,024 the reader had 128 bytes never touched after scale_frames with the tap on, its print of
+        // each frame on this stack (ADR-017, gate 2, on the Pico W)
+        if (!rtos_task_start(scale_reader_task, "Scale Task", 1536, (void *) scale_running_make, 9,
                              &scale_task_handle)) {
             printf("Scale: no room for its reader's task\n");
         }
