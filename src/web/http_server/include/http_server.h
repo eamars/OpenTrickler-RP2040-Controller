@@ -192,6 +192,10 @@ void http_server_log_requests(bool on);
  */
 void http_server_close_all(uint32_t wait_ms);
 
+// The server's command handed to the remote control's console (http_server_console.c): net. From the start-up's
+// wiring, before the console's task runs. False when the console has no room for it
+bool http_server_console_init(void);
+
 #ifdef __cplusplus
 }
 #endif

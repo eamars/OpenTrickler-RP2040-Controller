@@ -53,6 +53,10 @@ void menu_frame_times(menu_frame_times_t *times);
  */
 int menu_get_current_form_id(void);
 
+// The screen's commands handed to the remote control's console (menu_console.c): press, screen, snap, knob. From
+// the start-up's wiring, before the console's task runs. False when the console has no room for them
+bool menu_console_init(void);
+
 /**
  * @brief Wake the menu to look at a start asked from outside it (activity_request_start()), or a job's end. Never
  *        waits: with its queue full, the menu still looks within its next refresh.

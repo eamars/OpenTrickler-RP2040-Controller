@@ -32,6 +32,7 @@
 #include "profile.h"
 #include "servo_gate.h"
 #include "rc_console.h"
+#include "http_server.h"
 #include "update.h"
 #include "update_poll.h"
 #include "jobs.h"
@@ -105,7 +106,11 @@ int main()
     menu_init();
     xTaskCreate(menu_task, "Menu Task", 1280, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
 
-    // The remote control's console task
+    // The remote control's console task, the screen's and the web server's commands handed to it first: it names
+    // neither (ADR-006, gate 6)
+    if (!menu_console_init() || !http_server_console_init()) {
+        printf("Console: a command was not taken\n");
+    }
     rc_console_init();
 
     // Start RTOS

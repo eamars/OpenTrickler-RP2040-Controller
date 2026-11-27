@@ -19,6 +19,21 @@ extern "C" {
 typedef void (*remote_control_write_fn)(const char *line, void *ctx);
 
 /**
+ * @brief A command: its arguments (the line after its name) in, one reply line out (`@ok <command> ...` or
+ * `@err <reason>`, no line ending); lines it sends before its reply go to `write` (NULL drops them).
+ * @return true for an `@ok` reply, false for an `@err` reply.
+ */
+typedef bool (*remote_control_command_fn)(const char *args, char *reply, size_t reply_size,
+                                          remote_control_write_fn write, void *write_ctx);
+
+/**
+ * @brief Hand the console a command of another module's (ADR-006, gate 6): the screen's, the web server's. The
+ * console names neither. From the start-up's wiring, before the console's task runs; the name is kept by its address.
+ * @return false when there is no room for it.
+ */
+bool remote_control_register(const char *name, remote_control_command_fn fn);
+
+/**
  * @brief Execute one command line (no line ending) and write one reply line (no line ending) into reply.
  * Lines the command sends before its reply go to `write` (NULL drops them). Knows no transport (ADR-001).
  * @return true for an `@ok` reply, false for an `@err` reply.
