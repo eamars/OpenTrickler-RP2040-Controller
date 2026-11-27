@@ -202,6 +202,8 @@ Checked by the review and found sound: the serial wait's interrupt mask and its 
 
 Shown on the PC: `config_migration_test` gains the review's cases, each run: a place that did not take its write finished into its place before another record's save, and that save refused while the place still does not take it; a whole record the spare did not write kept; a first read wrong and a second whole read as the record. VERDICT PASS.
 
+Shown on the Pico W (2.0.3-374): the save-cut image again, the cut record "finished from the spare slot before it is written over" at the next start and its new name read; 25 saves of every setting from the web with 16 saves from the console among them, none failed; with a make no make has stored, the scale's settings written back as read taken (200), the make still unknown; then the final image on the unit's own settings: the settings equal to the first copy, `menu_tour --compare`, `charge_cycle`, both drivers set up with no retry. VERDICT PASS each.
+
 ## Closed (2026-11-28)
 
 Both gates built and proven on the Pico W, and the v1 backup's restore folded in, at the owner's word ("work on ADR-017 on your own, submit as one PR for all gates"; "You can fold the current change and ADR-017 into one PR"). Closed on its branch before its PR, which the owner merges.
