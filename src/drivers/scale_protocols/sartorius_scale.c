@@ -22,7 +22,6 @@ typedef struct {
 
 // Forward declaration
 void _sartorius_scale_listener_task(void *p);
-extern scale_config_t scale_config;
 static void force_zero();
 
 // Instance of the scale handle for Sartorius series

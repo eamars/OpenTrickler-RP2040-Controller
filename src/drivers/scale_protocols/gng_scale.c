@@ -36,7 +36,6 @@ void _gng_scale_listener_task(void *p);
 void scalegng_press_print_key();
 void scalegng_press_tare_key();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for G&G JJB series
 scale_handle_t gng_scale_handle = {

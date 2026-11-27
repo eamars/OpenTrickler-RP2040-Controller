@@ -18,9 +18,6 @@
 #define CLEANUP_MODE_FAULT_CHECK_MS 100
 
 
-// Memory from other modules
-extern charge_mode_config_t charge_mode_config;
-
 // Internal
 cleanup_mode_config_t cleanup_mode_config;
 

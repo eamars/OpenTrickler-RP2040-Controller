@@ -99,6 +99,13 @@ float charge_mode_get_elapsed_s(void);
  * steps. Between throws it is the next throw's.
  */
 float charge_mode_get_target(void);
+// The target of the throw under way, or of the last one: what the charge is throwing to. 0 before the first
+float charge_mode_get_throw_target(void);
+// Where the charge is in its cycle; CHARGE_MODE_EXIT when none runs
+charge_mode_state_t charge_mode_get_state(void);
+// The charge's stored settings, to read (the cup's capacity, the decimals, the zero's margins). They are written
+// through the settings' table only
+const eeprom_charge_mode_data_t *charge_mode_get_stored(void);
 bool charge_mode_target_fits(float target);
 bool charge_mode_set_target(float target);
 // The same at other decimals: for a change of decimal places, which keeps the target's weight (review D2)

@@ -31,7 +31,6 @@ typedef union {
 
 // Forward declaration
 void _steinberg_scale_listener_task(void *p);
-extern scale_config_t scale_config;
 static void force_zero();
 
 // Instance of the scale handle for A&D FXi series

@@ -278,6 +278,11 @@ bool neopixel_led_init(void) {
 }
 
 
+const neopixel_led_colours_t *neopixel_led_default_colours(void) {
+    return &neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours;
+}
+
+
 bool neopixel_led_config_save() {
     bool is_ok = save_config(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, &neopixel_led_config.eeprom_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
     return is_ok;

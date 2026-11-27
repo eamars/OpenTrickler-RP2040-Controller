@@ -49,8 +49,6 @@ static remote_control_command_t remote_control_handed[REMOTE_CONTROL_HANDED_MAX]
 static size_t remote_control_handed_count = 0;
 
 
-extern charge_mode_config_t charge_mode_config;
-extern scale_config_t scale_config;
 
 static bool remote_control_reboot_pending = false;
 static char remote_control_tmc_line[256];
@@ -72,9 +70,9 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
     snprintf(reply, reply_size,
              "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%s "
              "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f drivers=%s,%s",
-             (int) charge_mode_config.charge_mode_state,
-             scale_config.current_scale_measurement,
-             charge_mode_config.target_charge_weight,
+             (int) charge_mode_get_state(),
+             scale_get_current_measurement(),
+             charge_mode_get_throw_target(),
              get_scale_driver_string(),
              version_string, vcs_hash, build_type,
              system_board_name(),
@@ -160,7 +158,7 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
         }
     }
     else if (strcmp(args, "off") == 0) {
-        if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+        if (charge_mode_get_state() != CHARGE_MODE_EXIT) {
             snprintf(reply, reply_size, "@err charge mode is running");
             return false;
         }

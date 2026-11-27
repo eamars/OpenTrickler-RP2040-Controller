@@ -23,7 +23,6 @@ scale_handle_t generic_scale_drv_handle = {
     .read_loop_task = _generic_scale_listener_task,
     .force_zero = _generic_scale_force_zero,
 };
-extern scale_config_t scale_config;
 
 
 /**

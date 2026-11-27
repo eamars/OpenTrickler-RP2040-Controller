@@ -523,6 +523,11 @@ bool scale_simulation_is_on(void) {
 }
 
 
+const eeprom_scale_data_t *scale_get_stored(void) {
+    return &scale_config.persistent_config;
+}
+
+
 bool scale_config_save() {
     bool is_ok = save_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
     return is_ok;

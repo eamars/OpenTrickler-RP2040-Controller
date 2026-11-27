@@ -34,7 +34,6 @@ const static char JM_SCIENCE_FRAME_HEADER = 'E';
 void _jm_science_scale_listener_task(void *p);
 static void force_zero();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for JM Sciense FA series
 scale_handle_t jm_science_scale_handle = {

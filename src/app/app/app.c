@@ -100,8 +100,9 @@ int main()
     // Initialize UART
     scale_init();
 
-    // Initialize charge mode settings
+    // Initialize charge mode settings; the simulated scale is told where a throw's target is read
     charge_mode_config_init();
+    scale_simulation_set_target_source(charge_mode_get_throw_target);
 
     // Initialize profile data
     profile_data_init();

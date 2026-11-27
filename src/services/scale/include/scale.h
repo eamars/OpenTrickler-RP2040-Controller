@@ -167,6 +167,14 @@ const char *scale_driver_api_name(scale_driver_t driver);
 
 bool scale_config_save(void);
 
+// The scale's stored settings, to read: its make and serial format, and what the calibration measured of it
+// (ADR-009 step 1). They are written through the settings' table only
+const eeprom_scale_data_t *scale_get_stored(void);
+
+// The simulated scale snaps to a target as a charge nears it. Who knows the target hands the simulation where to
+// read it (the start-up's wiring: the charge's throw); with none handed over there is no target (ADR-006, gate 6)
+void scale_simulation_set_target_source(float (*target)(void));
+
 // Low lever handler for writing data to the scale
 void scale_write(const char * command, size_t len);
 

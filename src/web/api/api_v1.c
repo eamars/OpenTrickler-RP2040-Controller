@@ -33,7 +33,6 @@
 #include "pico/time.h"
 
 
-extern charge_mode_config_t charge_mode_config;
 extern char host_name[18];
 
 // /debug/load's bounds: well past a throw's 650 rows of 16 columns

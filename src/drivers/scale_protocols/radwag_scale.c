@@ -28,7 +28,6 @@ typedef union {
 void _radwag_scale_listener_task(void *p);
 void radwag_scale_press_re_zero_key();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for Radwag PS R2 series
 scale_handle_t radwag_ps_r2_scale_handle = {

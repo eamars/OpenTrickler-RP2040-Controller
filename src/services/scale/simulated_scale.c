@@ -1,13 +1,12 @@
 #include "scale.h"
 #include "motors.h"
-#include "charge_mode.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include <stdlib.h>
 #include <math.h>
 
-extern scale_config_t scale_config;
-extern charge_mode_config_t charge_mode_config;
+// Where the target of the charge under way is read (scale_simulation_set_target_source()); NULL: no target
+static float (*simulated_scale_target)(void) = NULL;
 
 static float simulated_scale_weight = 0.0f;
 
@@ -105,7 +104,7 @@ void simulated_scale_read_loop_task(void *p) {
             }
 
             if (simulated_scale_state == SIM_SCALE_STATE_CHARGING) {
-                float target_weight = charge_mode_config.target_charge_weight;
+                float target_weight = simulated_scale_target != NULL ? simulated_scale_target() : 0.0f;
                 float add_amount = flow_rate * interval_s; // flow_rate is grains/sec
                 const float target_tolerance = 0.1f; // snap to target when within 0.1 grains
                 bool reached_target = false;
@@ -207,3 +206,8 @@ scale_handle_t simulated_scale_handle = {
     .read_loop_task = simulated_scale_read_loop_task,
     .force_zero = simulated_scale_force_zero,
 };
+
+
+void scale_simulation_set_target_source(float (*target)(void)) {
+    simulated_scale_target = target;
+}

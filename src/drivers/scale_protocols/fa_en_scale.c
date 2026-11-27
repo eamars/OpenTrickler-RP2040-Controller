@@ -34,7 +34,6 @@
 
 // Forward declaration
 void _fa_en_scale_listener_task(void *p);
-extern scale_config_t scale_config;
 static void force_zero();
 
 // Instance of the scale handle for FA-E / FA-EN series

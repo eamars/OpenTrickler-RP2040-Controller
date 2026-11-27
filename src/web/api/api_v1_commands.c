@@ -38,8 +38,6 @@
 #include "version.h"
 #include "wireless.h"
 
-extern charge_mode_config_t charge_mode_config;
-extern scale_config_t scale_config;
 
 #define API_V1_EVENTS_WAIT_S_MAX 30
 #define API_V1_CLEANUP_TIME_S_MIN 1.0f
@@ -272,7 +270,7 @@ static bool charge_fields(http_server_reply_t *reply, const http_json_member_t *
         *target = (float) value;
         if (!charge_mode_target_fits(*target)) {
             api_error(reply, 400, "out_of_range", "target",
-                      charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3 ?
+                      charge_mode_get_stored()->decimal_places == DP_3 ?
                       "a target the menu can show: 0.001 to 99.999, at three decimal places" :
                       "a target the menu can show: 0.01 to 999.99, at two decimal places", NULL);
             return false;
@@ -582,8 +580,8 @@ static void write_calibration(char *out, size_t room, size_t *len) {
     http_json_raw(out, room, len, ",\"failure\":");
     write_name_or_null(out, room, len, cal.failure[0] != '\0' ? cal.failure : NULL);
     // What is kept: the cup's, the scale's, the powder's the charge uses
-    const eeprom_charge_mode_data_t *charge = &charge_mode_config.eeprom_charge_mode_data;
-    const eeprom_scale_data_t *scale = &scale_config.persistent_config;
+    const eeprom_charge_mode_data_t *charge = charge_mode_get_stored();
+    const eeprom_scale_data_t *scale = scale_get_stored();
     http_json_raw(out, room, len, ",\"records\":{\"cup\":{\"capacity\":");
     write_record(out, room, len, charge->cup_capacity, 1.0f);
     http_json_raw(out, room, len, "},\"scale\":{\"settle_ms\":");
@@ -1134,7 +1132,7 @@ static void api_v1_scale_zero(const http_server_request_t *request, http_server_
     charge_status_t charge;
     charge_mode_get_status(&charge);
     float weight = scale_get_current_measurement();
-    float band = API_V1_ZERO_BAND_MARGINS * charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
+    float band = API_V1_ZERO_BAND_MARGINS * charge_mode_get_stored()->set_point_mean_margin;
     const char *refused = NULL;
     bool off_zero = false;
     // A charge asked and not yet begun (`starting`) is before its pour, as `zeroing` is: its first throw pours from
