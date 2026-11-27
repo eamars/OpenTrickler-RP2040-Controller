@@ -20,6 +20,7 @@
 // EXP1_6 (Neopixel) <-> PIN17 (GP13)
 // 
 #include <stdint.h>
+#include <stdio.h>
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>

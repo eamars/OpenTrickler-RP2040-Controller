@@ -1,3 +1,6 @@
+#include <ctype.h>
+#include <stdlib.h>
+
 #include "generic_scale.h"
 #include "scale_make.h"
 

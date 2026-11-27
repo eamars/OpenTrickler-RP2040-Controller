@@ -1,3 +1,4 @@
+#include <string.h>
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <stdlib.h>
