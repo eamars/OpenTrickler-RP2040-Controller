@@ -2,7 +2,7 @@
 tube's threshold, against today's loop with the same profile.
 
 - **The coarse tube** is today's: its PID on the reading's error to the target less its threshold, stopped for good
-  once the reading reaches it, then its back-off (legacy_pid.py's port of charge_mode.cpp).
+  once the reading reaches it, then its back-off (legacy_pid.py's port of charge_mode.c).
 - **The fine tube's forecast:** the reading plus the fine tube's turns turned out and not yet shown (10 ms parcels of
   its speed at the motor's ramp, each shown after step 1's lag at its flow) times its weight a turn. The weight a turn
   is the throw's own, the slope of the reading on the fine turns shown since the coarse tube's powder went quiet (the

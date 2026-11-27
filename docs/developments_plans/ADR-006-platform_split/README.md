@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. The gates after 4 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C. The gates after 5 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -69,6 +69,9 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 **2026-11-27, gate 4**
 - Approved: "Gate 4 approved. please continue."
 - PR #141 merged once its check had passed: "Merge when green."
+
+**2026-11-27, gate 5**
+- Approved: "Approve gate 5."
 
 ## Why here
 
@@ -417,6 +420,12 @@ One thing: each module built on its own. No file moves.
 4. `mini_12864_module.cpp` and the interrupt class wait for gate 7's inputs.
 
 The unit on the probe is enough (the application's layer).
+
+**Built 2026-11-27** ([progress](progress.md)): `cleanup_mode` and `charge_mode` are C; the class is `float_ring`, a struct and five functions over its user's array, with no heap; on the Pico W a charge cycle, the menu tour and the API's check (a purge in it) pass, the job task's stack 16 bytes deeper. What differs from the steps above:
+- **one line would have changed meaning in C with no error:** the zero test's `abs()` of a float, which is the float's in C++ and the integer's in C. It is `fabsf`. The ADR had said the file used only the class of C++;
+- **the sizes were not the measure:** 19 functions changed size by a few bytes with nothing changed in their lines (the two front ends pick other instructions at `-O0`). The proof is what each function calls and touches, counted by name: the same, but for the ring, `fabsf`, and C's `isnan` and `isfinite` done in place;
+- a ring the cup-return wait made and never used is gone, and of the class's 17 methods only the four the charge used are carried over;
+- the purge was run by `api_check`, which starts and stops one by the API.
 
 ### Gate 6: the loops cut
 

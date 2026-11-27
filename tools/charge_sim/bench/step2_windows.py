@@ -3,7 +3,7 @@
 Reads the logs `rc_run.py` keeps (`logs/rc/*.log`) of a charge with real throws, and prints each tuner window as gate 4
 asks: the gains it was thrown on, its median time to the stop, its shares good, over and under, the final weight's mean
 offset and SD, a histogram in 0.02 steps, its time per good charge (its median time over its share within the
-tolerance, counted), and what the tuner did. The firmware's lines it reads (charge_mode.cpp):
+tolerance, counted), and what the tuner did. The firmware's lines it reads (charge_mode.c):
 
     Charge: throw 5 on fine kp 2.0000 kd 10.0, weight a turn carried 0.7520
     Charge: throw 5 at rest, 10.020 of 10.000 in 4.61 s

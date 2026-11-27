@@ -2840,7 +2840,7 @@ class Session:
 
         followers = [EventFollower(f"events {n}", host, self.log) for n in range(1, SOAK_FOLLOWERS + 1)]
 
-        # The first charge after a start creates the charge screen's task, kept for good (charge_mode.cpp): read
+        # The first charge after a start creates the charge screen's task, kept for good (charge_mode.c): read
         # quiet before the run, its 1,168 bytes were memory not given back (ADR-003, gate 2). So one charge first
         self.charge_cycle(target, threshold, timeout_s=120.0)
         if self.failures:

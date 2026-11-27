@@ -1,4 +1,4 @@
-"""Today's charge loop, ported line for line from charge_mode.cpp's charge_mode_wait_for_complete().
+"""Today's charge loop, ported line for line from charge_mode.c's charge_mode_wait_for_complete().
 
 Two PID loops on the same weight, run once per scale reading. The coarse one aims short of the target by the coarse
 stop threshold and is switched off for good on reaching it, then backs off; the fine one aims at the target from
@@ -32,7 +32,7 @@ class Profile:
 
 
 # The Pico 2 W's stored AR2209 profile and motor limits (logs/adr004/pico2w/before_review/settings.json): the
-# profile's minimum is raised to the motor's own, 0.1 rev/s, as charge_mode.cpp does.
+# profile's minimum is raised to the motor's own, 0.1 rev/s, as charge_mode.c does.
 AR2209_PICO2W = Profile(coarse_kp=0.02, coarse_ki=0.0, coarse_kd=0.3, coarse_min_rps=0.1, coarse_max_rps=5.0,
                         fine_kp=2.0, fine_ki=0.0, fine_kd=10.0, fine_min_rps=0.1, fine_max_rps=5.0)
 # The two other settings recorded as real throws on 2026-11-20: the fine gain the measurements give, and that
