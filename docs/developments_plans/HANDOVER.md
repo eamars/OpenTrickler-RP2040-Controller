@@ -77,14 +77,14 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 ## Waiting on the owner
 
-- **PR #111 stays open** (the owner, 2026-11-17; the screen's half built by ADR-010, the web's is ADR-008's) until the web and screen updates are in place and the whole OTA flow is shown end to end, from the offer to the unit confirmed (ADR-008, ADR-010). Then it is closed with thanks and a note naming what was taken, its RP2040 jump (credited in the bootloader's commit 91b9514), on the owner's word.
+- ~~PR #111~~: closed 2026-11-28 as implemented, with its note, on the owner's word; its author Ian is credited as a co-author of 91b9514.
 - **Found in ADR-003 and handed on**, each to decide where it goes:
   - ~~a tuning session's load and an upload at once overrun the Pico W's network~~: ADR-004 makes the update a job, so the two never run together;
   - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);
   - ~~the EEPROM's erase runs outside its mutex, and the API's erase runs it beside the server~~: in ADR-017's draft (2026-11-27); the API's erase now runs after the server's clients are closed;
   - ~~`rnd()` (`eeprom.c`) gives ids with few random bits~~: the id is read from the Pico since ADR-008's gate 4 (the Pico W's is now `4A821948`, `opentrickler-4A82`; the Pico 2 W's `FA0C3B5E`, `opentrickler-FA0C`).
 - **ADR-005:** Decided and closed as a scoping ADR 2026-11-17 (the owner): its optimised build waits for its trigger, an image that no longer fits its slot; its feature table went to ADR-008. Measured that day: the Pico W image 799 KB, 583 KB at `-Os`; RAM 224 of 256 KB at link time.
-- **ADR-008, the web UI:** Built and closed 2026-11-19 on its branch `adr008_gate1`; its one PR, #134, merged 2026-11-19. PR #111 is still open (2026-11-28): its close with its note waits for the owner's word. Its progress.md ("Closed") says what was waived, handed on (the servo gate's tuning to ADR-009, the Pico W's upload-only fallback to ADR-005) and left for the owner at the PR. No ADR is open after it; the next in the order is 009.
+- **ADR-008, the web UI:** Built and closed 2026-11-19 on its branch `adr008_gate1`; its one PR, #134, merged 2026-11-19. PR #111 closed 2026-11-28 as implemented, with its note (the owner). Its progress.md ("Closed") says what was waived, handed on (the servo gate's tuning to ADR-009, the Pico W's upload-only fallback to ADR-005) and left for the owner at the PR. No ADR is open after it; the next in the order is 009.
 
 - **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
 - ~~**ADR-012, fault 7:** whether its one-line fix goes in early.~~ ADR-012 is next and its step 1 comes first: the new transport checks every write, and the fault goes with the old code.
