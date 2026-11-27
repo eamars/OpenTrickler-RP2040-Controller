@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved. The gates after 8 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept. The gates after 8 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -86,6 +86,8 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 
 **2026-11-27, gate 8**
 - Approved: "Gate 7 of ADR-006 is merged. I want you to check the progress, and continue to the next gate."
+- **The stored enums keep their names** (asked by the owner mid-gate, once the first build held each field in a `uint8_t` whose comment named its enum): "I'd prefer keeping the old type name, but instead, you could do typdef to uint8_t instead?" Two ways were put: a plain `typedef uint8_t`, the values an unnamed enum (the type no longer an enum to the compiler: no `-Wswitch`, numbers in gdb), or C23's enum with a fixed type, `typedef enum : uint8_t {...}`. The owner took the second.
+- `cyw43_auth_t` stays renamed `wireless_auth_t`, as the gate had it: the owner's word.
 
 ## Why here
 
@@ -502,6 +504,11 @@ Both boards, each interface (drivers, the PIO, timing against the chip); the net
 
 As above. Proof: each record's size and each field's offset on both images before and after (`ptype /o`), the same; `release_records.py`, taught the declared change, and `host_test.py` pass; `settings --compare` on the unit across the flash.
 
+**Built 2026-11-27** ([progress](progress.md)): each stored enum is C23's enum with a fixed type, `typedef enum : uint8_t {...}`, and keeps its name, so the structs read as before. Both boards' images are byte for byte what they were but for the version and the seal, and every record's layout is the same; on the Pico W the settings are the same across the flash, and the menu tour and a charge cycle pass. What differs from the steps above:
+- **the types keep their names and are made one byte** (the owner, mid-gate), in place of each field written `uint8_t`, which the gate's first build did, a comment naming the enum. Still enums to the compiler: `-Wswitch` and gdb's names kept;
+- **ten enums, not eight:** the display's `charge_view` and the update's `channel` were a `uint8_t` with a comment, and take the same form;
+- **`release_records.py` holds the rule** in place of a declared exception: a stored field of any type but a fixed-width one, a stored struct, the colour's union or an enum naming its integer fails, and an enum of a v1.21 field must name `uint8_t`. Nothing was retyped: v1.21's `scale_driver_t scale_driver` is today's.
+
 ### Gate 9: what a board carries
 
 1. **The parts handed over** from `app`'s wiring: each module's settings table, routes, console commands and save handler. The servo gate first: its 15 lines in four files become its own module's, and `app` is the one place that asks whether it is there.
@@ -558,7 +565,7 @@ At the end:
 
 From the draft, each with the review's recommendation:
 - **The layout** below: every module's name and every file's place.
-- **The stored enums against AGENTS.md's rule** that an old field is never retyped. By its letter, writing `decimal_places_t` as `uint8_t` is a retype; by its intent (the bytes and what they mean kept) it is not. The owner's word is needed before `release_records.py` is taught the difference. Recommended: yes, by its intent, the check taught to compare a field's width and its values.
+- **The stored enums against AGENTS.md's rule** that an old field is never retyped. By its letter, writing `decimal_places_t` as `uint8_t` is a retype; by its intent (the bytes and what they mean kept) it is not. The owner's word is needed before `release_records.py` is taught the difference. Recommended: yes, by its intent, the check taught to compare a field's width and its values. Settled: acceptable (the owner, 2026-11-27), and gate 8 keeps each field's type and its name, so nothing is retyped.
 - **lwIP outside the platform**, a change from the draft. Recommended: yes, with the radio, the DHCP server and mDNS behind the network's interface.
 - **The move and the libraries each merged on their own** (gates 2 and 3), as soon as each is proven. Recommended: yes.
 

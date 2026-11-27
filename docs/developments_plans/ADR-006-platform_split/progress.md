@@ -798,3 +798,66 @@ The test release is kept out of the served folder, in `logs/adr006/gate7_release
 - **The network there is events,** with no join timeout: `chip_net_join` is that side's to build on them. The set-up's scan beside the hotspot needs the station and the hotspot both.
 - **The chip's id is 6 bytes there**, 8 here: ADR-007 pads it, or makes the id a hash of what the chip gives.
 - The tick is 1000 Hz in our `FreeRTOSConfig.h`; there it is Kconfig's.
+
+## Gate 8: stored records apart from the compiler
+
+2026-11-27, approved by the owner ("Gate 7 of ADR-006 is merged. ... continue to the next gate"), after PR #144 merged gate 7. On the branch `adr006_gate8`, 845e681 and d599e89.
+
+**The verdict: every stored field is of a fixed width, and the Pico boards are unaffected.** Each stored enum names its integer, `typedef enum : uint8_t {...}`, and keeps its name. Both boards' images are byte for byte what they were but for the version's text and the image's seal, and every record's size and every field's offset are the same on both (gdb's `ptype /o`).
+
+### What was built
+
+- **The ten stored enums are C23's enums with a fixed type,** `typedef enum : uint8_t {...} scale_driver_t;`: still enums to the compiler (`-Wswitch` warns of a value a `switch` misses, gdb names the values), one byte by the language rather than by the Pico's ABI, and a value past a byte does not compile. The structs read as before. The eight of v1.21's records, and the two that were a `uint8_t` with a comment naming its enum:
+
+| Record | Field | At byte | Its enum |
+|---|---|---|---|
+| `eeprom_charge_mode_data_t` | `decimal_places` | 36 | `decimal_places_t` |
+| `eeprom_scale_data_t` | `scale_driver`, `scale_baudrate`, `scale_uart_format` | 2, 3, 4 | `scale_driver_t`, `scale_baudrate_t`, `scale_uart_format_t` |
+| `eeprom_neopixel_led_metadata_t` | `pwm_out_led_chain_count`, `pwm_out_led_colour_order` | 16, 17 | `neopixel_led_chain_count_t`, `neopixel_colour_order_t` |
+| `mini_12864_module_config_t` | `display_rotation`, `charge_view` | 5, 7 | `display_rotation_t`, `display_charge_view_t` (was a `uint8_t`, ADR-010) |
+| `eeprom_wireless_metadata_t` | `auth` | 98 | `wireless_auth_t`, which was `cyw43_auth_t`: ours, with cyw43's name |
+| `eeprom_update_config_t` | `channel` | 2 | `update_channel_t` (was a `uint8_t`, ADR-010) |
+
+- **`tests/release_records.py` holds the rule from now on:**
+  - a stored field is of a fixed width (`uint8_t` to `uint32_t`, `int8_t` to `int32_t`, `float`, `bool`, `char`), a stored struct of its list, the colour's union (`rgbw_u32_t`, a `uint32_t` and its four bytes, packed), or an enum that names one of those integers;
+  - an enum of a v1.21 field names `uint8_t`, the byte it lay in;
+  - each v1.21 value means what it meant, through a rename (`wireless_auth_t`, v1.21's `cyw43_auth_t`).
+- **AGENTS.md** says the rule, with the owner's word on it.
+- Two headers that used `uint8_t` and `bool` with no include of their own (`neopixel_led.h`, `mini_12864_module.h`) include `stdint.h` and `stdbool.h`.
+
+### The first build, and the owner's choice
+
+The first build (845e681) held each field in a `uint8_t` whose comment named its enum, as `charge_view` and `channel` did, and the check read the comments. The owner asked for the old type names kept, the type made one byte by a typedef. Two ways were put (the README, the owner's direction): a plain `typedef uint8_t`, the type no longer an enum, or an enum with a fixed type, tried first on a test file with the compilers the builds use:
+- arm-none-eabi-gcc 15.2 takes `enum : uint8_t` in the build's `gnu11` (only `-Wpedantic` remarks on it, which the build does not use), and in `gnu17` and `gnu23`;
+- it stays one byte with `-fno-short-enums`, which stands in for a compiler that does not shorten an enum;
+- zig cc 0.13 (the PC build's, in `c11`) and Ubuntu's gcc 15.2 in `c11` take it; both compilers refuse a value of 300 in it;
+- ESP-IDF's compiler is not tried: GCC 13 and later have it, which is all that is known.
+
+The owner took the enum with a fixed type (d599e89). Both builds' images are the same code.
+
+### Found on the way
+
+- **Why it matters on a unit:** the EEPROM is on the controller board, and stays there whatever chip is put in its socket (ADR-007's ESP32-S3-Pico goes in the Pico's). A record another compiler laid out otherwise would not match its CRC at its size, and the loader, looking at the other sizes, could take it for another version's and read its fields shifted.
+- **The LEDs' colours** (`neopixel_led_colours_t`, a struct in the LEDs' record) were not in the check's list: they are, v1.21's three fields first.
+- Before the change the two boards' layouts were already the same as each other.
+
+### The proofs, on the PC
+
+- **Each record's layout** before and after, both images (`build_adr006/g8_layouts.py`, scratch: gdb's `ptype /o` of every stored type, each field's offset, size and name judged): the same, `VERDICT PASS` on each board.
+- **The images**, 940,508 bytes (the Pico W) and 925,796 (the Pico 2 W), as before. Of their bytes 40 differ on each, in two runs: the version's text (`2.0.3-342`, `bb73076`, to `2.0.3-344`, `d599e89`) and the image's SHA-256 seal. `tools/symbols_compare.py`: `VERDICT PASS`, both. RAM at link time 252.4 KB on the Pico W, as before. The first build's images were the same but for their version.
+- **The check tried against five faults,** each put in and taken out (not kept), each failed: an enum written plain; one widened to `uint16_t`; the field written a bare `uint8_t`; a value renumbered; a field a `size_t`.
+- `tests/release_records.py`, `tests/host_test.py` (v1.21's records read, both ways), `tools/module_graph.py`, `tests/features_check.py`: `VERDICT PASS`.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, the same session). Every run `VERDICT PASS`:
+- before the first flash, on 2.0.3-338 (gate 7): the settings the same as before gate 1 (`logs/adr006/picow_before_gate1`), and copied again (`logs/adr006/picow_before_gate8`);
+- the first build, 2.0.3-343 (`845e681`): `flash`; the settings the same after it and after the runs; `menu_tour --compare` against the baseline (the inversion off for it, as AGENTS.md says); `charge_cycle`, 13.0 s from charging to the cup prompt, the cup 0.0 gr before and after;
+- the gate's image, 2.0.3-344 (`d599e89`): the same, `charge_cycle` 12.9 s. The unit is left on it, slot A.
+
+**Gate 8 is built.**
+
+### For gate 9
+
+- The filler rule (an appended field never starts in the old struct's tail padding) is still checked by no tool: handed on, with the other fixes, to the ADR of its own (the README, "Handed on").
+- Whether `bool` and the alignments are the same with ESP-IDF's compiler, and whether it takes `enum : uint8_t` in the C mode ESP-IDF builds in, is not checked: ADR-007's to see, on its first build.
