@@ -1005,7 +1005,24 @@ The unit is left on 2.0.3-357, slot A, its settings as copied before gate 10 (`l
 - **What:** the Pico 2 W refused every update image as built for another board. The image says its board in the SDK's binary information, a table of pointers to items; the reader took an item only on a word (`(entry & 3u) != 0`, skipped as "one kept in RAM"). The SDK declares its items packed (`structure.h`), which leaves them wherever the compiler puts them, and since ADR-009 compiled the SDK at `-Os` (`0ed6172`, 2026-11-27 01:51) the compiler no longer rounds them up to a word: the Pico 2 W's board item at 0x1008116d. The Pico W's lay on a word by chance (0x100891c4). Read in the images on the PC: v2.0.3 and 2.0.3-162 on a word, 2.0.3-273 (the first after `0ed6172` on this PC) and every one since not.
 - **Why not seen:** neither unit had run an update on the `-Os` build; ADR-009's handover listed exactly that check, and on the Pico W, where gates 6 and 7 ran updates, the item was on a word.
 - **The fix, both sides** (the owner's pick, asked first): the reader takes an item at any byte, read by bytes (`update_image_word`; the RP2040 faults on a word read off one); and the SDK's `standard_binary_info.c` stays at the build's level, so the board's item is on a word again and a unit on an earlier firmware (v2.0.3, ADR-009's builds, ADR-006's gates) takes the next image. Both boards' images: the item on a word (the Pico W 0x100891f4, the Pico 2 W 0x10081198); the symbols against gate 9's as before, but `update_image_board` and the new `update_image_word`.
-- **On the Pico W** the change is proven by its build and its symbols: its item was on a word before and after, and the reader reads it by bytes now. Its next turn on the probe runs a slot trial.
+- **On the Pico W** the change is proven by its build and its symbols: its item was on a word before and after, and the reader reads it by bytes now. Its slot trial was run at its next turn on the probe, 2026-11-28 (below).
+
+### The Pico W's slot trial of the reader's fix (2026-11-28)
+
+Run the night after, before the PR's merge: a review of the PR (on this PC, `logs/reviews/2026-11-28_adr006_adr017_review.md`) found that the gate's last code commit, `9744d36`, had never run on a Pico W, and the owner had it run first ("Run it first", "probe is on Pico W"). Three images built from the PR's head (`a0ea6d5`, the tree clean) into `build_adr006/review_w`, `review_w_b_update` and `review_w_b_noconfirm`, each 2.0.3-358, each with its board's item on a word (the full install 0x100891f4). No motor turned.
+
+| On the Pico W | Result |
+|---|---|
+| its settings copied first, on 2.0.3-355 (`logs/reviews/picow_before_review`) | 17 resources, the same as before gate 10 |
+| `flash` of the PR's head | `VERDICT PASS`: 2.0.3-358 at `a0ea6d5` |
+| `slot_trial --expect back`, a test image that never confirms (2.1.1) | `VERDICT PASS`: tried on slot B, back on slot A by the trial's watchdog 67.5 s after it was asked, `not_confirmed` |
+| `slot_trial --expect confirmed`, a test image that confirms itself (2.1.0) | `VERDICT PASS`: confirmed on slot B 4.7 s after it was asked, still slot B after a restart |
+| `flash` of the PR's head again, into slot A; the settings compared | `VERDICT PASS`; 17 resources, the same |
+
+- **What it shows:** a Pico W on the gate's code reads the board of an image built by the gate's rule, tries it, and confirms it or goes back.
+- **What it does not:** the read of an item off a word has not run on an RP2040. Tried: the SDK's file at `-Os` again by a build hook, the tree untouched, and a string of one, two and three characters put before the item. On the Pico W's build the item lay on a word each time, so there was no such image to try. The Pico 2 W ran that read (above).
+
+The unit is left on 2.0.3-358 (`a0ea6d5`), slot A, its settings as before gate 1 and gate 10, the probe on it.
 
 ## Closed (2026-11-27)
 
@@ -1013,8 +1030,8 @@ Closed as Built in its README, here and in the index, on its branch `adr006_gate
 
 - **Done:** ten gates, each approved alone and proven on the Pico W, the first nine merged (#139 to #146): every module a folder by what it does, built on its own with what it needs named and linked whole; a PC build for the tests; our code in C; no requirement upward and no loop; no SDK outside the platform and the boards; stored enums one byte by their own type; a part a build may leave out handed over by the start-up alone; the small fixes; ADR-017 for the rest. The end's checks: `tools/module_graph.py` `VERDICT PASS` (no SDK or radio include outside `platform/` and `boards/`, no requirement upward, no loop, no part's switch outside `app/`); the PC build's stand-ins FreeRTOS's alone; a unit updated from v1.21 keeping every value it was given; the Pico W built without the servo gate and reading its record back with it; the three kinds of pick (gate 9); the lines' lists and each interface against ESP-IDF here; the Pico 2 W's runs above.
 - **Waived by the owner:** the real throw, on the condition above, which the runs above meet but for a calibration's whole run on a unit.
+- **Done since:** the Pico W's slot trial of the reader's fix, 2026-11-28, back and confirmed (above).
 - **Not done, with the occasion that does each** (the handover says so):
-  - the Pico W's slot trial of the reader's fix: its next turn on the probe;
   - the Pico 2 W's menu baseline for ADR-009's four pages: saved again with the A&D on it;
   - a calibration's whole run on a unit: with ADR-009's runs with powder (the handover);
   - the servo seen at a shutter's end: ADR-010's, the day a gate is fitted (AGENTS.md).
