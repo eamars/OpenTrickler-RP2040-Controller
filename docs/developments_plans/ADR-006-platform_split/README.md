@@ -367,7 +367,7 @@ These change what a user sees, or need tests that are not small:
 - **The scale as one reader with a parser a make**, and with it the reader task not swapped with its make. The draft had it among the small fixes. It is not one (the review): it writes the reading of ten makes again, with one make's scale on the bench. Here each make keeps its task and its framing, and only its serial calls are swapped one for one for the platform's (gate 7). The one reader is designed with the line endings, where a parser can be shown against recorded frames.
 - **The filler rule checked by `release_records.py`:** it needs each record's layout from the compiler, at v1.21 and now.
 
-Its exit: that ADR is drafted before this one closes.
+Its exit: that ADR is drafted before this one closes. Drafted 2026-11-27 at gate 10: [ADR-017](../ADR-017-storage_and_scale_faults/README.md), with two more found on the way: the erase outside the EEPROM's lock (found in ADR-003, handed on with no ADR named), and a radio that does not start shown as "Not joined".
 
 Gone since they were handed on: the menu's one-byte writes into enums (`mui_menu.c`, removed by ADR-010), and the unit's id printed with no ending (`unit_id.c`, written again by ADR-008, makes it with its ending, by `snprintf`).
 
