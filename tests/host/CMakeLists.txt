@@ -56,8 +56,8 @@ endfunction()
 
 # ---- The stand-ins ----
 # Third-party code a module names, as the PC has it: headers with only what the files built here use. They are this
-# build's meter (ADR-006): three of FreeRTOS's and three of the Pico SDK's at gate 4; at the ADR's end the SDK's
-# are gone.
+# build's meter (ADR-006): three of FreeRTOS's and three of the Pico SDK's at gate 4, three and one since gate 6;
+# at the ADR's end the SDK's are gone.
 foreach(name freertos rp2_sdk)
     add_library(ot_${name} INTERFACE)
     target_include_directories(ot_${name} INTERFACE stand_ins/${name})
