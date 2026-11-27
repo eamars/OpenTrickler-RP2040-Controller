@@ -15,7 +15,8 @@ Status: **Draft**, written 2026-11-27 from what ADR-006 handed on, revised 2026-
 - 2026-11-27 (ADR-006): small bug fixes in ADR-006, "as long as they don't need extensive tests"; the rest an ADR of its own, drafted before ADR-006 closes.
 - 2026-11-28: "revise ADR-017 with the review's findings".
 - 2026-11-15 (ADR-012, step 6): fail early, a fault shown before a mode is entered.
-- 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append; v1.21 the compatibility floor.
+- 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append.
+- 2026-11-28: "The upgrade should be always from release to release": the compatibility floor is the latest release; a pre-release needs no compatibility.
 - 2026-11-27 (ADR-006, gate 9): a stored make of scale the build does not carry runs nothing in its place.
 
 ## Why here
@@ -95,7 +96,7 @@ Each make is a task of its own that reads the serial port every 10 to 20 ms (the
 7. **The I2C calls given a time limit:** a change to a platform interface, so gate 7's rule applies: ESP-IDF's counterpart read first (its I2C calls take a timeout already), the rule written in `chip_i2c.h`.
 8. **The storage's buffers off the C heap** (the FreeRTOS heap, 112 KB, or one static buffer), measured before and after: the Pico W's 3.5 KB C heap is no place for a 1 KB slot read.
 9. **"No radio"** told from "Not joined" on the Wi-Fi page and at the start, with the radio's two states apart.
-10. **The records' checks:** `release_records.py` finds the records by use (every type handed to `load_config`, `save_config` or `config_read_stored`), the update's note among them; and the filler rule checked from v1.21's layout, read once from a v1.21 build and kept as a table in the test, against CI's own ELF. Written to take any ELF, it is also ADR-007's check of every record's size and offsets by both compilers.
+10. **The records' checks:** `release_records.py` finds the records by use (every type handed to `load_config`, `save_config` or `config_read_stored`), the update's note among them; and the filler rule checked from the latest release's layout, read once from that release's build and kept as a table in the test, against CI's own ELF. Written to take any ELF, it is also ADR-007's check of every record's size and offsets by both compilers.
 
 Shown, each by the cheapest real check that would expose its failure:
 - a test build with the EEPROM at an address no chip answers (no chip taken off the board): every module started, the screen says so, a charge refused;
@@ -122,7 +123,7 @@ Shown, with no scale but the A&D:
 
 - After each gate: `rc_run.py flash`, the settings compared with a copy taken first (`rc_run.py settings`), `menu_tour --compare` with the pages the gate changes saved again in the same commit, `charge_cycle`.
 - What each gate names above.
-- A unit updated from v1.21 keeps its settings (as ADR-006's end did).
+- A unit updated from the latest release keeps its settings (as ADR-006's end did from v1.21).
 
 ## With ADR-014 and ADR-007
 
