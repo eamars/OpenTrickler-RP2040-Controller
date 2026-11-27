@@ -689,7 +689,7 @@ void update_set_fetcher(const update_fetcher_t *fetcher) {
 
 
 update_start_result_t update_request_download(activity_by_t by) {
-    static update_found_image_t image;      // 296 bytes: not on the caller's stack. Only read for whether there is one
+    update_found_image_t image;     // only read for whether there is one
     if (update_fetcher == NULL) {
         return UPDATE_START_NOTHING_FOUND;
     }
@@ -1003,10 +1003,8 @@ static void update_download_run(activity_by_t by) {
     bool fetched = false;
     bool sha_holds = false;
     // Why a fetch failed, and what one that went through took (the log's line)
-    static char fetch_error[96];
-    static char fetch_took[192];
-    fetch_error[0] = '\0';
-    fetch_took[0] = '\0';
+    char fetch_error[96] = "";
+    char fetch_took[192] = "";
     if (update_fetcher == NULL || !update_fetcher->found_image(&update_download.image)) {
         update_download.refusal = update_refuse("failed", "nothing was found to download");
     }
