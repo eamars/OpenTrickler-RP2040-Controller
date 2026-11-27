@@ -4,7 +4,7 @@ if (FEATURE_SERVO_GATE)
     ot_module(SRCS servo_gate.c
           INCLUDE_DIRS include
           REQUIRES freertos
-          PRIV_REQUIRES board platform rp2_sdk settings storage)
+          PRIV_REQUIRES board platform settings storage)
 else()
     ot_module(INCLUDE_DIRS include
               REQUIRES freertos)

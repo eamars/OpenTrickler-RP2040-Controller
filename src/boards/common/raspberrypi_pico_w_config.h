@@ -54,6 +54,5 @@
 
 #define SERVO0_PWM_PIN 26
 #define SERVO1_PWM_PIN 27
-#define SERVO_PWM_SLICE_NUM 5
 
 #endif  // RASPBERRYPI_PICO_W_CONFIG_H_

@@ -2,12 +2,11 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include "hardware/pwm.h"
-#include "hardware/clocks.h"
 #include "configuration.h"
 #include "eeprom.h"
 #include "common.h"
 #include "servo_gate.h"
+#include "chip_servo.h"
 #include "rtos_port.h"
 #include "settings.h"
 
@@ -30,7 +29,6 @@ float servo_gate_ratio(void) {
 }
 
 // Const settings
-const float _servo_pwm_freq = 50.0;
 const uint16_t _pwm_full_scale_level = 65535;
 
 
@@ -61,15 +59,9 @@ static inline float clamp01(float x) {
     return x;
 }
 
+// Both levels at the same time. Shutter 1's is SERVO0's pin, shutter 0's SERVO1's, as the slice was always written
 static void inline _set_duty_cycle(uint16_t shutter0_duty_cycle, uint16_t shutter1_duty_cycle) {
-    uint32_t reg_level = ((uint32_t) shutter0_duty_cycle) << 16 | shutter1_duty_cycle;
-
-    // Write both levels to the pwm at the same time
-    hw_write_masked(
-        &pwm_hw->slice[SERVO_PWM_SLICE_NUM].cc,
-        reg_level,
-        0xffffffff
-    );
+    chip_servo_set(shutter1_duty_cycle, shutter0_duty_cycle);
 }
 
 
@@ -297,22 +289,11 @@ bool servo_gate_init() {
 
     is_ok = servo_gate_config_init();
 
-    // Initialize pins
-    gpio_set_function(SERVO0_PWM_PIN, GPIO_FUNC_PWM);
-    gpio_set_function(SERVO1_PWM_PIN, GPIO_FUNC_PWM);
-
-    pwm_config cfg = pwm_get_default_config();
-
-    // Set to 50hz frequency
-    uint32_t sys_freq = clock_get_hz(clk_sys);
-    float divider = ceil(sys_freq / (4096 * _servo_pwm_freq)) / 16.0f;
-    uint16_t wrap = sys_freq / divider / _servo_pwm_freq - 1;
-
-    pwm_config_set_clkdiv(&cfg, divider);
-    pwm_config_set_wrap(&cfg, wrap);
-
-    pwm_init(pwm_gpio_to_slice_num(SERVO0_PWM_PIN), &cfg, true);
-    pwm_init(pwm_gpio_to_slice_num(SERVO1_PWM_PIN), &cfg, true);
+    // The two servos' pulses at 50 Hz, on one timer
+    if (!chip_servo_open(SERVO0_PWM_PIN, SERVO1_PWM_PIN)) {
+        printf("Servo gate: its two pins share no PWM\n");
+        is_ok = false;
+    }
 
     // Start the RTOS task and queue
     servo_gate.control_queue = xQueueCreate(1, sizeof(gate_ratio_t));
