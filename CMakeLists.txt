@@ -70,6 +70,8 @@ ot_image_settings("${TARGET_NAME}")
 foreach(module IN LISTS OT_BOARD_MODULES)
     add_subdirectory(${SRC_DIRECTORY}/${module})
 endforeach()
+# One chip's side of the platform and one view in a build, none missing (ADR-006, gate 9: "one of")
+ot_check_places(platform view)
 ot_link_modules("${TARGET_NAME}")
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)

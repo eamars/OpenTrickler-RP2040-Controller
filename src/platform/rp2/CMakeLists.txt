@@ -3,6 +3,7 @@ ot_module(SRCS chip_gpio_rp2.c chip_i2c_rp2.c chip_leds_rp2.c chip_net_rp2.c chi
           INCLUDE_DIRS include
           REQUIRES lwip rp2_sdk
           PRIV_REQUIRES board freertos mbedtls platform)
+ot_fills(platform)      # the chip's side: the RP chips' (ADR-007: esp32s3)
 
 # The PIO programs' headers, made by pioasm into this module's build folder, for this module alone
 pico_generate_pio_header(ot_rp2 ${CMAKE_CURRENT_LIST_DIR}/stepper.pio)
