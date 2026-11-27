@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 and 2 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, and every file in its module's folder. The gates after them are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 and 2 built, proven on the Pico W and merged (#139): the build's mechanics, and every file in its module's folder. Gate 3, the modules as libraries, approved by the owner the same day and being built. The gates after it are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -57,6 +57,11 @@ Status: **Open** 2026-11-27. Gates 1 and 2 approved by the owner, built and prov
 - **The Pico W first, for the whole ADR:** "Pico 2W will be tested later. I want the full ADR to be tested on the most risky target Pico W before moving on to Pico 2W." Read here as: every gate is proven on the Pico W on the probe; both boards are still built and compared on the PC at every gate, which needs no unit; the Pico 2 W's runs on the probe are gathered after the last gate. It changes AGENTS.md's "a change to the build is proven on both" for this ADR's gates, not its end.
 - **The layers lie under `src/`** (asked before the move, since a second move is what gate 2 is there to avoid): `src/` stays the firmware's one source root, and the repository's root keeps its folders. The draft read "in place of `src/`".
 - The Pico W's menu baseline for `settings/display` saved again: "Yes please update."
+
+**2026-11-27, the merge and gate 3**
+- PR #139, gates 1 and 2, merged at the owner's word once its checks had passed: "Cool. Merge then."
+- Gate 3 approved: "And continue with the gate."
+- Asked why not a CMake file in each module's folder, built as a library, its dependencies declared there: that is gate 3. `ot_module()` is our own function in plain CMake, not CMake's and not an extension; its arguments are ESP-IDF's so one file serves both platforms. The owner: "Cool."
 
 ## Why here
 
@@ -364,7 +369,7 @@ One thing: every file in its module's folder. Still one program, built as today.
 4. Proof: the symbols as before, both boards. Then the Pico W on the probe: `flash`, `menu_tour --compare`, `charge_cycle`; the host tests and `release_records.py`. The Pico 2 W the same when it is on the probe (a change to the build: both boards).
 5. Merged by a PR of its own at once: a move costs most while other branches are open.
 
-**Built 2026-11-27** ([progress](progress.md)): 138 files moved, both boards' images symbol for symbol what they were, the Pico W's bootloader byte for byte; on the Pico W `pulses`, the menu tour against its baseline and a charge cycle pass. The Pico 2 W's run waits (the owner, above).
+**Built 2026-11-27** ([progress](progress.md)): 138 files moved, both boards' images symbol for symbol what they were, the Pico W's bootloader byte for byte; on the Pico W `pulses`, the menu tour against its baseline and a charge cycle pass. The Pico 2 W's run waits (the owner, above). Merged with gate 1 by #139.
 
 ### Gate 3: the modules as libraries
 
