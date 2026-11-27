@@ -338,15 +338,24 @@ static void findings(void) {
     check(found == CONFIG_FOUND_DAMAGED && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) && slot_unchanged(ADDR),
           "a record whose first two bytes are neither 0 nor blank: the defaults, the chip left as it is");
 
-    // Read two ways: the bus at fault, said so, nothing written
+    // Read two ways, both wrong: the bus at fault, said so, nothing written
     fake_eeprom_erase();
     save_config_now(ADDR, &full, sizeof(full));
     spare_elsewhere();
-    fake_eeprom_unsteady(ADDR + 3);
+    fake_eeprom_unsteady(ADDR + 3, true);
     keep_slot(ADDR);
     found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(found == CONFIG_FOUND_UNSTEADY && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) && slot_unchanged(ADDR) &&
           amiss_names(ADDR, CONFIG_FOUND_UNSTEADY), "read two ways: the bus at fault, the defaults, nothing written");
+
+    // The first read wrong, the second whole (the review, finding 3): the record, read at the second try
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    spare_elsewhere();
+    fake_eeprom_unsteady(ADDR + 3, false);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 3.0f, 4.0f, 5.0f, 6.0f) && config_is_saved(ADDR, &v2, sizeof(v2)),
+          "a first read wrong and a second whole: the record read, not the defaults");
 
     // Not reachable: every load on its defaults, nothing read or written, a save refused
     fake_eeprom_erase();
@@ -447,6 +456,45 @@ static void findings(void) {
     fake_eeprom_set_reachable(true);
     check(!config_is_saved(ADDR, &v2, sizeof(v2)) && amiss_names(ADDR, CONFIG_FOUND_NOT_WRITTEN),
           "its write failing when the update is kept: not saved, and amiss, not dropped silently");
+
+    // The review, finding 1: a place that did not take its write, its one whole copy in the spare, is finished into
+    // its place before another record's save writes over the spare
+    record_v1_t other = {.rev = 0, .a = 1.0f, .b = 2.0f};
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    fake_eeprom_drop(ADDR + 6);
+    check(!save_config_now(ADDR, &newer, sizeof(newer)), "a place that does not take its write: the save says so");
+    fake_eeprom_drop(-1);
+    check(save_config_now(0x7000, &other, sizeof(other)), "another record's save goes on");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 13.0f, 14.0f, 15.0f, 16.0f),
+          "and the record before it was finished into its place first: its new settings read, not lost");
+
+    // ... and while its place still does not take it, another record's save is refused, so the copy is kept
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    fake_eeprom_drop(ADDR + 6);
+    save_config_now(ADDR, &newer, sizeof(newer));
+    check(!save_config_now(0x7000, &other, sizeof(other)),
+          "a place that still does not take it: another record's save refused, the spare's copy kept");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_FINISHED && v2_is(&v2, 13.0f, 14.0f, 15.0f, 16.0f) &&
+          !config_is_saved(ADDR, &v2, sizeof(v2)),
+          "the next start runs on the spare's copy, and says its place does not hold it (not saved)");
+    fake_eeprom_drop(-1);
+
+    // A place that holds a whole record the spare did not write (another firmware's since) keeps it
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    record_v2_t elsewhere_written = {.rev = 0, .a = 21.0f, .b = 22.0f, .c = 23.0f, .d = 24.0f};
+    uint32_t crc = software_crc32_continue(0, &elsewhere_written, sizeof(elsewhere_written));
+    memcpy(fake_eeprom_bytes() + ADDR, &elsewhere_written, sizeof(elsewhere_written));
+    memcpy(fake_eeprom_bytes() + ADDR + sizeof(elsewhere_written), &crc, sizeof(crc));
+    fake_eeprom_drop(-1);
+    save_config_now(0x7000, &other, sizeof(other));
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 21.0f, 22.0f, 23.0f, 24.0f),
+          "a whole record in its place that the spare did not write is kept, not overwritten by the spare's");
 }
 
 

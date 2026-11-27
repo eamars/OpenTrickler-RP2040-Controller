@@ -1623,11 +1623,15 @@ static void api_v1_get_system(const http_server_request_t *request, http_server_
 static void api_v1_restart_task(void *erase) {
     vTaskDelay(pdMS_TO_TICKS(API_V1_RESTART_DELAY_MS));
     http_server_close_all(1000);    // each client told the unit has gone, not left with a request that hangs
-    if (erase != NULL && eeprom_erase() == EEPROM_ERASE_FAILED) {
-        // The EEPROM's lock is held to the restart; the screen says so first (ADR-017, gate 1)
+    eeprom_erase_t erased = erase != NULL ? eeprom_erase() : EEPROM_ERASED;
+    if (erased != EEPROM_ERASED) {
+        // Failed, its lock held to the restart; or refused since the request was taken: the screen says so first
+        // (ADR-017, gate 1)
         const api_v1_screen_t *screen = api_v1_screen();
         if (screen != NULL && screen->say != NULL) {
-            screen->say("Factory reset", "failed: settings", "may be left in part");
+            bool failed = erased == EEPROM_ERASE_FAILED;
+            screen->say("Factory reset", failed ? "failed: settings" : "not done: the unit",
+                        failed ? "may be left in part" : "restarts as it was");
             vTaskDelay(pdMS_TO_TICKS(API_V1_ERASE_FAILED_SHOWN_MS));
         }
     }

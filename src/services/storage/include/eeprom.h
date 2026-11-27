@@ -45,6 +45,11 @@ bool eeprom_init(void);
 bool eeprom_reachable(void);
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
+// The EEPROM's lock, held across what must not be cut by another task's use of it: a whole save (the spare slot,
+// then its place), the storage's tables (common.c). Taken again by the same task's reads and writes. Before the
+// scheduler starts, nothing
+void eeprom_lock(void);
+void eeprom_unlock(void);
 
 /*
  * A factory reset: every byte back to 0xFF. Refused while an image is on trial (the image it may go back to would find

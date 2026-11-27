@@ -73,10 +73,12 @@ bool cat24c256_eeprom_erase() {
     memset(dummy_buffer, 0xff, PAGE_SIZE);
 
 
-    bool erased = true;
+    // Stopped at the first page not written: on a bus that is stuck each page would wait out its time limit
     for (size_t page=0; page < 512; page++) {
         size_t page_offset = page * PAGE_SIZE;
-        erased = cat24c256_write(page_offset, dummy_buffer, PAGE_SIZE) && erased;
+        if (!cat24c256_write(page_offset, dummy_buffer, PAGE_SIZE)) {
+            return false;
+        }
     }
-    return erased;
+    return true;
 }

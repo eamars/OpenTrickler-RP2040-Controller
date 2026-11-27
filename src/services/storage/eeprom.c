@@ -16,7 +16,8 @@ static bool eeprom_answers = false;
 
 
 bool eeprom_init(void) {
-    eeprom_access_mutex = xSemaphoreCreateMutex();
+    // Recursive: the storage holds it across a whole save, whose reads and writes take it again (common.c)
+    eeprom_access_mutex = xSemaphoreCreateRecursiveMutex();
     if (eeprom_access_mutex == NULL) {
         printf("Unable to create EEPROM mutex\n");
         return false;
@@ -37,14 +38,24 @@ bool eeprom_reachable(void) {
 
 static inline void _take_mutex(BaseType_t scheduler_state) {
     if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreTake(eeprom_access_mutex, portMAX_DELAY);
+        xSemaphoreTakeRecursive(eeprom_access_mutex, portMAX_DELAY);
     }
 }
 
 static inline void _give_mutex(BaseType_t scheduler_state) {
     if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreGive(eeprom_access_mutex);
+        xSemaphoreGiveRecursive(eeprom_access_mutex);
     }
+}
+
+
+void eeprom_lock(void) {
+    _take_mutex(xTaskGetSchedulerState());
+}
+
+
+void eeprom_unlock(void) {
+    _give_mutex(xTaskGetSchedulerState());
 }
 
 // A chip that did not answer at the start is not asked again: each call would wait out the bus's time limit

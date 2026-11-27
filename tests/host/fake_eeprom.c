@@ -10,6 +10,7 @@ static bool fake_reachable = true;
 static long fake_write_budget = -1;     // bytes the writes may still put before the power goes; -1: no cut
 static long fake_unsteady_at = -1;      // a byte read one way, then the other; -1: none
 static unsigned fake_unsteady_reads = 0;
+static bool fake_unsteady_always = false;    // every read wrong, each its own way
 static long fake_dropped_at = -1;       // a byte a write leaves as it was, and says nothing; -1: none
 
 
@@ -37,8 +38,10 @@ void fake_eeprom_cut_after(long bytes) {
 }
 
 
-void fake_eeprom_unsteady(long addr) {
+void fake_eeprom_unsteady(long addr, bool always) {
     fake_unsteady_at = addr;
+    fake_unsteady_reads = 0;
+    fake_unsteady_always = always;
 }
 
 
@@ -52,6 +55,15 @@ bool eeprom_reachable(void) {
 }
 
 
+// One task on the PC: the lock is nothing
+void eeprom_lock(void) {
+}
+
+
+void eeprom_unlock(void) {
+}
+
+
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len) {
     if (!fake_reachable || (size_t) data_addr + len > sizeof(fake_eeprom)) {
         return false;
@@ -59,7 +71,7 @@ bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len) {
     memcpy(data, fake_eeprom + data_addr, len);
     if (fake_unsteady_at >= data_addr && fake_unsteady_at < (long) (data_addr + len)) {
         fake_unsteady_reads += 1;
-        data[fake_unsteady_at - data_addr] ^= (uint8_t) (fake_unsteady_reads & 1u);
+        data[fake_unsteady_at - data_addr] ^= (uint8_t) (fake_unsteady_always ? fake_unsteady_reads : fake_unsteady_reads & 1u);
     }
     return true;
 }

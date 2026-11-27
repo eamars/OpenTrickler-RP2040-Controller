@@ -483,6 +483,11 @@ static bool read_value(const setting_field_t *field, const http_json_member_t *m
     char text[SETTINGS_TEXT_MAX];
 
     if (kind == HTTP_JSON_NULL) {
+        // A choice kept unknown reads as null: written back as read, it is left as it is (ADR-017's review, finding 6:
+        // a unit's own copy restores onto it, the rest of its resource with it)
+        if (field->type == SETTING_CHOICE && field->unknown_kept && choice_held(field, held_uint(at, field->size)) == NULL) {
+            return true;
+        }
         if (!field->nullable) {
             fail(outcome, 400, "wrong_type", field, "%s cannot be null", field->name);
             return false;

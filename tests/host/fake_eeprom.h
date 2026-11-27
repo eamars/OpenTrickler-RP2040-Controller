@@ -15,8 +15,8 @@ uint8_t *fake_eeprom_bytes(void);
 void fake_eeprom_set_reachable(bool reachable);
 // The power goes once the writes have put this many bytes more: the rest of that write, and every one after, lost
 void fake_eeprom_cut_after(long bytes);
-// The byte at addr read one way, then the other, as a bus at fault gives it
-void fake_eeprom_unsteady(long addr);
+// The byte at addr read wrong, then right, and so on; or wrong at every read, each its own way (always)
+void fake_eeprom_unsteady(long addr, bool always);
 // The byte at addr left as it was by every write, with no word: a write that does not take
 void fake_eeprom_drop(long addr);
 
