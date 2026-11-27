@@ -940,3 +940,50 @@ The unit is left on 2.0.3-351, slot A, its settings as before gate 1. The Pico 2
 
 - The small fixes, the ADR for what was handed on, the end's checks (the owner's real throw among them), and the Pico 2 W's runs, which wait for the whole ADR.
 - The gate's API and menu code is in every build (above): a build that leaves the gate out for its flash keeps some 4 KB of it. Compiling it out would put the part's switch back outside `app/`; a later build that needs those 4 KB brings it up.
+
+## Gate 10: the small fixes, and the close
+
+2026-11-27, approved by the owner ("The last PR for gate 9 has been merged. I want you to proceed to the remainder of the gates"), after PR #146 merged gate 9. On the branch `adr006_gate10`, from main at a51f88b: the fixes `077f109`, ADR-017's draft `ae172b4`.
+
+**Where it stands: the fixes are built and proven on the Pico W, ADR-017 is drafted, and the Pico W's end checks pass. Left: the owner's real throw and the Pico 2 W's runs** (below, "Left"). The owner stopped for the day there (23:22).
+
+### The fixes
+
+| Fix | What | Checked |
+|---|---|---|
+| The radio's `exit(-1)` | A radio that does not start: the Wi-Fi task says so and ends, the rest of the unit runs. A scan and a leave are refused while the radio is not up (both reached the radio from other tasks), and the set-up's end asks whether the station joined only on the hotspot. A test build skips the radio's start: `-DRC_TEST_RADIO_FAILS=ON` | On the Pico W (below) |
+| A failed save reported as done | `eeprom_save_all` returns whether every handler's save worked, running each even when one before it failed; `eeprom_erase` whether every page was written (`cat24c256_eeprom_erase` read no write's result). Each returned 37, the old menu's page. Nothing calls `eeprom_save_all` today, and both callers of the erase restart either way: no behaviour changes | Built; the symbols (below) |
+| The pre-1.17 revision path | Gone from `load_config_layout`, with the parameter that fed it (`rev_validation`, every caller's) and the ten revision numbers nothing else read (`EEPROM_*_REV`). A record whose first two bytes equalled its module's old number was taken whole with no CRC and no check of its size; the powders', the gate's and the update's number was 1. Every v1.21 default and save sets those two bytes to 0 (`git show v1.21:src/...`), and the loader still requires them 0 | `host_test.py` VERDICT PASS, v1.21's records among its cases; on the Pico W from v1.21 itself (below) |
+| The Generic scale's sign | Its parser takes a frame's first number from a digit, or a point before one, with the sign before it, spaces between allowed | On the PC against 14 frames (below) |
+| The ring buffer's `malloc` | Gone with gate 5: `float_ring` takes its user's array and has no heap | - |
+
+**The Generic scale's frames**, its driver's file built on the PC with zig cc against the FreeRTOS stand-ins and fed frames, beside the parser as it was (`build_adr006/g10_generic_check.c`, not kept): 14 of 14 as they must read. Before the fix, five read as no number ("ST,GS,- 12.34 g", "- 0.02 gn", "+ 7.50 g", "US,GS,  -  1.5 gr", and "ST-GS 3.25 g", whose dash in the prefix stopped the search), and ".52 g" read as 52. A frame with no number ("OL", an empty line, "- g") reads as none, as before: it is still dropped, not counted (ADR-017).
+
+### ADR-017
+
+Drafted, not approved, not placed in the order: [ADR-017](../ADR-017-storage_and_scale_faults/README.md). The five handed-on items, and two found on the way: the erase outside the EEPROM's lock (found in ADR-003 and handed on with no ADR named; HANDOVER.md), and a radio that does not start shown on the screen as "Not joined", as a unit set up and not yet joined is. Two gates, storage first; what to settle is in its README.
+
+### The proofs, on the PC
+
+- **Both boards at `ae172b4`:** the Pico W 942,828 bytes (942,516 at gate 9), flash 919.4 KB of its 1,016 KB slot, RAM at link time 252.4 KB of 256 KB as before; the Pico 2 W 928,476 (928,156), 905.8 KB of 1,792 KB, RAM 285.3 KB. The no-radio test build 935,596: the radio's start is not linked.
+- **The symbols against gate 9's image** (`symbols_compare.py`), each board: 37 differences, every one a function the fixes changed (the Wi-Fi's task, scan, leave and set-up's end, the erase, the loader and its nine callers, the Generic's task) and the Generic's new parser. Nothing else moved. `eeprom_save_all` is in neither image: nothing calls it, and the linker drops it.
+- `tools/module_graph.py`, `tests/host_test.py`, `tests/release_records.py`, `tests/features_check.py`: `VERDICT PASS`. No new warning.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, the same session). Its settings copied first (`logs/adr006/picow_before_gate10`), the same as before gate 9.
+
+| Image | Runs |
+|---|---|
+| gate 10, 2.0.3-355 (`ae172b4`) | `VERDICT PASS` each: `flash`; the settings the same as before gate 1 and before gate 10; `menu_tour --compare`; `charge_cycle` (12.9 s); `api_check` (the local OTA server up, `--no-announce`) |
+| without the radio (`-DRC_TEST_RADIO_FAILS=ON`) | the start: "Wi-Fi: the radio did not start: the unit goes on without the network"; `state` as before; `wifi scan` and `wifi leave` refused (`@err`); `update check` refused `no_network`; the Wi-Fi page "Not joined", IP "none"; no Wi-Fi task, LED task or server in `stats tasks`; `charge_cycle` `VERDICT PASS` (12.9 s). `net` gives lwIP's counts unset, lwIP never started: read, no fault |
+| v1.21 (1.21.0, `3214c58`) by openocd's `program`, then gate 10's full install | **the end's "a unit updated from the release before keeps its settings"**: v1.21 started on its own defaults where today's records were longer (it has no migration) and joined the Wi-Fi; given values of its own through its `/rest/` paths and saved, and kept across its restart (`logs/adr006/picow_v121/`): the charge (the four colours, coarse stop 6.5, fine stop 0.045, the margins 0.035 and 0.021, three decimals, a precharge of 1,250 ms at 1.25 rev/s, the gate's ratio 0.55), powder 7 named G10Test with gains and speeds of its own, an LED colour. Gate 10's full install by the probe, as a user's update by USB: at its first start the loader read the scale's record "stored 6 bytes long by an earlier version", the charge's "52 bytes ... read field by field from its layout then", and the powders' 516 bytes; over the API every value as set, 24 of 24 (`check_after_update.txt`), decimals 3 |
+| gate 10 again, its own settings restored | `settings --restore logs/adr006/picow_before_gate10`, then powder 0 selected again and stored (v1.21's REST read had selected powder 7: a GET of `profile_config?pf=7`); after a restart the settings the same as before gate 1 and before gate 10, `menu_tour --compare`, `charge_cycle`: `VERDICT PASS` |
+
+The unit is left on 2.0.3-355, slot A, its settings as before gate 1, powder 0 selected.
+
+### Left
+
+- **The owner's real throw**, the end's first check: powder in the hopper, the owner at the unit.
+- **The Pico 2 W's runs**, which waited for the whole ADR on the Pico W (the owner): its settings copied, gate 10's image flashed and the settings compared, `menu_tour --compare` (ADR-009's review changed four pages its baseline does not have: saved again for them alone), `charge_cycle`, `pulses` with its two fault images (gates 1 to 3 changed how the image is linked), `slot_trial` confirmed and back (its slots are the RP2350's own), an update from the local OTA server, `api_check`. They cover ADR-009's handed-on run of the `-Os` build on it too.
+- Then the ADR closed in its branch, and its PR.
