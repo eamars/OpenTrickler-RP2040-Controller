@@ -8,6 +8,7 @@
 
 #include "eeprom.h"
 #if RC_TEST_SAVE_CUT
+#include <task.h>
 #include "system_control.h"
 #endif
 
@@ -669,8 +670,9 @@ bool save_config_now(uint16_t addr, void * cfg, size_t size) {
         printf("Config: the spare slot did not take 0x%04x: not stored, its record as it was\n", addr);
     }
 #if RC_TEST_SAVE_CUT
-    // A test build (ADR-017, gate 1): a save of the powders cut after three pages of its place, as a power cut would
-    if (is_ok && addr == EEPROM_PROFILE_DATA_BASE_ADDR) {
+    // A test build (ADR-017, gate 1): a person's save of the powders cut after three pages of its place, as a power cut
+    // would; the start's own save, which finishes it from the spare, runs before the scheduler and is not cut
+    if (is_ok && addr == EEPROM_PROFILE_DATA_BASE_ADDR && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
         eeprom_write(addr, buf + sizeof(head), 3 * 64);
         printf("Config: a test build: the save of 0x%04x cut after three pages\n", addr);
         software_reboot();
