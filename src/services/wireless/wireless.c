@@ -279,6 +279,11 @@ void led_interface_task(void *p) {
 static const wireless_listener_t *wireless_listener = NULL;
 
 
+const char *wireless_host_name(void) {
+    return host_name;
+}
+
+
 void wireless_set_listener(const wireless_listener_t *listener) {
     wireless_listener = listener;
 }

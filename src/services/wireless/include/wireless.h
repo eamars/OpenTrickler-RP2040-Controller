@@ -61,6 +61,8 @@ void wireless_set_listener(const wireless_listener_t *listener);
 // host name with or without ".local", any port), and the unit's address, for a redirect
 bool wireless_host_is_own(const char *host);
 bool wireless_own_address(char *buf, size_t len);
+// The unit's name on the network: "opentrickler-4A82"
+const char *wireless_host_name(void);
 // A server on the network says it listens, once: the listener's `reachable`, and its `station_joined` as a station
 void wireless_server_listening(void);
 

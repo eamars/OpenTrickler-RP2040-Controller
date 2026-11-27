@@ -28,12 +28,12 @@
 #include "servo_gate.h"
 #include "settings.h"
 #include "version.h"
+#include "wireless.h"
 
 #include "pico/rand.h"
 #include "pico/time.h"
 
 
-extern char host_name[18];
 
 // /debug/load's bounds: well past a throw's 650 rows of 16 columns
 #define API_V1_LOAD_ROWS_MAX 2000
@@ -469,7 +469,7 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         http_json_raw(buf, room, len, ",\"unit_id\":");
         http_json_string(buf, room, len, unit_id);
         http_json_raw(buf, room, len, ",\"hostname\":");
-        http_json_string(buf, room, len, host_name);
+        http_json_string(buf, room, len, wireless_host_name());
         http_json_raw(buf, room, len, ",\"boot\":");
         http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");

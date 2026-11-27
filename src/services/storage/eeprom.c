@@ -6,15 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cat24c256_eeprom.h"
 #include "eeprom.h"
 #include "common.h"
 #include "system_control.h"
 
 
-extern bool cat24c256_eeprom_erase();
-extern void cat24c256_eeprom_init();
-extern bool cat24c256_write(uint16_t data_addr, uint8_t * data, size_t len);
-extern bool cat24c256_read(uint16_t data_addr, uint8_t * data, size_t len);
 
 // Linked list implementation
 typedef struct _eeprom_save_handler_node {

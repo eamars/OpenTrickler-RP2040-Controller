@@ -5,7 +5,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "configuration.h"
-#include "eeprom.h"
+#include "cat24c256_eeprom.h"
 
 // Include only for PICO board with specific flash chip
 #include "pico/unique_id.h"

@@ -22,11 +22,6 @@ typedef struct {
 } pio_config_t;
 
 
-/**
- * If the RTOS is running then use RTOS delay. Otherwise use dummy delay. 
-*/
-void delay_ms(uint32_t ms, BaseType_t scheduler_state);
-
 /*
     A weight as text, with the buffer's length: never written past it, and an empty string for a number of decimals
     that is neither (ADR-012; audit M5). float_to_string writes with no length and leaves the buffer as it was.

@@ -2,7 +2,7 @@ ot_module(SRCS dhcpserver.c fault_handler.c freertos_hooks.c picobin_image.c ste
                update_slots_rp2350.c
           INCLUDE_DIRS include
           REQUIRES lwip rp2_sdk
-          PRIV_REQUIRES board freertos motors platform)
+          PRIV_REQUIRES board freertos platform)
 
 # The PIO programs' headers, made by pioasm into this module's build folder. The LEDs' module includes one of them
 # until gate 7 puts the strip behind the platform's interface, so the folder is given to whoever requires rp2
