@@ -343,9 +343,9 @@ The three SDK headers are all `storage`'s: `common.h` names the PIO's type, `com
   - `http_json.c` with `#include "FreeRTOS.h"`: refused the same way.
 - **The firmware's build is as it was:** nothing under `src/` changed, and of `cmake/ot_module.cmake` one comment.
 
-CI's run on the PR is the gate's last proof (the host test on the runner's gcc).
+- **CI, on PR #141** (the runner's gcc, the toolchain's CMake and Ninja from `.toolchain`): the host test passed, and the release's five builds with it.
 
-**Gate 4 is built.**
+**Gate 4 is built**, and merged by #141.
 
 ### For gate 5
 
