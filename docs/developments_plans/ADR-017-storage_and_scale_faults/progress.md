@@ -77,13 +77,32 @@ The slot is read once (1 KB) and every size is checked from that buffer; only on
 
 `tools/module_graph.py`: VERDICT PASS.
 
+### Shown on the Pico W (2026-11-28, night)
+
+The bench's Pico W with the A&D FX-300i, its settings copied first (`rc_run.py settings --save logs/adr017/before_w`, at 2.0.3-360). Each test image built from gate 1's code (`build_adr017/t_*_w`), flashed by the probe, then the normal image put back and the settings compared with the copy.
+
+- **The image, on the unit's own settings:** every record "read" at its start; the settings equal to the copy.
+- **The EEPROM where no chip answers** (`EEPROM_ABSENT`): "the chip does not answer" and every record "does not answer: its defaults run"; the unit started whole on its own hotspot, the main menu opening on its first row, "Faults at the start", its notes "Settings memory: It does not answer. The settings run on their defaults and none can be stored. Charge and calibration cannot start." `charge 30` answered `@err no_storage`, `calibrate scale` `@err no_storage`, a save `@err failed`.
+- **The bus's data line held low** (`I2C_HELD_LOW`; driven low by its pad's override under the bus, which a plain output would have taken from the bus): the start's probe ended at its time limit, 1.0 s after the start began, and the start went on as with no chip: no other bus traffic, the same notice.
+- **The charge's record read damaged** (`RECORD_DAMAGED`): "0x1400 damaged: no record at any size, the same on two reads: its defaults run, the chip left as it is"; the notice "Settings not read: Charge: damaged. Each runs on its defaults until you store it"; the web's charge settings `saved: false` at their defaults. The normal image then read the record whole, the settings equal to the copy: the chip had kept its bytes.
+- **A save cut by a restart** (`SAVE_CUT`): the first powder renamed and stored from the console; the save restarted the unit after three pages of its place. The next start: "0x2400 a save the power cut short, finished from the spare slot", the new name read; the normal image then read the place whole ("read"). The settings put back from the copy. The ADR named a power cut by the probe; a restart between two pages leaves the chip as such a cut does (the chip finishes the page it has taken, its write cycle its own), and needs no timing from the PC to land between pages.
+- **A make no make has** (`SCALE_MAKE_UNKNOWN`, 55 stored at the start): "the stored make (55) is not in this build" at that start, at the next on the normal image and after a restart, nothing mending it; `setting settings/scale` gave `driver=null`, the screen's Make "?", `charge 30` `@err no_scale`. Put back from the copy.
+- **No radio** (`RADIO_FAILS`): the Wi-Fi page "No radio", the notice "No radio: The radio did not start: the unit runs without Wi-Fi." `wifi scan` said "busy" until its words were mended to `@err no_radio`.
+- **A factory reset on a trial:** an image that never confirms itself tried in slot B (`slot_trial --expect back`, `-DRC_TEST_BLOCK_VERSION=600;0`); asked once the unit reported itself on trial, the factory reset answered `409 on_trial`; the trial ended at its minute and the unit went back, its settings kept.
+- **The C heap** (the Pico W's `__end__` to `__HeapLimit`): 3,496 bytes before, 3,260 after (the start's notice, the found table and the screen's message: 236 bytes of statics). Before, the loader, the save, a part's read and a trial's hold called `malloc`; after, only newlib's own number formatting does (`_Balloc`, read from the image's code). newlib's high-water mark (`__malloc_max_sbrked_mem`) read 3,496 on main's image: its first `malloc` takes the whole heap from `sbrk`, so the mark gives the room taken, not the bytes used.
+- **Sizes**, the Pico W against main's (6c6a9da): flash 919.3 to 925.8 KB of 1,016; RAM at link time 252.4 to 252.6 KB.
+
+**Found on the unit and mended:**
+- **The I2C limit counted time spent waiting behind other tasks.** A restore of a v1 file from the portal failed its save at the Wi-Fi's record ("not written whole"); forty saves of every setting under the web's load failed five times, each at one record, each record left as it was. The SDK's wait for a byte checks the clock before it checks whether the byte went out, so a task preempted for more than the limit fails a byte that was sent. At 1 ms a byte that happens under load; the limit is now 1 s a byte, which only a bus that is stuck reaches: 60 of 60 saves, then 20 of 20 on the final image. A held bus then costs the start one second, its probe's.
+- **A chip that did not answer was still asked** by the update's note at the start, each read waiting out the limit: `eeprom_read` and `eeprom_write` now refuse at once when the chip did not answer at the start.
+
 ## Gate 2: the scale as one reader
 
 Built 2026-11-28 by a subagent in a worktree of its own, on gate 1's tip (491ea0d); proven on the PC. The unit's proof is the main session's (below).
 
 ### What was built
 
-**One reader** (`src/services/scale/scale_reader.c`): the task "Scale Task" on the scale's port, priority 9 and 1,024 bytes as before, reads every make. It waits for each byte (`chip_serial_read_within`: up to 1 s, or up to the next request where the make is asked), hands it to the make's framer, and publishes each frame found through ADR-013's door: tapped (`scale tap on` now shows every make's frames), NaN for a frame with no number, the unit where the frame carries one (the A&D's). The simulated scale is untouched; at its hand-over back, `scale_simulation_stop()` drains the port and tells the reader to start afresh (`scale_reader_restart()`).
+**One reader** (`src/services/scale/scale_reader.c`): the task "Scale Task" on the scale's port, priority 9 (its stack 1,536 bytes since the unit's proof, below; 1,024 before), reads every make. It waits for each byte (`chip_serial_read_within`: up to 1 s, or up to the next request where the make is asked), hands it to the make's framer, and publishes each frame found through ADR-013's door: tapped (`scale tap on` now shows every make's frames), NaN for a frame with no number, the unit where the frame carries one (the A&D's). The simulated scale is untouched; at its hand-over back, `scale_simulation_stop()` drains the port and tells the reader to start afresh (`scale_reader_restart()`).
 
 **A make is a table entry and a parser** (`scale_make_t`, `scale_make.h`), with no task and no state; the makes stay in `drivers/scale_protocols`:
 
@@ -147,6 +166,17 @@ Built 2026-11-28 by a subagent in a worktree of its own, on gate 1's tip (491ea0
 - Both boards build with no new warning. The Pico W's image against gate 1's (`arm-none-eabi-size`): 953,340 to 953,676 bytes of flash (+336), 255,912 to 255,916 of RAM at link time (+4). By module (`size_report.py`): `scale_protocols` 3.1 to 2.3 KB, `scale` 7.4 to 7.9, `rp2` 17.8 to 18.4.
 - The reader's stack: the bench's logs show "Scale Task" with 640 to 848 of its 1,024 bytes never touched (`stats tasks`, 2026-11-19 to 26). The reader's chain to the tap's print is 192 bytes deeper than the A&D's task's was (`-fstack-usage` at `-O0`: the task 104, the framer 32 and 40 and 40, the publish 40, the tap 144; the A&D's task was 64 and the tap). Kept at 1,024, for the unit to confirm.
 
+### Shown on the Pico W (2026-11-28, night)
+
+The final image (both gates), on the bench's Pico W with its A&D:
+- `scale_frames --handovers 30 --reboots 2 --motors 0` (the motors' phase left out: its 60 s of both motors turning reckon 5,460 gr against the cup's 600; it measured ADR-013's noise, not the framing): idle 1,256 frames, 1,256 numbers; across 30 hand-overs 2,495, all numbers; across 2 restarts 232, all numbers; none bad; 48 ms between frames typically, 51 at the longest, no longer in the poll's 20 ms steps. On gate 2 alone the same: 2,512, 2,496 and 231, all numbers.
+- `charge_fault bad --expect not-seen` and `charge_fault quiet --expect not-seen`: VERDICT PASS, as ADR-013 ran them ("Charge: paused, no reading for 300 ms", then "ended, Scale: no reading").
+- The motor drivers' line, whose waits now sleep: `tmc coarse` and `tmc fine` read, `tmc coarse setup 3` and `tmc fine setup 3`, no retry and no failure; `drivers=ok,ok`; `charge_cycle` VERDICT PASS.
+- **The reader's stack was found short:** after the tapped run and the faults, "Scale Task" had 128 of its 1,024 bytes never touched (`stats tasks`; the estimate above was some 450). The tap's print of each frame now runs on the reader's stack. Given 1,536 bytes: 640 never touched after the same tapped run.
+- `menu_tour --compare` (the new page, "At the start", saved into the Pico W's baseline), `charge_cycle`, and `api_check` (37 paths, 45 actions, back after its restart): VERDICT PASS.
+
+**The Pico 2 W was not run.** It was off the probe tonight, and the owner's word was to test on the Pico W. AGENTS.md proves a change to a driver and to timing against the chip on both boards: the serial wait (`chip_serial_rp2.c`) and the reader are such a change. Its run is the owner's to ask for: `flash`, `menu_tour --compare` (its baseline gains `page_start_faults.png`, and its four pages from ADR-009's review are still to be saved), `charge_cycle`, `scale_frames` if the A&D is on it, `tmc` on both drivers.
+
 ### For the unit (the main session's)
 
 - `stats tasks` after a `scale_frames` with the tap on: "Scale Task"'s stack never touched.
@@ -154,3 +184,14 @@ Built 2026-11-28 by a subagent in a worktree of its own, on gate 1's tip (491ea0
 - `charge_fault bad` and `charge_fault quiet`, as ADR-013 ran them.
 - The motor drivers' line, which now sleeps in its waits: `tmc coarse`, `tmc fine`, `tmc coarse setup 3`, `state`'s `drivers=`, `charge_cycle`.
 - A change to a driver and to timing against the chip: the Pico 2 W too, by the rule in AGENTS.md.
+
+## Closed (2026-11-28)
+
+Both gates built and proven on the Pico W, and the v1 backup's restore folded in, at the owner's word ("work on ADR-017 on your own, submit as one PR for all gates"; "You can fold the current change and ADR-017 into one PR"). Closed on its branch before its PR, which the owner merges.
+
+- **Left for the owner:** the Pico 2 W's run (above), not made tonight: it was off the probe.
+- **Not built, as the ADR says:** a new make of scale; the gate's move queue; what ADR-016 asks of a throw's record.
+- **Handed on:**
+  - ADR-014's new record joins what this ADR built: found by use by `release_records.py` (its size given as `sizeof` its type), its first two bytes 0, its layout checked against the release once a release carries it; a save of it is whole or not at all, at twice the writes.
+  - The scale's lag stored by a calibration before gate 2 was measured with the poll's 0 to 20 ms in it (reasoned, not measured): a calibration made again reads it afresh.
+  - Four makes' frame lengths are their fields' sizes (the Creedmoor's, the G&G's, the US Solid's, the Radwag's) and the Steinberg's its example's, none checked on a scale: a wrong one shows as every frame `nan` and no weight, never a wrong weight; the tap (`scale tap on`) gives a make's real frame.

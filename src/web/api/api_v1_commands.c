@@ -2136,7 +2136,9 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/factory_reset\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
     "\"choices\":[{\"value\":\"factory_reset\",\"label\":\"Factory reset\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
     "\"about\":\"erases the stored settings and restarts (202): the unit then leaves the network and comes back as "
-    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\",\"example\":{\"confirm\":\"factory_reset\"}}",
+    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation; 409 on_trial "
+    "while an update runs on trial; 409 no_storage when the settings' EEPROM does not answer\","
+    "\"example\":{\"confirm\":\"factory_reset\"}}",
 };
 
 // --- An action's usage (ADR-008, gate 2): a GET of an action's path gives its description from the schema, with an

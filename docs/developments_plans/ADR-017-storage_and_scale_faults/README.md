@@ -1,6 +1,6 @@
 # ADR-017: the settings' storage and the scale's frames, when they fail
 
-Status: **Decided** 2026-11-28, approved by the owner; not built, gate 1 first. Written 2026-11-27 from what ADR-006 handed on, revised 2026-11-28 with [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md) ("ADR-017: the draft"), each of its facts read again in the code. Next in the order after ADR-006.
+Status: **Built** 2026-11-28, closed on its branch before its one PR: both gates built and proven on the Pico W ([progress](progress.md), "Closed"); the Pico 2 W's run left for the owner. Was **Decided** 2026-11-28, approved by the owner, and built that night with the owner away. Written 2026-11-27 from what ADR-006 handed on, revised 2026-11-28 with [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md) ("ADR-017: the draft"), each of its facts read again in the code. Next in the order after ADR-006.
 
 ## What we want
 
@@ -19,6 +19,7 @@ Status: **Decided** 2026-11-28, approved by the owner; not built, gate 1 first. 
 - 2026-11-28: "The upgrade should be always from release to release": the compatibility floor is the latest release; a pre-release needs no compatibility.
 - **2026-11-28, the approval:** "Approve ADR-017". Read here as: the draft as revised, and each item under "To settle" as recommended there.
 - 2026-11-27 (ADR-006, gate 9): a stored make of scale the build does not carry runs nothing in its place.
+- 2026-11-28, the build: "I will go to sleep, so I want you to work on ADR-017 on your own, submit as one PR for all gates. Once the ADR is done and test on Pico W, create a PR and review by a subagent. Then I will merge the PR tomorrow." And: "You can fold the current change and ADR-017 into one PR": a v1 backup's restore (the FA-E/EN make, and the motors' current converted with a note; progress, "Folded in").
 
 ## Why here
 
@@ -78,7 +79,7 @@ Each make is a task of its own that reads the serial port every 10 to 20 ms (the
 - **Only the A&D FX-300i is on the bench.** `rc_run.py scale_frames` records its frames through the tap (`scale tap on`).
 - **Polled, not waited for:** a 32-byte FIFO polled every 20 ms overruns above some 1,600 bytes a second; 19,200 baud streams 1,920. No make is known to stream that hard (not measured). ESP-IDF's driver hands bytes over late, and reads with a wait.
 
-## What we do (to design, nothing built)
+## What we do
 
 ### Gate 1: a load never writes
 
