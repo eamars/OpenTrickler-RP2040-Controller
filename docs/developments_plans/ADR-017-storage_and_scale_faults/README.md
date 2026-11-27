@@ -1,6 +1,6 @@
 # ADR-017: the settings' storage and the scale's frames, when they fail
 
-Status: **Built** 2026-11-28, closed on its branch before its one PR: both gates built and proven on the Pico W ([progress](progress.md), "Closed"); the Pico 2 W's run left for the owner. Was **Decided** 2026-11-28, approved by the owner, and built that night with the owner away. Written 2026-11-27 from what ADR-006 handed on, revised 2026-11-28 with [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md) ("ADR-017: the draft"), each of its facts read again in the code. Next in the order after ADR-006.
+Status: **Built** 2026-11-28, closed on its branch before its one PR: both gates built and proven on the Pico W ([progress](progress.md), "Closed"), and on the Pico 2 W the next morning. Was **Decided** 2026-11-28, approved by the owner, and built that night with the owner away. Written 2026-11-27 from what ADR-006 handed on, revised 2026-11-28 with [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md) ("ADR-017: the draft"), each of its facts read again in the code. Next in the order after ADR-006.
 
 ## What we want
 

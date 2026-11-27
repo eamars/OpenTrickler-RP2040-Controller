@@ -175,7 +175,17 @@ The final image (both gates), on the bench's Pico W with its A&D:
 - **The reader's stack was found short:** after the tapped run and the faults, "Scale Task" had 128 of its 1,024 bytes never touched (`stats tasks`; the estimate above was some 450). The tap's print of each frame now runs on the reader's stack. Given 1,536 bytes: 640 never touched after the same tapped run.
 - `menu_tour --compare` (the new page, "At the start", saved into the Pico W's baseline), `charge_cycle`, and `api_check` (37 paths, 45 actions, back after its restart): VERDICT PASS.
 
-**The Pico 2 W was not run.** It was off the probe tonight, and the owner's word was to test on the Pico W. AGENTS.md proves a change to a driver and to timing against the chip on both boards: the serial wait (`chip_serial_rp2.c`) and the reader are such a change. Its run is the owner's to ask for: `flash`, `menu_tour --compare` (its baseline gains `page_start_faults.png`, and its four pages from ADR-009's review are still to be saved), `charge_cycle`, `scale_frames` if the A&D is on it, `tmc` on both drivers.
+**The Pico 2 W was not run that night.** It was off the probe, and the owner's word was to test on the Pico W. AGENTS.md proves a change to a driver and to timing against the chip on both boards: the serial wait (`chip_serial_rp2.c`) and the reader are such a change. Run the next morning, below.
+
+### Shown on the Pico 2 W (2026-11-28, morning)
+
+The PR's image (2.0.3-375, 4edea7c), on the Pico 2 W, the owner putting it on the probe and then the A&D on it:
+- `settings --save` before the flash (it ran 2.0.3-357), `flash`, `settings --compare` after: 17 resources, the same. VERDICT PASS.
+- The motor drivers' line: `tmc coarse` and `tmc fine`, each set up 20 times (`setup 20`), 189 writes each, no retry, no failure; `drivers=ok,ok`.
+- `scale_frames --handovers 30 --reboots 2 --motors 0` on the A&D: idle 2,512 frames, 2,512 numbers; across 30 hand-overs 2,492, all numbers; across 2 restarts 230, all numbers; 48 ms between frames typically, 50 at the longest. "Scale Task" then had 632 of its 1,536 bytes never touched (`stats tasks`).
+- `charge_cycle`: 30.000 for a target of 30.000, the cup 0.0 gr before and after. VERDICT PASS. (Before the A&D was moved, the cup check refused it: no reading.)
+- `menu_tour --compare`: the four pages saved into the Pico 2 W's baseline with the A&D on it (`settings/calibration`, `settings/calibration/powder`, `calibration/discard`, `start_faults`), then VERDICT PASS. `settings/charge` equals its baseline once a scale sends its unit; without one it lost its "gr".
+- **One bad frame at every start, seen by the unit's count and not by the tap.** `stats` gives `bad_frames=1` at `up=1` after each restart (five restarts, each 1), and no more after. The tap is turned on after the start and never saw it. The likely cause, read in the code and not yet measured: `scale_init` opens the port before `vTaskStartScheduler()` (`app.c`), and the rest of the start (the records' loads, `menu_init`) comes before the reader first reads; the A&D's lines fill the UART's 32-byte FIFO in some 90 ms and the bytes after are lost, so the reader joins the FIFO's last line to a later one, a line of the wrong length: no number, no weight published. The Pico W runs the same start, so it is taken to have the same (its "none bad" above was the tap's view). Harmless to a charge; it makes `bad_frames`, by which ADR-013 judges a scale's noise, read 1 on a quiet scale. Handed to the owner (below).
 
 ### For the unit (the main session's)
 
@@ -196,7 +206,7 @@ PR #148 reviewed by a subagent, as the owner asked ("create a PR and review by a
 5. **The erase went on after a failed page:** on a bus stuck after the start, 512 pages at the 1 s limit, some eight minutes with the lock held. Mended: it stops at the first page not written.
 6. **A make no make has could not be restored from its own copy:** the GET gives it as `null`, and a PATCH of `null` to a choice was refused, the whole scale resource with it. Mended: `null` written to a choice kept unknown (`unknown_kept`) while it is unknown leaves it as it is.
 7. **The restart task said only a failed erase:** an erase refused after the request was taken (a trial begun, the chip gone) restarted silently. Mended: it says any erase not done.
-8. The progress said the limit was 1 ms: mended. The Pico 2 W not run: said above.
+8. The progress said the limit was 1 ms: mended. The Pico 2 W not run: said above, and run the next morning.
 
 Checked by the review and found sound: the serial wait's interrupt mask and its two ports, the hand-over's restart of the framer, the G&G's request and the JM Science's header, the motors' conversion and the display's rotation after a damaged load, a blank place on a trial, every caller's 64-byte page start, the restarts' bounds, `release_records.py`'s failures (no false pass found; a field after a header-and-array record's array, and a store call inside a macro, it would not see), the portal's restore.
 
@@ -208,7 +218,8 @@ Shown on the Pico W (2.0.3-374): the save-cut image again, the cut record "finis
 
 Both gates built and proven on the Pico W, and the v1 backup's restore folded in, at the owner's word ("work on ADR-017 on your own, submit as one PR for all gates"; "You can fold the current change and ADR-017 into one PR"). Closed on its branch before its PR, which the owner merges.
 
-- **Left for the owner:** the Pico 2 W's run (above), not made tonight: it was off the probe.
+- **The Pico 2 W's run:** made the next morning (above), every check VERDICT PASS, its baseline saved for ADR-009's pages and this ADR's.
+- **For the owner:** the one bad frame at every start (above, "Shown on the Pico 2 W"): the reader's port opened while nothing reads it. Its likely mend, the port opened by the reader itself when it starts, or the FIFO's overrun read and the framer started afresh after it, is the owner's to ask for.
 - **Not built, as the ADR says:** a new make of scale; the gate's move queue; what ADR-016 asks of a throw's record.
 - **Handed on:**
   - ADR-014's new record joins what this ADR built: found by use by `release_records.py` (its size given as `sizeof` its type), its first two bytes 0, its layout checked against the release once a release carries it; a save of it is whole or not at all, at twice the writes.
