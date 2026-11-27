@@ -13,20 +13,20 @@
 #include "scale_make.h"
 
 
-typedef enum {
+typedef enum : uint8_t {
     BAUDRATE_4800 = 0,
     BAUDRATE_9600 = 1,
     BAUDRATE_19200 = 2,
 } scale_baudrate_t;
 
 
-typedef enum {
+typedef enum : uint8_t {
     UART_FMT_8D_1S_NP = 0,
     UART_FMT_7D_1S_NP = 1,
 } scale_uart_format_t;
 
 
-typedef enum {
+typedef enum : uint8_t {
     SCALE_DRIVER_AND_FXI = 0,
     SCALE_DRIVER_STEINBERG_SBS = 1,
     SCALE_DRIVER_GNG_JJB = 2,

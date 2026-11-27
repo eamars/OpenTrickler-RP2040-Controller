@@ -8,7 +8,12 @@ here, from the sources (v1.21's by its tag, today's on disk):
   had an insertion says how it reads v1.21's layout instead (PAST_LAYOUTS);
 - each stored enum's value names at v1.21 are today's names for the same values, but for KNOWN_OPEN, each with the piece
   that closes it; an entry of KNOWN_OPEN that no longer clashes fails too, so it is taken out;
-- every `eeprom_*_t` struct in src's headers is one of RECORDS, so a new record is not missed.
+- every `eeprom_*_t` struct in src's headers is one of RECORDS, so a new record is not missed;
+- every stored field is of a type laid out the same by every compiler the firmware is built with (ADR-006, gate 8):
+  FIXED_TYPES, a stored struct of RECORDS, one of LAID_OUT, or an enum that names its integer (C23's
+  `typedef enum : uint8_t {...} scale_driver_t;`). A plain enum is not: one byte with the Pico's compiler, which
+  shortens an enum to its values, an int's four with one that does not (ESP-IDF's, as far as is known). An enum of a
+  v1.21 field names `uint8_t`, the one byte it lay in. A value past its integer the compiler refuses itself.
 Ends with VERDICT PASS or FAIL. CI runs it on every build (it fetches the tags).
 
     venv\\Scripts\\python tests\\release_records.py
@@ -36,6 +41,19 @@ RECORDS = {
     "eeprom_servo_gate_config_t": "src/services/servo_gate/include/servo_gate.h",
     "eeprom_wireless_metadata_t": "src/services/wireless/include/wireless.h",
     "eeprom_update_config_t": "src/services/update_fetch/include/update_poll.h",
+    "neopixel_led_colours_t": "src/services/leds/include/neopixel_led.h",
+}
+# The types a stored field may have besides the structs of RECORDS; the integers among them are what an enum may name
+INTEGERS = {"uint8_t", "uint16_t", "uint32_t", "int8_t", "int16_t", "int32_t"}
+FIXED_TYPES = INTEGERS | {"float", "bool", "char"}
+# A stored type that is not a typedef struct, and what lays it out the same everywhere
+LAID_OUT = {"rgbw_u32_t": "a union of a uint32_t and its four bytes, packed (neopixel_led.h)"}
+# v1.21's stored enums each lay in one byte, as the Pico's compiler makes an enum whose values fit (gdb's ptype /o on
+# both images before gate 8; v1.21's charge record has decimal_places at byte 24, one byte, in host_test.py)
+V121_ENUM_INTEGER = "uint8_t"
+# A stored enum renamed since v1.21: {today's name: v1.21's}
+ENUM_RENAMED = {
+    "wireless_auth_t": "cyw43_auth_t",      # ours, with cyw43's name until ADR-006's gate 8
 }
 # Records whose history had an insertion before the rule, and where they read v1.21's layout field by field
 PAST_LAYOUTS = {
@@ -74,9 +92,10 @@ def struct_fields(text: str, name: str):
 
 
 def enums(text: str) -> dict:
-    """Each `typedef enum {...} name;` as {name: {value: member}}."""
+    """Each `typedef enum [: integer] {...} name;` as {name: (its integer or None, {value: member})}."""
     out = {}
-    for body, name in re.findall(r"typedef\s+enum\s*\w*\s*\{([^{}]*)\}\s*(\w+)\s*;", without_comments(text), re.S):
+    for integer, body, name in re.findall(r"typedef\s+enum\s*\w*\s*(?::\s*(\w+)\s*)?\{([^{}]*)\}\s*(\w+)\s*;",
+                                          without_comments(text), re.S):
         value, members = -1, {}
         for item in body.split(","):
             item = item.strip()
@@ -89,7 +108,7 @@ def enums(text: str) -> dict:
                 value = None
             if value is not None:
                 members[value] = parts.group(1)
-        out[name] = members
+        out[name] = (integer or None, members)
     return out
 
 
@@ -102,13 +121,36 @@ def main() -> int:
     """
     failures = []
     stored_types = set()
+    then_enums, now_enums = {}, {}
+    for header in HEADERS:
+        then_enums.update(enums(source(header, RELEASE)))
+        now_enums.update(enums(source(header)))
+    v121_name = {then: now for now, then in ENUM_RENAMED.items()}
     for name, path in RECORDS.items():
         now = struct_fields(source(path), name)
         if now is None:
             failures.append(f"{name}: not found in {path}")
             continue
         stored_types.update(decl.split()[0] for decl in now)
+        # Each field laid out the same by every compiler
+        for decl in now:
+            field_type = decl.split()[0]
+            if field_type in now_enums and now_enums[field_type][0] not in INTEGERS:
+                failures.append(f"{name}: {decl}: an enum its compiler sizes (one byte on the Pico, an int's four "
+                                f"where a compiler does not shorten it): write it `typedef enum : uint8_t {{...}} "
+                                f"{field_type};`")
+            elif field_type not in FIXED_TYPES.union(now_enums, RECORDS, LAID_OUT):
+                failures.append(f"{name}: {decl}: a {field_type} is laid out as its compiler chooses: a stored field "
+                                f"is of a fixed width (FIXED_TYPES)")
         then = struct_fields(source(path, RELEASE), name)
+        if then is not None:
+            # v1.21's fields by today's names, each enum of them in the one byte it lay in
+            then = [" ".join([v121_name.get(decl.split()[0], decl.split()[0])] + decl.split()[1:]) for decl in then]
+            for decl in then:
+                field_type = decl.split()[0]
+                if field_type in now_enums and now_enums[field_type][0] != V121_ENUM_INTEGER:
+                    failures.append(f"{name}: {decl}: {RELEASE}'s enum lay in a {V121_ENUM_INTEGER}, today's names "
+                                    f"{now_enums[field_type][0] or 'none'}")
         if then is None:
             print(f"{name:32s} new since {RELEASE}")
         elif now[:len(then)] == then:
@@ -126,14 +168,17 @@ def main() -> int:
             if name not in RECORDS:
                 failures.append(f"{name} ({header.name}): a stored struct not in RECORDS")
     # The stored enums: each v1.21 value keeps its meaning
-    then_enums, now_enums = {}, {}
-    for header in HEADERS:
-        then_enums.update(enums(source(header, RELEASE)))
-        now_enums.update(enums(source(header)))
+    for now_name in ENUM_RENAMED:
+        if now_name not in now_enums:
+            failures.append(f"{now_name}: in ENUM_RENAMED, but no such enum now")
     clashes = set()
-    for type_name in sorted(stored_types & set(then_enums) & set(now_enums)):
-        for value, member in then_enums[type_name].items():
-            now_member = now_enums[type_name].get(value)
+    for type_name in sorted(stored_types & set(now_enums)):
+        then_name = ENUM_RENAMED.get(type_name, type_name)
+        if then_name not in then_enums:
+            print(f"{type_name:32s} new since {RELEASE}, held in a {now_enums[type_name][0]}")
+            continue
+        for value, member in then_enums[then_name][1].items():
+            now_member = now_enums[type_name][1].get(value)
             if now_member != member:
                 clashes.add((type_name, value))
                 said = f"{type_name} {value}: {RELEASE}'s {member}, now {now_member or 'nothing'}"
@@ -142,7 +187,9 @@ def main() -> int:
                 else:
                     failures.append(f"{said}: a stored value whose meaning changed")
         if not any(t == type_name for t, _ in clashes):
-            print(f"{type_name:32s} every {RELEASE} value means what it meant")
+            renamed = f" ({RELEASE}'s {then_name})" if then_name != type_name else ""
+            print(f"{type_name:32s} every {RELEASE} value means what it meant{renamed}, held in a "
+                  f"{now_enums[type_name][0]}")
     for key, why in KNOWN_OPEN.items():
         if key not in clashes:
             failures.append(f"{key[0]} {key[1]} no longer clashes: take it out of KNOWN_OPEN ({why})")

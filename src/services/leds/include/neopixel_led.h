@@ -2,6 +2,7 @@
 #define NEOPIXEL_LED_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <semphr.h>
 #include "common.h"
 
@@ -35,7 +36,7 @@ typedef struct {
     rgbw_u32_t mini12864_backlight_colour;
 } neopixel_led_colours_t;
 
-typedef enum {
+typedef enum : uint8_t {
     NEOPIXEL_LED_CHAIN_COUNT_1 = 1,  // 1 LED from the same chain
     NEOPIXEL_LED_CHAIN_COUNT_2 = 2,  // 2 LEDs from the same chain
     NEOPIXEL_LED_CHAIN_COUNT_3 = 3,  // 3 LEDs from the same chain
@@ -54,7 +55,7 @@ typedef enum {
     NEOPIXEL_LED_CHAIN_COUNT_16 = 16, // 16 LEDs from the same chain
 } neopixel_led_chain_count_t;
 
-typedef enum {
+typedef enum : uint8_t {
     NEOPIXEL_COLOUR_ORDER_RGB = 0,  // RGB
     NEOPIXEL_COLOUR_ORDER_GRB = 1, // GRB
 } neopixel_colour_order_t;

@@ -5,7 +5,7 @@
 #include <FreeRTOS.h>
 
 
-typedef enum {
+typedef enum : uint8_t {
     DP_2 = 0,
     DP_3 = 1,
 } decimal_places_t;

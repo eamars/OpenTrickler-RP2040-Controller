@@ -1,6 +1,8 @@
 #ifndef MINI_12864_MODULE_H_
 #define MINI_12864_MODULE_H_
 
+#include <stdbool.h>
+#include <stdint.h>
 
 #define EEPROM_MINI_12864_MODULE_DATA_REV           2
 
@@ -19,7 +21,7 @@ typedef enum {
     MENU_REMOTE_SCREEN,
 } ButtonEncoderEvent_t;
 
-typedef enum {
+typedef enum : uint8_t {
     DISPLAY_ROTATION_0 = 0,
     DISPLAY_ROTATION_90 = 1,
     DISPLAY_ROTATION_180 = 2,
@@ -28,7 +30,7 @@ typedef enum {
 
 
 // What the charge's screen leads with (ADR-010, gate 6)
-typedef enum {
+typedef enum : uint8_t {
     DISPLAY_CHARGE_VIEW_WEIGHT = 0,
     DISPLAY_CHARGE_VIEW_CHART = 1,
 } display_charge_view_t;
@@ -38,7 +40,7 @@ typedef struct {
     bool inverted_encoder_direction;
     display_rotation_t display_rotation;
     bool inverted_display;
-    uint8_t charge_view;        // display_charge_view_t, in the struct's last byte of filler (ADR-010, gate 6)
+    display_charge_view_t charge_view;  // in the struct's last byte of filler (ADR-010, gate 6)
 } mini_12864_module_config_t;
 
 
