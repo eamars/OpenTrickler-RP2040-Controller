@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. The gates after 3 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed. The gates after 4 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -65,6 +65,9 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 
 **2026-11-27, gate 3's merge**
 - PR #140 merged once its checks had passed: "Merge when green."
+
+**2026-11-27, gate 4**
+- Approved: "Gate 4 approved. please continue."
 
 ## Why here
 
@@ -398,6 +401,12 @@ One thing: each module built on its own. No file moves.
 2. The three host tests take their sources and include paths from it, their lists by hand gone. CI runs it as it runs them today.
 3. The meter written down: the stand-in headers, six today.
 4. Proof: each test ends `VERDICT PASS` on Windows and in CI; a module of the PC build made to include an SDK header fails to build there (tried once).
+
+**Built 2026-11-27** ([progress](progress.md)): `tests/host/CMakeLists.txt` builds four modules whole from their own build files (`http_json`, `tmc2209`, `calibration_method`, `charge_control`), and the three tests from them; each test passes on Windows, and the project builds and its test passes on Linux. What differs from the steps above:
+- **six modules are taken in part**, which the steps had not foreseen. The loader's test needs one source of `storage` and one of `charge`, and neither module is free of the chip; four more are needed for their headers. A part is the module's headers and what they require, from its own build file, and only the sources the PC build names. Two source names by hand are what is left of the lists;
+- **the meter is two counts:** the stand-in headers, six as before (three of FreeRTOS's, three of the Pico SDK's, in a folder each), and the modules taken in part, six;
+- `ring`, the fifth free module, waits for gate 5: it is C++ and the PC build is C only;
+- CI's host test takes CMake and Ninja from the toolchain it already fetches.
 
 ### Gate 5: C only
 

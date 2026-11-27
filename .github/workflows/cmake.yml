@@ -39,8 +39,10 @@ jobs:
       if: steps.toolchain-cache.outputs.cache-hit != 'true'
       run: ./setup_toolchain.sh
 
-    # The firmware's own C that needs no unit, compiled for the runner and run (tests/host_test.py): the loader keeping
-    # an earlier version's settings (ADR-009, gate 2). The runner's gcc, as a PC's zig
+    # The firmware's own C that needs no unit, built for the runner and run (tests/host_test.py): the PC build
+    # (tests/host, ADR-006, gate 4) takes the modules by their own build files, so a module meant to be free of the
+    # chip that is not fails here. Its test: the loader keeping an earlier version's settings (ADR-009, gate 2).
+    # The toolchain's CMake and Ninja, found in .toolchain; the runner's gcc, as a PC's zig
     - name: Host tests
       run: python3 tests/host_test.py
 

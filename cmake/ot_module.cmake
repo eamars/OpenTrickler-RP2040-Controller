@@ -4,7 +4,8 @@
 #   ot_module(SRCS ... INCLUDE_DIRS ... PRIV_INCLUDE_DIRS ... REQUIRES ... PRIV_REQUIRES ...)
 #
 # The arguments are those of ESP-IDF's idf_component_register, and no others, so that ADR-007 gives this call an
-# ESP-IDF branch that passes them on. This is the Pico SDK's branch: a module is a static library.
+# ESP-IDF branch that passes them on. This is the Pico SDK's branch: a module is a static library. The PC build has
+# the call's second form, for the host tests (tests/host/CMakeLists.txt).
 #   - INCLUDE_DIRS and REQUIRES are public: whoever requires the module gets them too.
 #   - PRIV_INCLUDE_DIRS and PRIV_REQUIRES are the module's own.
 #   - A module can include only the headers of what it names: the compiler refuses the rest. That is what makes the

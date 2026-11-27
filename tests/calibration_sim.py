@@ -1,7 +1,7 @@
 """The firmware's calibration method (src/services/calibration_method/calibration_method.c) run on the simulation, beside the PC's (calibration.py).
 
-ADR-009, gate 3, with no unit: the C is compiled for this PC as a library (tests/host/calibration_lib.c; the host's
-compiler as tests/host_test.py finds it). Each part is run twice for each seed:
+ADR-009, gate 3, with no unit: the C is built for this PC as a library by the PC build (tests/host: the module itself, and
+calibration_lib.c over it; tests/host_test.py's host_build). Each part is run twice for each seed:
 - judged: calibration.py runs it on the simulation (tools/charge_sim/bench_twin.TwinBench), each run's readings kept;
   then the C runs it on those readings, given back call for call. The C must ask for the same runs (tube, speed, run,
   watch) in the same order and make the same records, within float's rounding: the run fails otherwise;
@@ -15,21 +15,17 @@ compiler as tests/host_test.py finds it). Each part is run twice for each seed:
 import argparse
 import ctypes
 import math
-import os
-import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-# The firmware's module with the method, free of the chip (ADR-006)
-METHOD = REPO / "src" / "services" / "calibration_method"
 sys.path.insert(0, str(REPO / "tools" / "charge_sim"))
 sys.path.insert(0, str(REPO / "tests"))
 
 import calibration as reference  # noqa: E402  (the PC's method, tools/charge_sim)
 import rigs  # noqa: E402
 from bench_twin import TwinBench  # noqa: E402
-from host_test import compiler  # noqa: E402
+from host_test import host_build, library_path  # noqa: E402
 
 LAG_POINTS = 5
 FAILURE_LEN = 72
@@ -79,17 +75,10 @@ class SpeedsRecord(ctypes.Structure):
 
 def build_library() -> ctypes.CDLL:
     """calibration_method.c built for this PC as a library, and loaded."""
-    out = REPO / "build_host"
-    out.mkdir(exist_ok=True)
-    library = out / ("calibration_lib.dll" if os.name == "nt" else "calibration_lib.so")
-    command = compiler() + ["-shared", "-std=c11", "-Wall", "-O1", "-fPIC",
-                            "-I", str(METHOD / "include"),
-                            str(REPO / "tests" / "host" / "calibration_lib.c"), str(METHOD / "calibration_method.c"),
-                            "-o", str(library)]
-    built = subprocess.run(command, capture_output=True, text=True)
-    if built.returncode != 0:
-        raise SystemExit(built.stdout + built.stderr + "\nVERDICT FAIL the method did not build")
-    lib = ctypes.CDLL(str(library))
+    problem = host_build("calibration_lib")
+    if problem:
+        raise SystemExit(problem + "\nVERDICT FAIL the method did not build")
+    lib = ctypes.CDLL(str(library_path("calibration_lib")))
     lib.lib_calibration_scale_part.argtypes = [ctypes.POINTER(Bench), ctypes.POINTER(ScaleRecord)]
     lib.lib_calibration_speeds_part.argtypes = [ctypes.POINTER(Bench), ctypes.c_int, ctypes.c_float, ctypes.c_float,
                                                 ctypes.POINTER(ScaleRecord), ctypes.POINTER(SpeedsRecord)]
