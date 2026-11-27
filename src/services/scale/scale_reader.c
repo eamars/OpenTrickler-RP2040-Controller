@@ -35,10 +35,20 @@ static void scale_reader_publish(void *context, const char *frame, size_t len, f
 }
 
 
+// The framer started afresh on an empty port. What the port holds was sent while nothing read it (the start, before
+// the scheduler runs; a stand-in's time, the reader suspended): its FIFO filled and the bytes after it were lost, so
+// its last line would be joined to a later one
+static void scale_reader_start_afresh(scale_framer_t *framer, const scale_make_t *make) {
+    while (chip_serial_read(SCALE_UART) != CHIP_SERIAL_NONE) {
+    }
+    scale_framer_start(framer, make);
+}
+
+
 void scale_reader_task(void *p) {
     const scale_make_t *make = p;
     scale_framer_t framer;
-    scale_framer_start(&framer, make);
+    scale_reader_start_afresh(&framer, make);
     uint64_t next_request_us = chip_time_us();
 
     while (true) {
@@ -55,7 +65,8 @@ void scale_reader_task(void *p) {
         int got = chip_serial_read_within(SCALE_UART, wait_us);
         if (scale_reader_restart_asked) {
             scale_reader_restart_asked = false;
-            scale_framer_start(&framer, make);
+            scale_reader_start_afresh(&framer, make);
+            continue;    // the byte taken was the stale port's
         }
         if (got != CHIP_SERIAL_NONE) {
             scale_framer_take(&framer, (uint8_t) got, scale_reader_publish, (void *) make);

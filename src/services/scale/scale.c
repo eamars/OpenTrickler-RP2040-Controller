@@ -472,10 +472,8 @@ void scale_simulation_stop(void) {
     scale_simulation_task_handle = NULL;
     scale_use_driver(scale_simulation_stored_driver);
 
-    // Drop what the scale sent while its task was suspended; the reading is unknown until its next frame, which the
-    // reader finds afresh: what it held is of a frame before, and the port's next bytes are in a frame's middle
-    while (chip_serial_read(SCALE_UART) != CHIP_SERIAL_NONE) {
-    }
+    // The reading is unknown until the scale's next frame, which the reader finds afresh: it drops what the port
+    // took while it was suspended, and what it held is of a frame before
     scale_reader_restart();
     scale_config.current_scale_measurement = NAN;
     if (scale_task_handle != NULL) {
