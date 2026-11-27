@@ -12,7 +12,7 @@ Join our [Discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 - **Purges** the powder out of the trickler (the cleanup).
 - **Has a web page** that works on a phone, a tablet or a computer: the charge with its live weight, the powders, every setting, and a backup of them. It needs no internet.
 - **Sets itself up from a phone.** A new unit starts its own Wi-Fi hotspot and shows a code on its screen; scan it, and the page walks you through your Wi-Fi, the scale and the motors.
-- **Updates over Wi-Fi.** The unit finds a new release on GitHub and offers it on its screen and its web page. You can choose stable releases only, or pre-releases too.
+- **Updates over Wi-Fi.** The unit finds a new release on GitHub and offers it on its screen and its web page.
 - **Has an API** for programs and agents: a REST API under `/api/v1` that describes itself, and a stream of events ([API v1](docs/developments_plans/ADR-003-http_rest_server/api_v1.md)).
 
 | On the unit | On a phone |
