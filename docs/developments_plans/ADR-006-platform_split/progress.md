@@ -137,6 +137,8 @@ Against gate 1's images (`build_adr006/after_w`, `after_2w`):
 - **The build's warnings** are main's own five kinds, none new.
 - `tools/size_report.py`: the same parts (the Pico W 915.1 KB of its 1,016 KB slot), the pages still told apart at 41.6 KB.
 - `tests/host_test.py`, `release_records.py` (every record still read against v1.21's), `features_check.py`, `calibration_sim.py`: `VERDICT PASS`.
+- `tests/step2_sim.py`, the charge controller and the tuner in C beside the Python, built from their new folder: `VERDICT PASS` (it ended after the PR was opened).
+- CI on the PR (#139), which builds both boards on Linux and runs the host test and the records check: passed.
 
 ### On the unit
 
