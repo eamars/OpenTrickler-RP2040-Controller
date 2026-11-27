@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged (#139). The gates after 3 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. The gates after 3 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -62,6 +62,9 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 - PR #139, gates 1 and 2, merged at the owner's word once its checks had passed: "Cool. Merge then."
 - Gate 3 approved: "And continue with the gate."
 - Asked why not a CMake file in each module's folder, built as a library, its dependencies declared there: that is gate 3. `ot_module()` is our own function in plain CMake, not CMake's and not an extension; its arguments are ESP-IDF's so one file serves both platforms. The owner: "Cool."
+
+**2026-11-27, gate 3's merge**
+- PR #140 merged once its checks had passed: "Merge when green."
 
 ## Why here
 
