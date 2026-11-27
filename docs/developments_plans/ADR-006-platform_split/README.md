@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept. The gates after 8 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept; merged by #145. Gate 9, what a board carries, approved. The gates after 9 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -88,6 +88,10 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 - Approved: "Gate 7 of ADR-006 is merged. I want you to check the progress, and continue to the next gate."
 - **The stored enums keep their names** (asked by the owner mid-gate, once the first build held each field in a `uint8_t` whose comment named its enum): "I'd prefer keeping the old type name, but instead, you could do typdef to uint8_t instead?" Two ways were put: a plain `typedef uint8_t`, the values an unnamed enum (the type no longer an enum to the compiler: no `-Wswitch`, numbers in gdb), or C23's enum with a fixed type, `typedef enum : uint8_t {...}`. The owner took the second.
 - `cyw43_auth_t` stays renamed `wireless_auth_t`, as the gate had it: the owner's word.
+- PR #145 merged by the owner.
+
+**2026-11-27, gate 9**
+- Approved: "merged, please proceed."
 
 ## Why here
 

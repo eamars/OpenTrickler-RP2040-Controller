@@ -855,7 +855,7 @@ The owner took the enum with a fixed type (d599e89). Both builds' images are the
 - the first build, 2.0.3-343 (`845e681`): `flash`; the settings the same after it and after the runs; `menu_tour --compare` against the baseline (the inversion off for it, as AGENTS.md says); `charge_cycle`, 13.0 s from charging to the cup prompt, the cup 0.0 gr before and after;
 - the gate's image, 2.0.3-344 (`d599e89`): the same, `charge_cycle` 12.9 s. The unit is left on it, slot A.
 
-**Gate 8 is built.**
+**Gate 8 is built**, and merged by #145 (the owner).
 
 ### For gate 9
 
