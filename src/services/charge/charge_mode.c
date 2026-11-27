@@ -18,7 +18,7 @@
 #include "neopixel_led.h"
 #include "profile.h"
 #include "common.h"
-#include "servo_gate.h"
+#include "gate.h"
 #include "jobs.h"
 #include "settings.h"
 #include "charge_controller.h"
@@ -552,8 +552,8 @@ static void charge_mode_scale_fault(const char * reason, event_reason_t throw_re
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
-    if (servo_gate_enabled()) {
-        servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
+    if (gate_enabled()) {
+        gate_set_ratio(GATE_RATIO_CLOSED, true);
     }
 
     neopixel_led_set_colour(
@@ -612,8 +612,8 @@ void charge_mode_wait_for_complete() {
     );
 
     // If the servo gate is used then it has to be opened
-    if (servo_gate_enabled()) {
-        servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, false);
+    if (gate_enabled()) {
+        gate_set_ratio(GATE_RATIO_OPEN, false);
     }
     // Update current status
     char target_weight_string[WEIGHT_STRING_LEN];
@@ -734,8 +734,8 @@ void charge_mode_wait_for_complete() {
         if (coarse_moved && !controller->coarse_moves) {
             coarse_moved = false;
             coarse_stop_tick = xTaskGetTickCount();
-            if (servo_gate_enabled()) {
-                servo_gate_set_ratio(charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio, false);
+            if (gate_enabled()) {
+                gate_set_ratio(charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio, false);
             }
         }
         if (controller->done) {
@@ -762,13 +762,13 @@ void charge_mode_wait_for_complete() {
     charge_timer_running = false;
 
     // Close the gate if the servo gate is present
-    if (servo_gate_enabled()) {
-    servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
+    if (gate_enabled()) {
+    gate_set_ratio(GATE_RATIO_CLOSED, true);
     }
 
     // Precharge
     if (charge_mode_config.eeprom_charge_mode_data.precharge_enable &&
-    servo_gate_enabled()) {
+    gate_enabled()) {
         // Set a fixed delay between closing the gate and precharge to allow the gate to fully close
         vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -1191,6 +1191,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     // remembered one refused every start over the API after a driver's passing reset (found trying the review's fixes)
     if (!motors_ready()) {
         return CHARGE_START_DRIVER_FAULT;
+    }
+    if (!scale_reads()) {
+        return CHARGE_START_NO_SCALE;
     }
     if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
         return CHARGE_START_NO_TARGET;

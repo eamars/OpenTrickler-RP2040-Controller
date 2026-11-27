@@ -31,7 +31,7 @@
 #include "motors.h"
 #include "profile.h"
 #include "scale.h"
-#include "servo_gate.h"
+#include "gate.h"
 #include "settings.h"
 #include "update.h"
 #include "update_poll.h"
@@ -46,6 +46,7 @@
 // margin (api_v1.md, "A zero over the API")
 #define API_V1_ZERO_BAND_MARGINS 5.0f
 #define API_V1_RESTART_DELAY_MS 500     // the reply is out before the unit restarts
+#define ARRAY_COUNT(list) (sizeof(list) / sizeof((list)[0]))
 
 
 // --- Requests and errors
@@ -146,6 +147,12 @@ static void api_busy(http_server_reply_t *reply, const char *message) {
     snprintf(extra, sizeof(extra), "\"activity\":\"%s\",\"state\":\"%s\"", activity_name(activity_get()),
              api_v1_job_state());
     api_error(reply, 409, "busy", NULL, message, extra);
+}
+
+
+// A start that needs the scale, with no make in the build for the stored one (ADR-006, gate 9)
+static void api_no_scale(http_server_reply_t *reply) {
+    api_error(reply, 409, "no_scale", NULL, "the stored make of scale is not in this build: no scale reads", NULL);
 }
 
 
@@ -344,6 +351,9 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
             return;
         case CHARGE_START_NO_TARGET:
             api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
+            return;
+        case CHARGE_START_NO_SCALE:
+            api_no_scale(reply);
             return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
@@ -668,6 +678,9 @@ static void api_v1_calibration_start(const http_server_request_t *request, http_
             return;
         case CALIBRATION_START_DRIVER_FAULT:
             api_driver_fault(reply);
+            return;
+        case CALIBRATION_START_NO_SCALE:
+            api_no_scale(reply);
             return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
@@ -1096,7 +1109,12 @@ static void reply_scale(http_server_reply_t *reply, int status) {
         http_json_raw(out, room, &len, "null");
     }
     http_json_raw(out, room, &len, ",\"driver\":");
-    http_json_string(out, room, &len, scale_driver_api_name(scale_get_running_driver()));
+    if (scale_reads()) {
+        http_json_string(out, room, &len, scale_driver_api_name(scale_get_running_driver()));
+    }
+    else {
+        http_json_raw(out, room, &len, "null");     // none runs: the stored make is not in this build
+    }
     http_json_raw(out, room, &len, ",\"simulated\":");
     http_json_bool(out, room, &len, scale_simulation_is_on());
     http_json_raw(out, room, &len, ",\"usual_interval_ms\":");
@@ -1171,21 +1189,21 @@ static void api_v1_scale_zero(const http_server_request_t *request, http_server_
 }
 
 
-// --- The gate, when the build carries it
+// --- The gate, when one is handed over (gate.h): its routes, and its entries in the index and the schema, are the
+// API's only then (ADR-006, gate 9)
 
-#if FEATURE_SERVO_GATE
 static void reply_gate(http_server_reply_t *reply, int status) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
     const char *state;
     bool has_ratio = true;
-    float ratio = servo_gate_ratio();
-    if (!servo_gate_enabled()) {
+    float ratio = gate_ratio();
+    if (!gate_enabled()) {
         state = "disabled";
         has_ratio = false;
     }
-    else if (servo_gate_state() == GATE_DISABLED) {
+    else if (gate_state() == GATE_DISABLED) {
         state = "held";     // the menu's "Disable": the servo moved no more, at its last duty
     }
     else if (ratio <= 0.0001f) {
@@ -1235,14 +1253,14 @@ static void api_v1_patch_gate(const http_server_request_t *request, http_server_
         api_error(reply, 400, "out_of_range", "ratio", "ratio is 0, open, to 1, closed", "\"min\":0,\"max\":1");
         return;
     }
-    if (!servo_gate_enabled()) {
+    if (!gate_enabled()) {
         api_error(reply, 409, "gate_disabled", NULL, "the gate is off in its settings", NULL);
         return;
     }
     activity_lock();
     bool in_throw = activity_in_throw();
     if (!in_throw) {
-        servo_gate_set_ratio((gate_ratio_t) ratio, false);
+        gate_set_ratio((gate_ratio_t) ratio, false);
     }
     activity_unlock();
     if (in_throw) {
@@ -1251,7 +1269,6 @@ static void api_v1_patch_gate(const http_server_request_t *request, http_server_
     }
     reply_gate(reply, 200);
 }
-#endif
 
 
 // --- The motors
@@ -1994,8 +2011,9 @@ static const char *const api_v1_schema_actions[] = {
     "it\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/start\"," API_V1_SCHEMA_CHARGE_FIELDS ","
     "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
-    "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 "
-    "no_target when none is set\",\"example\":{\"target\":30}}",
+    "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 409 "
+    "no_scale when the stored make of scale is not in this build; 400 no_target when none is set\","
+    "\"example\":{\"target\":30}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/purge/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
@@ -2016,7 +2034,8 @@ static const char *const api_v1_schema_actions[] = {
     "\"choice\",\"choices\":[\"cup\",\"scale\",\"powder\"],\"required\":true},{\"name\":\"profile\",\"type\":"
     "\"integer\",\"about\":\"a powder's part: the profile calibrated, the powder in the hopper; without it, the one "
     "the charge uses\"}],\"refused_while\":\"a_job_runs\",\"about\":\"starts a part of the calibration (202), the "
-    "empty cup on the scale first. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes\","
+    "empty cup on the scale first. 409 busy, 409 driver_fault, 409 no_scale (the stored make of scale is not in "
+    "this build). The scale's and a powder's parts turn the tubes\","
     "\"example\":{\"part\":\"powder\",\"profile\":2}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/answer\",\"fields\":[{\"name\":\"answer\","
     "\"type\":\"choice\",\"choices\":[\"next\",\"full\",\"keep\",\"done\",\"go_on\"],\"required\":true}],"
@@ -2040,11 +2059,6 @@ static const char *const api_v1_schema_actions[] = {
     "that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times "
     "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
     "cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
-#if FEATURE_SERVO_GATE
-    "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
-    "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
-    "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
-#endif
     "{\"method\":\"POST\",\"path\":\"/api/v1/wifi/scan\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"scans for networks twice, merged by name (202, with GET /api/v1/wifi/networks's reply): scanning until "
     "they end, some 2 s. 409 busy while a scan or a join runs\"}",
@@ -2103,8 +2117,8 @@ static const char *const api_v1_schema_actions[] = {
 static bool api_v1_action_usage(const char *path, char *out, size_t room, size_t *len) {
     char needle[80];
     snprintf(needle, sizeof(needle), "\"path\":\"%s\"", path);
-    for (size_t idx = 0; idx < sizeof(api_v1_schema_actions) / sizeof(api_v1_schema_actions[0]); idx += 1) {
-        const char *item = api_v1_schema_actions[idx];
+    const char *item;
+    for (size_t idx = 0; (item = api_v1_schema_item(API_V1_SCHEMA_ACTIONS, idx)) != NULL; idx += 1) {
         if (strstr(item, needle) == NULL) {
             continue;
         }
@@ -2177,6 +2191,19 @@ static void api_v1_get_routes(const http_server_request_t *request, http_server_
 }
 
 
+// The gate's action and its states, in the schema when a gate is handed over (gate_present())
+static const char *const api_v1_schema_gate_actions[] = {
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
+    "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
+    "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
+};
+static const char *const api_v1_schema_gate_states[] = {
+    "\"gate\":[{\"value\":\"open\"},{\"value\":\"closed\"},{\"value\":\"partial\"},{\"value\":\"held\",\"about\":"
+    "\"the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it\"},"
+    "{\"value\":\"disabled\",\"about\":\"off in settings/gate: charge mode does not use it\"}]",
+};
+
+
 static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
     "{\"value\":\"purge\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
@@ -2205,11 +2232,6 @@ static const char *const api_v1_schema_states[] = {
     "\"purge\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
     "yet\"},{\"value\":\"running\"},{\"value\":\"fault\",\"about\":\"ended on a driver's fault, waiting for a stop or "
     "a press\"}]",
-#if FEATURE_SERVO_GATE
-    "\"gate\":[{\"value\":\"open\"},{\"value\":\"closed\"},{\"value\":\"partial\"},{\"value\":\"held\",\"about\":"
-    "\"the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it\"},"
-    "{\"value\":\"disabled\",\"about\":\"off in settings/gate: charge mode does not use it\"}]",
-#endif
     "\"driver\":[{\"value\":\"ok\"},{\"value\":\"absent\",\"about\":\"the driver does not answer on its serial "
     "line\"},{\"value\":\"short\"},{\"value\":\"hot\"},{\"value\":\"reset\",\"about\":\"the driver restarted and "
     "lost its set-up\"},{\"value\":\"supply\",\"about\":\"its motor supply is too low\"}]",
@@ -2278,14 +2300,25 @@ static const char *const api_v1_schema_events[] = {
 };
 
 
+// A part's items, then the gate's where one is handed over
+static const char *api_v1_schema_item_of(const char *const *items, size_t count, const char *const *gate_items,
+                                         size_t gate_count, size_t idx) {
+    if (idx < count) {
+        return items[idx];
+    }
+    idx -= count;
+    return gate_present() && idx < gate_count ? gate_items[idx] : NULL;
+}
+
+
 const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx) {
     switch (part) {
         case API_V1_SCHEMA_ACTIONS:
-            return idx < sizeof(api_v1_schema_actions) / sizeof(api_v1_schema_actions[0]) ?
-                   api_v1_schema_actions[idx] : NULL;
+            return api_v1_schema_item_of(api_v1_schema_actions, ARRAY_COUNT(api_v1_schema_actions),
+                                         api_v1_schema_gate_actions, ARRAY_COUNT(api_v1_schema_gate_actions), idx);
         case API_V1_SCHEMA_STATES:
-            return idx < sizeof(api_v1_schema_states) / sizeof(api_v1_schema_states[0]) ?
-                   api_v1_schema_states[idx] : NULL;
+            return api_v1_schema_item_of(api_v1_schema_states, ARRAY_COUNT(api_v1_schema_states),
+                                         api_v1_schema_gate_states, ARRAY_COUNT(api_v1_schema_gate_states), idx);
         case API_V1_SCHEMA_EVENTS:
         default:
             return idx < sizeof(api_v1_schema_events) / sizeof(api_v1_schema_events[0]) ?
@@ -2317,10 +2350,10 @@ bool api_v1_commands_init(void) {
     http_server_set_usage(api_v1_usage);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/scale", api_v1_get_scale);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/scale/zero", api_v1_scale_zero);
-#if FEATURE_SERVO_GATE
-    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/gate", api_v1_get_gate);
-    ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/gate", api_v1_patch_gate);
-#endif
+    if (gate_present()) {
+        ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/gate", api_v1_get_gate);
+        ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/gate", api_v1_patch_gate);
+    }
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/motors", api_v1_get_motors);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/system", api_v1_get_system);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);

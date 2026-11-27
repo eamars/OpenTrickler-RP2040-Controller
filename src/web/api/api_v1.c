@@ -25,7 +25,8 @@
 #include "scale.h"
 #include "eeprom.h"
 #include "unit_id.h"
-#include "servo_gate.h"
+#include "gate.h"
+#include "ot_features.h"
 #include "settings.h"
 #include "version.h"
 #include "wireless.h"
@@ -337,6 +338,7 @@ typedef struct {
     const char *path;
     const char *methods;    // as JSON: a list
     const char *about;
+    bool (*present)(void);  // NULL: always listed; else only while it answers true (a part a build may leave out)
 } api_v1_resource_t;
 
 static const api_v1_resource_t api_v1_resources[] = {
@@ -379,9 +381,7 @@ static const api_v1_resource_t api_v1_resources[] = {
      "3 at once: 503 then, with Retry-After"},
     {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
-#if FEATURE_SERVO_GATE
-    {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},
-#endif
+    {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it", gate_present},
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
     {"/api/v1/system", "[\"GET\"]",
      "the firmware, the board, the uptime, what the unit is doing, a restart pending, whether it is set up"},
@@ -473,11 +473,19 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");
         http_json_integer(buf, room, len, (long) (chip_time_us() / 1000000u));
-        // What this build carries (ADR-008, gate 2): each feature that can be left out, by name, present or not
-        http_json_raw(buf, room, len, ",\"features\":[{\"name\":\"servo_gate\",\"present\":");
-        http_json_bool(buf, room, len, FEATURE_SERVO_GATE);
-        http_json_raw(buf, room, len, ",\"about\":\"the shutters' servos: GET /api/v1/gate, settings/gate, the "
-                                      "screen's Settings, Servo gate\"}],\"guide\":");
+        // What this build carries (ADR-008, gate 2): each part a build may leave out, by name, present or not, made
+        // from the board's list (ADR-006, gate 9)
+        http_json_raw(buf, room, len, ",\"features\":[");
+        for (const ot_feature_t *feature = ot_features; feature->name != NULL; feature += 1) {
+            http_json_raw(buf, room, len, feature == ot_features ? "{\"name\":" : ",{\"name\":");
+            http_json_string(buf, room, len, feature->name);
+            http_json_raw(buf, room, len, ",\"present\":");
+            http_json_bool(buf, room, len, feature->present);
+            http_json_raw(buf, room, len, ",\"about\":");
+            http_json_string(buf, room, len, feature->about);
+            http_json_raw(buf, room, len, "}");
+        }
+        http_json_raw(buf, room, len, "],\"guide\":");
         index->phase = 1;
         return true;
     }
@@ -488,11 +496,16 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         return true;
     }
     if (index->phase == 2) {
-        // A path a chunk
+        // A path a chunk, past those of a part this unit does not have (the first is always listed)
+        const size_t count = sizeof(api_v1_resources) / sizeof(api_v1_resources[0]);
         const api_v1_resource_t *resource = &api_v1_resources[index->idx];
         api_v1_index_resource(buf, room, len, index->idx == 0, resource->path, resource->methods, resource->about);
         index->idx += 1;
-        if (index->idx >= sizeof(api_v1_resources) / sizeof(api_v1_resources[0])) {
+        while (index->idx < count && api_v1_resources[index->idx].present != NULL &&
+               !api_v1_resources[index->idx].present()) {
+            index->idx += 1;
+        }
+        if (index->idx >= count) {
             index->phase = 3;
             index->idx = 0;
         }

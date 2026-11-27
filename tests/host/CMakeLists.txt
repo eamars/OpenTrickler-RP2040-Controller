@@ -72,6 +72,7 @@ set(HOST_MODULES
     drivers/tmc2209
     services/calibration_method
     services/charge_control
+    services/gate
 )
 
 # In part: modules not yet free, of which a test needs the stored records' side. For each, the sources taken;

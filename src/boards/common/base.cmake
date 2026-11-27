@@ -99,10 +99,15 @@ set(OT_BASE_MODULES
     web/http_server web/api
     console/remote_control
     services/activity services/calibration services/calibration_method services/charge services/charge_control
-    services/cleanup services/events services/jobs services/leds services/motors services/profile services/scale
+    services/cleanup services/events services/gate services/jobs services/leds services/motors services/profile services/scale
     services/servo_gate services/settings services/storage services/system services/update services/update_fetch
     services/wireless
     drivers/cat24c256 drivers/scale_protocols drivers/tmc2209 drivers/uc1701
     common/http_json common/ring
     platform platform/rp2
 )
+
+# The parts a build may leave out (ADR-006, gate 9), each in the list above and on by default: -DFEATURE_<NAME>=OFF
+# leaves it out. The servo gate's users are handed it by the start-up's wiring, or nothing (gate.h)
+ot_feature(servo_gate services/servo_gate
+           "the shutters' servos: GET /api/v1/gate, settings/gate, the screen's Settings, Servo gate")

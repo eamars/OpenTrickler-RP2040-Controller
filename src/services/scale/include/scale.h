@@ -146,6 +146,8 @@ void scale_tap_frame(const uint8_t * bytes, size_t len, float value);
 void set_scale_driver(scale_driver_t scale_driver);
 // The driver that runs: the stored one, or the simulated scale while the remote control has it on (ADR-003, gate 3)
 scale_driver_t scale_get_running_driver(void);
+// A make reads the scale (or the simulated scale does): false when the stored make is not in this build
+bool scale_reads(void);
 
 // The name of the driver that runs
 const char * get_scale_driver_string();

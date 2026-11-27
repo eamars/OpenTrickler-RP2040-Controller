@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept; merged by #145. Gate 9, what a board carries, approved. The gates after 9 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept; merged by #145. Gate 9, what a board carries, approved and built the same day and proven on the Pico W: a part a build may leave out declared once, handed over by the start-up's wiring alone; the one-of places refused at configure; a stored make of scale the build lacks refused, nothing in its place. The gates after 9 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -92,6 +92,8 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 
 **2026-11-27, gate 9**
 - Approved: "merged, please proceed."
+- **The gate handed over** (asked before cut 1, since its users reached it through `#if FEATURE_SERVO_GATE` in four files and a header that answered "no gate" when its source was left out): an always-present `services/gate`, which `app.c` hands the servo gate to, so `app.c` is the one place that asks. The other way, the stub header kept and the four files' `#if` turned into calls to it, was not taken.
+- **A stored make the build does not carry is refused, nothing standing in** (asked with it): no make runs, the unit says so, and a charge and a calibration refuse. The other way, the A&D's driver kept as the fallback with only the simulated scale dropped, was not taken. It settles "the several, one chosen pick shown on the scale's makes" under "To settle": yes.
 
 ## Why here
 
@@ -527,6 +529,14 @@ As above. Proof: each record's size and each field's offset on both images befor
 
 Proof besides: `menu_tour --compare`, `charge_cycle`, `api_check`; the size by module (`tools/size_report.py`), both boards.
 
+**Built 2026-11-27** ([progress](progress.md)): the Pico W built without the servo gate runs with no trace of it on the screen or in the API's resources and schema, its `features` saying it is absent, and built with it again reads its record back as stored; a board's list with no view, or two, is refused as it configures; a test build without the A&D's make, on a unit whose stored make is the A&D's, reads no scale, says so, and refuses a charge and a calibration. What differs from the steps above:
+- **the parts handed over were the servo gate's alone:** every module already hands its settings table and its save handler over in its own init, and no console command names the gate. The gate goes to `services/gate`, which charge mode, the cleanup, the menu and the API ask (the owner's choice, above);
+- **the gate's API and menu code is in every build,** asked at run time whether a gate was handed: a build without the gate is some 4 KB larger than when that code was compiled out;
+- **an absent make no longer has the A&D's driver, or the simulated scale, read in its place** (the owner's choice): before, a build without the A&D would have had the simulated scale stand in while the motors poured real powder;
+- **the purge screen's Gate row** is shown only with a gate; it showed "Off" in a build without one;
+- `tools/module_graph.py` fails on a part's switch read outside `app/`, and `tools/size_report.py` gives our flash by module;
+- the lines' lists: the job task and the hard fault's handler no longer name a tubes' module; the console and the scale's simulation do, which the text had not listed.
+
 ### Gate 10: the small fixes, and the close
 
 1. Each fix with its own check (above).
@@ -576,7 +586,7 @@ From the draft, each with the review's recommendation:
 From the owner's direction of 2026-11-27 on later builds:
 - **The dispenser: a build each, or a switch.** The owner's words are read here as both: one build with both and a stored switch where they fit, a build each where they do not. Is that the meaning?
 - **"Alternative UI" against ADR-005's rule 1** ("one screen UI", the owner's, 2026-11-13). Another view of the one menu table keeps the rule. A UI of its own changes it: every new setting is then placed in two UIs. The cuts here allow either. Recommended: the rule kept for small boards (never a cut-down second version of the same thing), and a larger screen's UI decided by its own ADR, once its panel and its input are known.
-- **The "several, one chosen" pick shown on the scale's makes** (gate 9): a test build with one make left out, on a unit whose stored make is that one. It is the only proof the rule gets before a second dispenser exists, and gate 6 hands the makes to `scale` anyway. The base build still carries all ten. Recommended: yes.
+- **The "several, one chosen" pick shown on the scale's makes** (gate 9): a test build with one make left out, on a unit whose stored make is that one. It is the only proof the rule gets before a second dispenser exists, and gate 6 hands the makes to `scale` anyway. The base build still carries all ten. Recommended: yes. Settled: yes, with nothing standing in (the owner, 2026-11-27, gate 9).
 - **The scale as one reader handed on** (above), in place of the draft's small fix. Recommended: yes.
 - **The more lines:** which the owner strikes, and what is missing.
 

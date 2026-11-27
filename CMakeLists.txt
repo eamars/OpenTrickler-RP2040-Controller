@@ -55,16 +55,6 @@ find_package(Python COMPONENTS Interpreter REQUIRED)
 # The image
 add_executable("${TARGET_NAME}")
 
-# What a build carries (ADR-008, gate 2; ADR-005's feature table): a feature is in the build or out of it, never built
-# a second way, and the unit reports each by name (the index's `features`). On by default on both boards
-option(FEATURE_SERVO_GATE "The servo gate: its module, its settings, its menu page and its API" ON)
-message(STATUS "Features: servo_gate=${FEATURE_SERVO_GATE}")
-if (FEATURE_SERVO_GATE)
-    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=1)
-else()
-    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=0)
-endif()
-
 # Our own code is modules (ADR-006): src/<layer>/<module>/, each built on its own by its CMakeLists.txt, which names
 # what it needs. The board says which modules its build carries, links the third-party code into the image and
 # gives it to the modules by name
@@ -73,10 +63,15 @@ if (NOT EXISTS ${SRC_DIRECTORY}/boards/${PICO_BOARD}/board.cmake)
     message(FATAL_ERROR "No board ${PICO_BOARD}: give -DPICO_BOARD=pico_w or pico2_w (src/boards/<board>/board.cmake)")
 endif()
 include(${SRC_DIRECTORY}/boards/${PICO_BOARD}/board.cmake)
+# What a build carries (ADR-008, gate 2; ADR-005's feature table): a part is in the build or out of it, never built a
+# second way, and the unit reports each by name (the index's `features`), made from the board's list (ADR-006, gate 9)
+ot_board_resolve("${TARGET_NAME}")
 ot_image_settings("${TARGET_NAME}")
 foreach(module IN LISTS OT_BOARD_MODULES)
     add_subdirectory(${SRC_DIRECTORY}/${module})
 endforeach()
+# One chip's side of the platform and one view in a build, none missing (ADR-006, gate 9: "one of")
+ot_check_places(platform view)
 ot_link_modules("${TARGET_NAME}")
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
@@ -122,6 +117,12 @@ endif()
 option(RC_TEST_HANG_AT_START "Test build only: the image hangs before it starts anything" OFF)
 if (RC_TEST_HANG_AT_START)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_HANG_AT_START=1)
+endif()
+# A test build that carries no A&D FX-i make (ADR-006, gate 9): a unit whose stored make is the A&D's starts with no
+# scale read in its place, and refuses a charge and a calibration
+option(RC_TEST_NO_AND_FXI "Test build only: the A&D FX-i's make left out" OFF)
+if (RC_TEST_NO_AND_FXI)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_NO_AND_FXI=1)
 endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 

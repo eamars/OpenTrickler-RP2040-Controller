@@ -125,6 +125,7 @@ typedef enum {
     CHARGE_START_BUSY,          // a job runs, a start is asked already, or a person has a mode or a view at the unit
     CHARGE_START_DRIVER_FAULT,
     CHARGE_START_NO_TARGET,
+    CHARGE_START_NO_SCALE,      // no make reads the scale: the stored one is not in this build (scale_reads())
 } charge_start_result_t;
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
 
