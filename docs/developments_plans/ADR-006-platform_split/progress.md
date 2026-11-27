@@ -1042,6 +1042,8 @@ A review of the whole ADR and of ADR-017's draft, in a session of its own at the
 
 The review's findings on ADR-017 are for its revision before approval: its status points to them.
 
+**Checked:** both boards built, their symbols against the PR's head as before but the nine inits a call shorter each and the list's function and head gone; `module_graph.py`, `host_test.py`, `release_records.py`, `features_check.py --final` `VERDICT PASS`; `build_release.py`, its five images each naming its board as an earlier firmware reads it. On the Pico W, the release's own `pico_w` build, 2.0.3-360 (`cbf1dee`): its settings copied first (`logs/adr006/picow_before_review_fixes`), `flash`, the settings the same as before and as before gate 1, `menu_tour --compare`, `charge_cycle` (12.8 s): `VERDICT PASS`. The unit is left on 2.0.3-360, slot A.
+
 ## Closed (2026-11-27)
 
 Closed as Built in its README, here and in the index, on its branch `adr006_gate10`, before its PR.
