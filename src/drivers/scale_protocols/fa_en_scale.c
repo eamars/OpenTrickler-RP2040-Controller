@@ -6,7 +6,7 @@
 #include <task.h>
 #include <string.h>
 
-#include "hardware/uart.h"
+#include "chip_serial.h"
 #include "configuration.h"
 #include "scale_make.h"
 
@@ -78,8 +78,9 @@ void _fa_en_scale_listener_task(void *p) {
 
     while (true) {
         // Read all available data
-        while (uart_is_readable(SCALE_UART)) {
-            char ch = uart_getc(SCALE_UART);
+        int got;
+        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
+            char ch = (char) got;
 
             if (ch == '\r' || ch == '\n') {
                 // The balance ends a frame with CR (the manual lists two). Empty lines are skipped.

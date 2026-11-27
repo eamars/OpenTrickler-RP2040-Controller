@@ -8,10 +8,10 @@
 #include <semphr.h>
 #include <task.h>
 #include "tmc2209.h"
-#include "hardware/uart.h"
 #include "configuration.h"
 #include "chip.h"
 #include "chip_gpio.h"
+#include "chip_serial.h"
 #include "rtos_port.h"
 #include "step_pulses.h"
 #include "fault_handler.h"
@@ -164,26 +164,27 @@ static bool motor_uart_exchange(const uint8_t *tx, size_t tx_len, uint8_t *rx, s
     chip_busy_wait_us(MOTOR_UART_IDLE_US);
 
     // Whatever is left from before is not this exchange's
-    while (uart_is_readable(MOTOR_UART)) {
-        uart_getc(MOTOR_UART);
+    while (chip_serial_read(MOTOR_UART) != CHIP_SERIAL_NONE) {
     }
 
-    uart_write_blocking(MOTOR_UART, tx, tx_len);
+    chip_serial_write(MOTOR_UART, tx, tx_len);
 
     for (size_t idx = 0; idx < tx_len; idx += 1) {
-        if (!uart_is_readable_within_us(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US)) {
+        int echo = chip_serial_read_within(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US);
+        if (echo == CHIP_SERIAL_NONE) {
             return false;
         }
-        if ((uint8_t) uart_getc(MOTOR_UART) != tx[idx]) {
+        if ((uint8_t) echo != tx[idx]) {
             is_ok = false;
         }
     }
 
     for (size_t idx = 0; idx < rx_len; idx += 1) {
-        if (!uart_is_readable_within_us(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US)) {
+        int got = chip_serial_read_within(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US);
+        if (got == CHIP_SERIAL_NONE) {
             return false;
         }
-        rx[idx] = (uint8_t) uart_getc(MOTOR_UART);
+        rx[idx] = (uint8_t) got;
     }
 
     return is_ok;
@@ -902,9 +903,7 @@ void motors_init(void) {
     fine_trickler_motor_config.pulse_channel = 1;
 
     // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 250000);
-    gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
-    gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
+    chip_serial_open(MOTOR_UART, MOTOR_UART_TX, MOTOR_UART_RX, 250000);
 
     motor_driver_mutex = xSemaphoreCreateMutex();
     if (!motor_driver_mutex) {

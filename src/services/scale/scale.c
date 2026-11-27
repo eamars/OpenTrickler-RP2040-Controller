@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "chip.h"
+#include "chip_serial.h"
 #include "rtos_port.h"
 
 #include "configuration.h"
@@ -172,10 +173,10 @@ void set_scale_uart_format(scale_uart_format_t format) {
 
     switch (format) {
         case UART_FMT_8D_1S_NP:
-            uart_set_format(SCALE_UART, 8, 1, UART_PARITY_NONE);
+            chip_serial_format(SCALE_UART, 8, 1, CHIP_SERIAL_PARITY_NONE);
             break;
         case UART_FMT_7D_1S_NP:
-            uart_set_format(SCALE_UART, 7, 1, UART_PARITY_NONE);
+            chip_serial_format(SCALE_UART, 7, 1, CHIP_SERIAL_PARITY_NONE);
             break;
         default:
             break;
@@ -205,7 +206,7 @@ uint32_t get_scale_baudrate(scale_baudrate_t scale_baudrate) {
 
 void set_scale_baudrate(scale_baudrate_t baudrate) {
     scale_config.persistent_config.scale_baudrate = baudrate;
-    uart_set_baudrate(SCALE_UART, get_scale_baudrate(baudrate));
+    chip_serial_baud(SCALE_UART, get_scale_baudrate(baudrate));
 }
 
 
@@ -393,14 +394,10 @@ bool scale_init() {
         return is_ok;
     }
 
-    // Initialize UART
-    uart_init(SCALE_UART, get_scale_baudrate(scale_config.persistent_config.scale_baudrate));
-    
-    // Set UART format: 7 data bits, 1 stop bit, no parity
+    // The scale's serial port, at its stored rate and in its stored format
+    chip_serial_open(SCALE_UART, SCALE_UART_TX, SCALE_UART_RX,
+                     get_scale_baudrate(scale_config.persistent_config.scale_baudrate));
     set_scale_uart_format(scale_config.persistent_config.scale_uart_format);
-    
-    gpio_set_function(SCALE_UART_TX, GPIO_FUNC_UART);
-    gpio_set_function(SCALE_UART_RX, GPIO_FUNC_UART);
 
     // Create control variables
     // Semaphore to indicate the availability of new measurement. 
@@ -465,8 +462,7 @@ void scale_simulation_stop(void) {
     scale_use_driver(scale_simulation_stored_driver);
 
     // Drop what the scale sent while its task was suspended; the reading is unknown until its next frame
-    while (uart_is_readable(SCALE_UART)) {
-        uart_getc(SCALE_UART);
+    while (chip_serial_read(SCALE_UART) != CHIP_SERIAL_NONE) {
     }
     scale_config.current_scale_measurement = NAN;
     vTaskResume(scale_task_handle);
@@ -538,7 +534,7 @@ void scale_write(const char * command, size_t len) {
 
     _take_mutex(scheduler_state);
 
-    uart_write_blocking(SCALE_UART, (uint8_t *) command, len);
+    chip_serial_write(SCALE_UART, (const uint8_t *) command, len);
 
     _give_mutex(scheduler_state);
 }

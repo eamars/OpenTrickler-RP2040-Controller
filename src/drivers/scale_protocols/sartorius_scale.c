@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "hardware/uart.h"
+#include "chip_serial.h"
 #include "configuration.h"
 #include "scale_make.h"
 
@@ -70,8 +70,9 @@ void _sartorius_scale_listener_task(void *p) {
     
     while (true) {
         // Read all available data
-        while (uart_is_readable(SCALE_UART)) {
-            char ch = uart_getc(SCALE_UART);
+        int got;
+        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
+            char ch = (char) got;
             
             // Look for line terminators
             if (ch == '\r' || ch == '\n') {

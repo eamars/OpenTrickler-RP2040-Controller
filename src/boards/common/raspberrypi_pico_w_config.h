@@ -24,7 +24,7 @@
 #define NEOPIXEL_PIN 13
 #define NEOPIXEL_PWM3_PIN 28
 
-#define MOTOR_UART uart1
+#define MOTOR_UART 1
 #define MOTOR_UART_TX 4
 #define MOTOR_UART_RX 5
 // Not the PIO the radio takes (pio0, the first with room when the Wi-Fi task starts it): the CYW43 driver turns its
@@ -42,7 +42,7 @@
 #define FINE_MOTOR_STEP_PIN 8
 #define FINE_MOTOR_DIR_PIN 7
 
-#define SCALE_UART uart0
+#define SCALE_UART 0
 #define SCALE_UART_BAUDRATE 19200
 #define SCALE_UART_TX 0
 #define SCALE_UART_RX 1
