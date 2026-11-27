@@ -258,7 +258,7 @@ async function restartUnit() {
 // features: 69 70
 async function factoryReset() {
     if (!await confirmAction("Erase every setting?",
-                             "Every setting and powder goes back to its default, and it cannot be undone. The unit restarts as its own hotspot, with a new name: you join it again to set it up. Export the settings first to keep them.",
+                             "Every setting and powder goes back to its default, and it cannot be undone. The unit restarts as its own hotspot: you join it again to set it up. Export the settings first to keep them.",
                              "Erase every setting", "Keep my settings", true)) {
         return;
     }
