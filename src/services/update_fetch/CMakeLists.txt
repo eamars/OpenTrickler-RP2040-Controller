@@ -1,6 +1,7 @@
 ot_module(SRCS https_client.c update_poll.c
           INCLUDE_DIRS include
-          PRIV_REQUIRES activity events freertos lwip mbedtls rp2_sdk settings storage update version wireless)
+          REQUIRES update
+          PRIV_REQUIRES activity events freertos lwip mbedtls rp2_sdk settings storage version wireless)
 
 # The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (github_roots.pem). A test build
 # (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),

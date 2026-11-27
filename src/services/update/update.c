@@ -35,10 +35,8 @@
 #include "events.h"
 #include "http_json.h"
 #include "system_control.h"
-#include "https_client.h"
 #include "jobs.h"
 #include "picobin_image.h"
-#include "update_poll.h"
 #include "update_slots.h"
 #include "version.h"
 #include "wireless.h"
@@ -531,7 +529,13 @@ static void update_feed(TimerHandle_t timer) {
 }
 
 
+// What the event log writes of an update's events (events.h)
+static const events_update_texts_t update_event_texts = {.version_text = update_version_text,
+                                                         .write_reset = update_write_reset};
+
+
 void update_init(void) {
+    events_set_update_texts(&update_event_texts);
     update_slots_known = update_slots_read(&update_slots);
     printf("Update: running slot %c, version %s (block %d.%d)%s\n", update_slot_name(update_slots.running),
            version_string, PICO_CRT0_VERSION_MAJOR, PICO_CRT0_VERSION_MINOR,
@@ -675,12 +679,22 @@ update_start_result_t update_request_start(activity_by_t by) {
 }
 
 
+// The update's own fetch, handed over by the module that has one (update.h); NULL in a build without
+static const update_fetcher_t *update_fetcher = NULL;
+
+
+void update_set_fetcher(const update_fetcher_t *fetcher) {
+    update_fetcher = fetcher;
+}
+
+
 update_start_result_t update_request_download(activity_by_t by) {
-    update_poll_image_t image;
-    if (!update_poll_found_image(&image)) {
-        update_poll_status_t poll;
-        update_poll_status(&poll);
-        return poll.state == UPDATE_POLL_CHECKING ? UPDATE_START_BUSY : UPDATE_START_NOTHING_FOUND;
+    static update_found_image_t image;      // 296 bytes: not on the caller's stack. Only read for whether there is one
+    if (update_fetcher == NULL) {
+        return UPDATE_START_NOTHING_FOUND;
+    }
+    if (!update_fetcher->found_image(&image)) {
+        return update_fetcher->checking() ? UPDATE_START_BUSY : UPDATE_START_NOTHING_FOUND;
     }
     return update_request(by, true);
 }
@@ -919,7 +933,7 @@ void update_image_abort(uint32_t token) {
 // --- The download: the image the poll found, fetched by the job itself in the job task (ADR-010, gate 5)
 
 typedef struct {
-    update_poll_image_t image;
+    update_found_image_t image;
     uint32_t token;
     bool begun;                 // the image's upload into the free slot is open
     bool stopped;
@@ -988,13 +1002,19 @@ static void update_download_run(activity_by_t by) {
 
     bool fetched = false;
     bool sha_holds = false;
-    if (!update_poll_found_image(&update_download.image)) {
+    // Why a fetch failed, and what one that went through took (the log's line)
+    static char fetch_error[96];
+    static char fetch_took[192];
+    fetch_error[0] = '\0';
+    fetch_took[0] = '\0';
+    if (update_fetcher == NULL || !update_fetcher->found_image(&update_download.image)) {
         update_download.refusal = update_refuse("failed", "nothing was found to download");
     }
     else {
-        https_sink_t sink = {.begin = update_download_begin, .piece = update_download_piece,
-                             .ctx = &update_download};
-        fetched = https_get(update_download.image.url, &sink);
+        update_fetch_sink_t sink = {.begin = update_download_begin, .piece = update_download_piece,
+                                    .ctx = &update_download};
+        fetched = update_fetcher->get(update_download.image.url, &sink, fetch_error, sizeof(fetch_error), fetch_took,
+                                      sizeof(fetch_took));
         uint8_t digest[UPDATE_HASH_BYTES];
         sha_holds = fetched && mbedtls_sha256_finish(&update_download.sha, digest) == 0 &&
                     memcmp(digest, update_download.image.sha256, sizeof(digest)) == 0;
@@ -1010,10 +1030,8 @@ static void update_download_run(activity_by_t by) {
             refusal = update_refuse("hash_mismatch", "not the image its release's manifest names");
         }
         else if (refusal.code == NULL) {
-            https_report_t report;
-            https_last_report(&report);
             snprintf(update_download.message, sizeof(update_download.message), "the download failed: %.70s",
-                     report.error);
+                     fetch_error);
             refusal = update_refuse("failed", update_download.message);
         }
         if (update_download.begun) {
@@ -1035,13 +1053,7 @@ static void update_download_run(activity_by_t by) {
     }
 
     // What it took, said before the restart wipes it (as the console's `update poll` says the poll's)
-    https_report_t report;
-    https_last_report(&report);
-    printf("Update: downloaded %lu bytes in %lu ms, %u hops, handshakes %lu and %lu ms, mbedTLS peak %lu, heap "
-           "low mark %lu, the job task's stack left %lu\n", (unsigned long) report.bytes,
-           (unsigned long) report.total_ms, (unsigned) report.hops, (unsigned long) report.handshake_ms[0],
-           (unsigned long) report.handshake_ms[1], (unsigned long) report.mbedtls_peak,
-           (unsigned long) report.heap_min_after, (unsigned long) report.stack_left);
+    printf("Update: downloaded %s\n", fetch_took);
 
     // Checked as an upload is: its blocks, its slot, its board, its hash. Ready, then installed at once: the person
     // said Install, or the API asked for the download
@@ -1189,18 +1201,12 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
         return false;
     }
     // The poll (ADR-010, gate 5): `update check` asks one, `update poll` says how the last went and what its fetch took
-    if (strcmp(args, "check") == 0) {
-        update_poll_ask_t asked = update_poll_ask();
-        if (asked == UPDATE_POLL_ASKED) {
-            snprintf(reply, reply_size, "@ok update check: asked");
-            return true;
+    if (strcmp(args, "check") == 0 || strcmp(args, "poll") == 0) {
+        if (update_fetcher == NULL) {
+            snprintf(reply, reply_size, "@err no_fetch update %s: this build updates by file only", args);
+            return false;
         }
-        snprintf(reply, reply_size, asked == UPDATE_POLL_BUSY ? "@err busy update check: a poll or the update runs" :
-                                    "@err no_network update check: not joined to a network as a station");
-        return false;
-    }
-    if (strcmp(args, "poll") == 0) {
-        return update_poll_console(reply, reply_size);
+        return update_fetcher->console(args, reply, reply_size);
     }
     snprintf(reply, reply_size, "@err usage update [try|check|poll]");
     return false;

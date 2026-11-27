@@ -808,7 +808,58 @@ bool update_poll_config_save(void) {
 }
 
 
+// --- The update's own fetch, as the update takes it (update.h): the poll's find, and a GET by the HTTPS client
+
+static bool update_poll_checking(void) {
+    update_poll_status_t status;
+    update_poll_status(&status);
+    return status.state == UPDATE_POLL_CHECKING;
+}
+
+
+static bool update_poll_get(const char *url, const update_fetch_sink_t *sink, char *error, size_t error_size,
+                            char *took, size_t took_size) {
+    https_sink_t https_sink = {.begin = sink->begin, .piece = sink->piece, .ctx = sink->ctx};
+    bool fetched = https_get(url, &https_sink);
+    https_report_t report;
+    https_last_report(&report);
+    snprintf(error, error_size, "%s", report.error);
+    // What it took, said before the restart wipes it (as `update poll` says the poll's)
+    snprintf(took, took_size, "%lu bytes in %lu ms, %u hops, handshakes %lu and %lu ms, mbedTLS peak %lu, heap "
+             "low mark %lu, the job task's stack left %lu", (unsigned long) report.bytes,
+             (unsigned long) report.total_ms, (unsigned) report.hops, (unsigned long) report.handshake_ms[0],
+             (unsigned long) report.handshake_ms[1], (unsigned long) report.mbedtls_peak,
+             (unsigned long) report.heap_min_after, (unsigned long) report.stack_left);
+    return fetched;
+}
+
+
+// `update check` asks a poll, `update poll` says how the last went and what its fetch took
+static bool update_poll_fetch_console(const char *args, char *reply, size_t reply_size) {
+    if (strcmp(args, "check") == 0) {
+        update_poll_ask_t asked = update_poll_ask();
+        if (asked == UPDATE_POLL_ASKED) {
+            snprintf(reply, reply_size, "@ok update check: asked");
+            return true;
+        }
+        snprintf(reply, reply_size, asked == UPDATE_POLL_BUSY ? "@err busy update check: a poll or the update runs" :
+                                    "@err no_network update check: not joined to a network as a station");
+        return false;
+    }
+    return update_poll_console(reply, reply_size);
+}
+
+
+static const update_fetcher_t update_poll_fetcher = {
+    .found_image = update_poll_found_image,
+    .checking = update_poll_checking,
+    .get = update_poll_get,
+    .console = update_poll_fetch_console,
+};
+
+
 bool update_poll_init(void) {
+    update_set_fetcher(&update_poll_fetcher);
     update_poll_mutex = xSemaphoreCreateMutex();
     bool is_ok = update_poll_mutex != NULL && https_client_init();
     if (!load_config(EEPROM_UPDATE_CONFIG_BASE_ADDR, &update_config, &default_update_config,

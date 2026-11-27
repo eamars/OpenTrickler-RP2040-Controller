@@ -101,6 +101,18 @@ extern "C" {
 
 // At the start, before any task: the log, and its first event (system started)
 void events_init(void);
+
+/*
+ * What only the update knows of its own events (ADR-006, gate 6): a block version as text, and the settings a
+ * confirmed update reset, by name, as a JSON array. The update hands these over at its start, so the log names no
+ * update. With none handed over a version is "" and the reset [].
+ */
+typedef struct {
+    void (*version_text)(uint32_t version, char *out, size_t size);
+    void (*write_reset)(uint16_t reset, char *out, size_t room, size_t *len);
+} events_update_texts_t;
+// The struct is kept by its address
+void events_set_update_texts(const events_update_texts_t *texts);
 // An event, numbered and timed here; any task
 void events_add(const event_t *event);
 // The newest event's number: 0 before any
