@@ -789,7 +789,7 @@ ESP-IDF v6.1.1's documentation for the ESP32-S3, read 2026-11-27, nothing built 
 
 The test release is kept out of the served folder, in `logs/adr006/gate7_release_v2.1.0`; the local OTA server was stopped after each use. The unit is left on 2.0.3-338, slot A, its settings as before gate 1. The Pico 2 W waits, by the owner's word; its image builds at every commit.
 
-**Gate 7 is built.**
+**Gate 7 is built**, and merged by #144 (the owner).
 
 ### For gate 8 and ADR-007
 

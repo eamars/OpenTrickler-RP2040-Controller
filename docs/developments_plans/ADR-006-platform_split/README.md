@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it. The gates after 7 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved. The gates after 8 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -82,6 +82,10 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 **2026-11-27, gate 7**
 - Approved, in the same words: "continue with the next gate."
 - **The interfaces are buses** (asked before cut 1, since the gate's list had storage as blocks, the display's bus with its pins inside and the inputs as events, while the drivers' line has the drivers above the platform on its serial port, SPI and I2C, and the motors' enable and direction pins fitted nothing on the list): GPIO (outputs, inputs, edges), I2C, SPI and a serial port, beside the step pulses, the image slots, the system, a task, an LED strip, a servo and the network. The CAT24C256, the UC1701, the TMC2209 and the scale's makes stay drivers above them, written once for every chip. The other reading, an interface per use, was not taken.
+- PR #144 merged by the owner.
+
+**2026-11-27, gate 8**
+- Approved: "Gate 7 of ADR-006 is merged. I want you to check the progress, and continue to the next gate."
 
 ## Why here
 
