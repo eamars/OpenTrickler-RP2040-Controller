@@ -8,7 +8,6 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
-#include "app.h"
 
 // Radwag response frame structure for SUI command
 // Format: SUI<stability><mass(12)><unit(3)>CR LF

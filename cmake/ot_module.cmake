@@ -1,4 +1,5 @@
-# The firmware's modules (ADR-006). A module is a folder named for it, whose build file makes one call:
+# The firmware's modules (ADR-006). A module is a folder named for it, src/<layer>/<module>/, whose build file makes
+# one call:
 #
 #   ot_module(SRCS ... INCLUDE_DIRS ... PRIV_INCLUDE_DIRS ... REQUIRES ... PRIV_REQUIRES ...)
 #
@@ -6,9 +7,13 @@
 # ESP-IDF branch that passes them on. This is the Pico SDK's branch: a module is a static library.
 #   - INCLUDE_DIRS and REQUIRES are public: whoever requires the module gets them too.
 #   - PRIV_INCLUDE_DIRS and PRIV_REQUIRES are the module's own.
-#   - A module can include only the headers of what it names. That is what makes the layout hold, not the folders.
+#   - A module can include only the headers of what it names: the compiler refuses the rest. That is what makes the
+#     layout hold, not the folders.
 #   - A name in REQUIRES is another module's, or third-party code's by ESP-IDF's own name (freertos, lwip, mbedtls,
 #     lvgl), made with ot_third_party() below.
+#   - A module with no SRCS is its headers only.
+#   - The module's target is ot_<name>. What the five arguments cannot say (a file the build makes, say) is said with
+#     CMake's own commands on that target, after the call.
 #
 # The image links every module whole (ot_link_modules): a module's files take part in the link as they did on the
 # link line. A linker takes a file out of a static library only for a name still undefined, so a file that only
@@ -51,30 +56,28 @@ function(ot_module)
     if (arg_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "ot_module: not an argument of idf_component_register: ${arg_UNPARSED_ARGUMENTS}")
     endif()
-    # A module's name is its folder's. Until every module has a build file in its folder (ADR-006, gate 3) the two
-    # tried in gate 1 are made from src/CMakeLists.txt, and say their names
-    if (DEFINED OT_MODULE_NAME)
-        set(name ${OT_MODULE_NAME})
-    else()
-        get_filename_component(name "${CMAKE_CURRENT_LIST_DIR}" NAME)
-    endif()
+    # A module's name is its folder's, and no two are the same
+    get_filename_component(name "${CMAKE_CURRENT_LIST_DIR}" NAME)
     if (TARGET ot_${name})
         message(FATAL_ERROR "ot_module: two modules are named ${name}")
     endif()
-
-    add_library(ot_${name} STATIC ${arg_SRCS})
-    add_library(ot::${name} ALIAS ot_${name})
-    target_include_directories(ot_${name} PUBLIC ${arg_INCLUDE_DIRS} PRIVATE ${arg_PRIV_INCLUDE_DIRS})
     list(TRANSFORM arg_REQUIRES PREPEND ot::)
     list(TRANSFORM arg_PRIV_REQUIRES PREPEND ot::)
-    target_link_libraries(ot_${name} PUBLIC ${arg_REQUIRES} PRIVATE ${arg_PRIV_REQUIRES} ot_image_settings)
 
-    set_property(GLOBAL APPEND PROPERTY OT_MODULES ot_${name})
-    get_target_property(sources ot_${name} SOURCES)
-    foreach(source IN LISTS sources)
-        get_filename_component(source "${source}" ABSOLUTE)
-        set_property(GLOBAL APPEND PROPERTY OT_MODULE_SOURCES "${source}")
-    endforeach()
+    if (arg_SRCS)
+        add_library(ot_${name} STATIC ${arg_SRCS})
+        target_include_directories(ot_${name} PUBLIC ${arg_INCLUDE_DIRS} PRIVATE ${arg_PRIV_INCLUDE_DIRS})
+        target_link_libraries(ot_${name} PUBLIC ${arg_REQUIRES} PRIVATE ${arg_PRIV_REQUIRES} ot_image_settings)
+        set_property(GLOBAL APPEND PROPERTY OT_MODULES ot_${name})
+    else()
+        if (arg_PRIV_INCLUDE_DIRS OR arg_PRIV_REQUIRES)
+            message(FATAL_ERROR "ot_module: ${name} has no sources, so nothing of its own to keep private")
+        endif()
+        add_library(ot_${name} INTERFACE)
+        target_include_directories(ot_${name} INTERFACE ${arg_INCLUDE_DIRS})
+        target_link_libraries(ot_${name} INTERFACE ${arg_REQUIRES})
+    endif()
+    add_library(ot::${name} ALIAS ot_${name})
 endfunction()
 
 # CMake defines the WHOLE_ARCHIVE link feature for the systems it knows; the Pico SDK's toolchain file names its

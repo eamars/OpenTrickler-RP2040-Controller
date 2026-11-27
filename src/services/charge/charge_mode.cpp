@@ -9,7 +9,6 @@
 #include <math.h>
 
 #include "activity.h"
-#include "app.h"
 #include "events.h"
 #include "FloatRingBuffer.h"
 #include "mini_12864_module.h"

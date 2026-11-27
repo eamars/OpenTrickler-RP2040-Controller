@@ -4,7 +4,6 @@
 #include <FreeRTOS.h>
 #include <stdint.h>
 
-#include "app.h"
 #include <semphr.h>
 
 #define EEPROM_SCALE_DATA_REV                     3              // 16 byte 

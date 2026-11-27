@@ -125,7 +125,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   (ADR-010, 2026-11-17). An animated figure is one label of tiles, a pose a different set of tiles
   (`scripts/bdf2lvgl.py`, `:art`), rather than an object for each moving part; check the heap's free piece before
   making it, and let it go when it is short.
-- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/ui/view_12864/include/lv_conf.h`, and a 3 KB pool from the FreeRTOS heap, `src/ui/menu/menu.c`: 17 KB). It holds every object of the view,
+- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/ui/view_12864/lv_conf/lv_conf.h`, and a 3 KB pool from the FreeRTOS heap, `src/ui/menu/menu.c`: 17 KB). It holds every object of the view,
   a frame's draw tasks while it draws, and a glyph's working buffer (384 bytes for an 18 px figure). When it runs
   short, LVGL silently skips the glyphs it cannot buffer: the redesigned view in 12 KB drew its figures as a lone "."
   and lost a title's first letter (2026-11-17). After adding objects to the view, read `screen`'s

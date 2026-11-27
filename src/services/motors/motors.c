@@ -7,7 +7,6 @@
 #include <queue.h>
 #include <semphr.h>
 #include <task.h>
-#include "app.h"
 #include "tmc2209.h"
 #include "hardware/uart.h"
 #include "configuration.h"

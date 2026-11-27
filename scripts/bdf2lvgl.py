@@ -12,7 +12,7 @@ A picture given with ":art" (a text file, '#' a lit pixel, '.' not) becomes a fo
 left, in reading order: a label of "ABC\nDEF\nGHI" draws a 48 x 48 picture, each tile drawn on its own, so LVGL's
 working buffer for a glyph stays at 256 bytes (the hidden hello's figure, fonts/claude_chan.txt).
 
-Usage (src/CMakeLists.txt runs it):
+Usage (the view's build file, src/ui/view_12864/CMakeLists.txt, runs it):
     python scripts/bdf2lvgl.py --out src/generated/menu_fonts.c helvR08.bdf:menu_font_regular:icons ...
 """
 import argparse

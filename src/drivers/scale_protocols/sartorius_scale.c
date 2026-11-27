@@ -12,7 +12,6 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
-#include "app.h"
 
 // Sartorius typically sends data in format like: "+  123.456 g" or similar
 // We'll buffer until we get a complete line (ends with \r or \n)
