@@ -4,9 +4,6 @@ This is the firmware for the controller of the [OpenTrickler](https://github.com
 
 Join our [Discord server](https://discord.gg/ZhdThA2vrW) for help and development news.
 
-> [!NOTE]
-> This branch is version 2, which is in testing: its releases are published as pre-releases. The current release is version 1.21. The [manuals](manuals/) cover both.
-
 ## What it does
 
 - **Charges.** Set a target weight and a powder, put the cup on the scale, and the unit zeroes the scale, trickles the charge, asks you to take the cup off, and starts the next charge when the cup is back.

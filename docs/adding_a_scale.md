@@ -1,6 +1,6 @@
 # Adding support for a scale
 
-This guide is for anyone who wants the OpenTrickler to read a scale it does not support yet. It covers the firmware from version 2 on (the `main` branch). It takes you from a scale on your bench to a pull request: first whether you need new code at all, then how to learn and record what the scale sends, then the code, the tests and the proof on a unit.
+This guide is for anyone who wants the OpenTrickler to read a scale it does not support yet. It takes you from a scale on your bench to a pull request: first whether you need new code at all, then how to learn and record what the scale sends, then the code, the tests and the proof on a unit.
 
 The scales supported today are listed in the [README](../README.md#supported-scales).
 
