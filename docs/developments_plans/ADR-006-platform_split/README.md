@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. The gates after 3 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved by the owner the same day. The gates after 4 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -65,6 +65,9 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 
 **2026-11-27, gate 3's merge**
 - PR #140 merged once its checks had passed: "Merge when green."
+
+**2026-11-27, gate 4**
+- Approved: "Gate 4 approved. please continue."
 
 ## Why here
 
