@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include "generic_scale.h"
@@ -29,6 +30,31 @@ scale_handle_t generic_scale_drv_handle = {
 };
 
 
+/*
+    A frame's weight: its first number, past any prefix ("ST", "GS,"), from a digit or a point before one, with the
+    sign before it, spaces between allowed ("- 12.34", "+ 0.50"). False when the frame holds no number
+*/
+static bool _generic_scale_parse(const char *frame, float *weight) {
+    const char *sign = NULL;
+    for (const char *at = frame; *at != '\0'; at += 1) {
+        if (*at == '-' || *at == '+') {
+            sign = at;
+            continue;
+        }
+        if (*at == ' ' && sign != NULL) {
+            continue;
+        }
+        if (isdigit((unsigned char) at[0]) || (at[0] == '.' && isdigit((unsigned char) at[1]))) {
+            float value = strtof(at, NULL);
+            *weight = sign != NULL && *sign == '-' ? -value : value;
+            return true;
+        }
+        sign = NULL;
+    }
+    return false;
+}
+
+
 /**
  * @brief Generic scale listener task
  */
@@ -56,24 +82,8 @@ void _generic_scale_listener_task(void *p) {
                 // Null terminate the string
                 rx_buffer[rx_buffer_idx] = '\0';
 
-                // Parse the received string to float
-                char *startptr = rx_buffer;
-                char *endptr;
-
-                // 1. look for the start of a number: a digit, a decimal point, or a sign
-                //     * Noted this will skip the weight prefix like "ST" etc.
-                //     * Noted the string is already null terminated
-                while (*startptr && 
-                    !isdigit((unsigned char)*startptr) && 
-                    *startptr != '-' && *startptr != '+') {
-                    startptr++;
-                }
-
-                // 2. Attempt to convert from the first numeric-looking character. 
-                float weight = strtof(startptr, &endptr);
-
-                // If the conversion is successful then post the measurement.
-                if (endptr != startptr) {
+                float weight;
+                if (_generic_scale_parse(rx_buffer, &weight)) {
                     scale_make_host->publish_measurement(weight);
                 }
 

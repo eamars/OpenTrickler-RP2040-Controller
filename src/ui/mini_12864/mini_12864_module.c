@@ -250,7 +250,7 @@ bool mini_12864_module_init() {
 
     // Read configuration
     memset(&mini_12864_module_config, 0x0, sizeof(mini_12864_module_config));
-    is_ok = load_config(EEPROM_MINI_12864_CONFIG_BASE_ADDR, &mini_12864_module_config, &default_mini_12864_module_config, sizeof(mini_12864_module_config), EEPROM_MINI_12864_MODULE_DATA_REV);
+    is_ok = load_config(EEPROM_MINI_12864_CONFIG_BASE_ADDR, &mini_12864_module_config, &default_mini_12864_module_config, sizeof(mini_12864_module_config));
     if (!is_ok) {
         printf("Unable to read mini12864 configuration\n");
         return false;
@@ -269,8 +269,6 @@ bool mini_12864_module_init() {
         mini_12864_module_config_save();
     }
 
-    // Register to eeprom save all
-    eeprom_register_handler(mini_12864_module_config_save);
     mini_12864_settings_register();
 
     // Run subsequent function inits

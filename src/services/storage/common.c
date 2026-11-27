@@ -1,4 +1,5 @@
 #include <FreeRTOS.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -372,13 +373,13 @@ static void config_fill(void *cfg, const void *default_cfg, size_t size, const u
 }
 
 
-bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
-    return load_config_layout(addr, cfg, default_cfg, size, NULL, rev_validation);
+bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size) {
+    return load_config_layout(addr, cfg, default_cfg, size, NULL);
 }
 
 
 bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
-                        const config_layout_t * layout, uint16_t rev_validation) {
+                        const config_layout_t * layout) {
     bool is_ok;
     uint32_t calculated_crc32;
 
@@ -397,7 +398,7 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
     uint8_t * buf = malloc(read_size);
 
     if (!buf) {
-        printf("Unable to allocate buffer with size: %d", read_size);
+        printf("Unable to allocate buffer with size: %u\n", (unsigned) read_size);
         return false;
     }
 
@@ -406,34 +407,14 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
 
     // Unable to read from eeprom, then we will quit
     if (!is_ok) {
-        printf("Unable to read from addr: 0x%04x", addr);
+        printf("Unable to read from addr: 0x%04x\n", (unsigned) addr);
         free(buf);
         return is_ok;
     }
 
-    /**
-     * FIXME: This is only for backward compatibility purpose: 
-     *  In the past (pre 1.17) the code relies on the revision number (uint16_t) to identify the change of configuration structure.
-     *  Now we are switching to CRC32 based, but we still want the old configuration to be migrated. In this case the migration is 
-     *      achieved by accepting rev validation, then erase the validation from the subsequent write operation. If the rev validation
-     *      failed then the code will valiate CRC32 instead. 
-     */
+    // A record's first two bytes, its revision before v1.17, are 0 in every record since
     uint16_t received_rev;
     memcpy(&received_rev, buf, sizeof(received_rev));
-    if (received_rev == rev_validation) {
-        // Accept the buffer
-        memcpy(cfg, buf, size);
-        free(buf);
-
-        // Erase the rev from the stored data to highlight the rev is deprecated
-        memset(cfg, 0x00, sizeof(received_rev));
-
-        // Save it back
-        is_ok = save_config(addr, cfg, size);
-
-        return is_ok;
-    }
-    // Following are the new validation method based on crc32
 
     // Verify crc
     uint32_t received_crc32 = 0;
@@ -467,7 +448,8 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
             printf("EEPROM is unlikely initialized, will populate with default configuration\n");
         }
         if (calculated_crc32 != received_crc32) {
-            printf("CRC32 mismatch at address %x, received: %08lX, calculated: %08lX\n", addr, received_crc32, calculated_crc32);
+            printf("CRC32 mismatch at address %x, received: %08" PRIX32 ", calculated: %08" PRIX32 "\n", (unsigned) addr,
+                   received_crc32, calculated_crc32);
         }
         // Apply the default configuration: on trial, held as the defaults, written only once the update is kept
         free(buf);
@@ -507,7 +489,7 @@ bool save_config_now(uint16_t addr, void * cfg, size_t size) {
     uint8_t * buf = malloc(write_size);
 
     if (!buf) {
-        printf("Unable to allocate buffer with size: %d\n", write_size);
+        printf("Unable to allocate buffer with size: %u\n", (unsigned) write_size);
         return false;
     }
 

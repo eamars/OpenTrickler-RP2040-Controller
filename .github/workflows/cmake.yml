@@ -51,6 +51,15 @@ jobs:
     - name: Stored records against v1.21
       run: python3 tests/release_records.py
 
+    # The layers (ADR-006): no requirement upward, no loop, no SDK or radio include outside platform/ and boards/, no
+    # part's switch read outside app/. The compiler holds none of these (tools/module_graph.py reads the build files)
+    - name: The modules against the layers
+      run: python3 tools/module_graph.py
+
+    # No web feature silently dropped (ADR-008): every row of features.md shown by the pages or left out by decision
+    - name: The web's features
+      run: python3 tests/features_check.py --final
+
     # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
     # full install, the update images (the Pico W's for each slot), each named with the version,
     # manifest.json and SHA256SUMS. On every build, so every pull request shows the release it would make. On a tag

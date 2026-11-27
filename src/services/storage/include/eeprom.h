@@ -8,8 +8,8 @@
 #define EEPROM_METADATA_BASE_ADDR               0 * 1024       // 0K: unused. It held the unit's id, now read from
                                                                // the Pico (unit_id.c, ADR-008, gate 4), and a unit
                                                                // may still hold that record: a module given the slot
-                                                               // clears it first (its first two bytes, 0, pass
-                                                               // load_config's old revision check)
+                                                               // clears it first (its first two bytes are 0, as
+                                                               // every record's must be: common.c)
 #define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR        2 * 1024       // 2K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR           4 * 1024       // 4K
@@ -31,10 +31,6 @@
 // looked for within its slot (common.c, load_config)
 #define EEPROM_SLOT_SIZE                        1024
 
-// EEPROM save handler function
-typedef bool (*eeprom_save_handler_t)(void);
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,9 +42,7 @@ bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
 /*
  * Fill all EEPROM with 0xFF
  */
-uint8_t eeprom_erase(bool);
-uint8_t eeprom_save_all(void);
-void eeprom_register_handler(eeprom_save_handler_t handler);
+bool eeprom_erase(bool reboot);
 
 
 #ifdef __cplusplus

@@ -10,7 +10,6 @@
 
 #include "gate.h"       // its ratio and states: the gate's, which the rest of the firmware asks (ADR-006, gate 9)
 
-#define EEPROM_SERVO_GATE_CONFIG_REV                     1              // 16 byte 
 
 /**
  * Control queue payload (ratio-only)

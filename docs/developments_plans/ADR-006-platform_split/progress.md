@@ -885,7 +885,7 @@ Each module hands its settings table and its EEPROM save handler over in its own
 | 2 | `ot_feature(servo_gate services/servo_gate "...")`: its option, its module out of the board's list when off, `FEATURE_<NAME>` for `app/`, the `Features:` line, and `ot_features.h` in each build's folder, which the index's `features` is made from. `tools/module_graph.py` fails on a part's switch read outside `app/` | `cmake/ot_module.cmake`, `base.cmake`, `api_v1.c` |
 | 3 | `ot_fills(platform)` (`platform/rp2`) and `ot_fills(view)` (`view_12864`); `ot_check_places(platform view)` refuses none or two | `cmake/ot_module.cmake`, the root `CMakeLists.txt` |
 | 4 | `OT_MODULE_OPTIONS_<module>` in a board's file, applied after the image's own; neither board names one | `cmake/ot_module.cmake`, both `board.cmake` |
-| 5 | A stored make the build does not carry, or a number no make has: no make runs, the start says so, `GET /api/v1/scale`'s `driver` is null, a charge and a calibration are refused (`409 no_scale`, the console's `@err no_scale`, the screen's "No scale"); the simulation still runs when asked. A test build leaves the A&D's make out (`-DRC_TEST_NO_AND_FXI=ON`) | `scale.c`, the charge, the calibration, the API, the console, the menu |
+| 5 | A stored make the build does not carry, or a number no make has: no make runs, the start says so, `GET /api/v1/scale`'s `driver` is null, a charge and a calibration are refused (`409 no_scale`, the console's `@err no_scale`, the screen's "No scale"); the simulation still runs when asked. A test build leaves the A&D's make out (`-DRC_TEST_NO_AND_FXI=ON`). (The review of 2026-11-28 found a number no make has refused for that start only: the settings' mender then stores the A&D's. Below, "The review") | `scale.c`, the charge, the calibration, the API, the console, the menu |
 | - | `tools/size_report.py` gives our flash by module (each module's library) | |
 
 ### Found on the way
@@ -940,3 +940,118 @@ The unit is left on 2.0.3-351, slot A, its settings as before gate 1. The Pico 2
 
 - The small fixes, the ADR for what was handed on, the end's checks (the owner's real throw among them), and the Pico 2 W's runs, which wait for the whole ADR.
 - The gate's API and menu code is in every build (above): a build that leaves the gate out for its flash keeps some 4 KB of it. Compiling it out would put the part's switch back outside `app/`; a later build that needs those 4 KB brings it up.
+
+## Gate 10: the small fixes, and the close
+
+2026-11-27, approved by the owner ("The last PR for gate 9 has been merged. I want you to proceed to the remainder of the gates"), after PR #146 merged gate 9. On the branch `adr006_gate10`, from main at a51f88b: the fixes `077f109`, ADR-017's draft `ae172b4`, the Pico 2 W's update `9744d36`.
+
+**The verdict: the fixes are built and proven, ADR-017 is drafted, and the end's checks pass on both boards; the owner waived the real throw.** The Pico 2 W's runs found that it had taken no update since ADR-009 put the SDK at `-Os`; fixed and proven on it (below). The Pico W ran first; the owner then waived the throw and moved the Pico 2 W onto the probe the same night.
+
+### The fixes
+
+| Fix | What | Checked |
+|---|---|---|
+| The radio's `exit(-1)` | A radio that does not start: the Wi-Fi task says so and ends, the rest of the unit runs. A scan and a leave are refused while the radio is not up (both reached the radio from other tasks), and the set-up's end asks whether the station joined only on the hotspot. A test build skips the radio's start: `-DRC_TEST_RADIO_FAILS=ON` | On the Pico W (below) |
+| A failed save reported as done | `eeprom_save_all` returns whether every handler's save worked, running each even when one before it failed; `eeprom_erase` whether every page was written (`cat24c256_eeprom_erase` read no write's result). Each returned 37, the old menu's page. Nothing calls `eeprom_save_all` today, and both callers of the erase restart either way: no behaviour changes | Built; the symbols (below) |
+| The pre-1.17 revision path | Gone from `load_config_layout`, with the parameter that fed it (`rev_validation`, every caller's) and the ten revision numbers nothing else read (`EEPROM_*_REV`). A record whose first two bytes equalled its module's old number was taken whole with no CRC and no check of its size; the powders', the gate's and the update's number was 1. Every v1.21 default and save sets those two bytes to 0 (`git show v1.21:src/...`), and the loader still requires them 0 | `host_test.py` VERDICT PASS, v1.21's records among its cases; on the Pico W from v1.21 itself (below) |
+| The Generic scale's sign | Its parser takes a frame's first number from a digit, or a point before one, with the sign before it, spaces between allowed | On the PC against 14 frames (below) |
+| The ring buffer's `malloc` | Gone with gate 5: `float_ring` takes its user's array and has no heap | - |
+
+**The Generic scale's frames**, its driver's file built on the PC with zig cc against the FreeRTOS stand-ins and fed frames, beside the parser as it was (`build_adr006/g10_generic_check.c`, not kept): 14 of 14 as they must read. Before the fix, five read as no number ("ST,GS,- 12.34 g", "- 0.02 gn", "+ 7.50 g", "US,GS,  -  1.5 gr", and "ST-GS 3.25 g", whose dash in the prefix stopped the search), and ".52 g" read as 52. A frame with no number ("OL", an empty line, "- g") reads as none, as before: it is still dropped, not counted (ADR-017).
+
+### ADR-017
+
+Drafted, not approved, not placed in the order: [ADR-017](../ADR-017-storage_and_scale_faults/README.md). The five handed-on items, and two found on the way: the erase outside the EEPROM's lock (found in ADR-003 and handed on with no ADR named; HANDOVER.md), and a radio that does not start shown on the screen as "Not joined", as a unit set up and not yet joined is. Two gates, storage first; what to settle is in its README.
+
+### The proofs, on the PC
+
+- **Both boards at `ae172b4`:** the Pico W 942,828 bytes (942,516 at gate 9), flash 919.4 KB of its 1,016 KB slot, RAM at link time 252.4 KB of 256 KB as before; the Pico 2 W 928,476 (928,156), 905.8 KB of 1,792 KB, RAM 285.3 KB. The no-radio test build 935,596: the radio's start is not linked.
+- **The symbols against gate 9's image** (`symbols_compare.py`), each board: 37 differences, every one a function the fixes changed (the Wi-Fi's task, scan, leave and set-up's end, the erase, the loader and its nine callers, the Generic's task) and the Generic's new parser. Nothing else moved. `eeprom_save_all` is in neither image: nothing calls it, and the linker drops it.
+- `tools/module_graph.py`, `tests/host_test.py`, `tests/release_records.py`, `tests/features_check.py`: `VERDICT PASS`. No new warning.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, the same session). Its settings copied first (`logs/adr006/picow_before_gate10`), the same as before gate 9.
+
+| Image | Runs |
+|---|---|
+| gate 10, 2.0.3-355 (`ae172b4`) | `VERDICT PASS` each: `flash`; the settings the same as before gate 1 and before gate 10; `menu_tour --compare`; `charge_cycle` (12.9 s); `api_check` (the local OTA server up, `--no-announce`) |
+| without the radio (`-DRC_TEST_RADIO_FAILS=ON`) | the start: "Wi-Fi: the radio did not start: the unit goes on without the network"; `state` as before; `wifi scan` and `wifi leave` refused (`@err`); `update check` refused `no_network`; the Wi-Fi page "Not joined", IP "none"; no Wi-Fi task, LED task or server in `stats tasks`; `charge_cycle` `VERDICT PASS` (12.9 s). `net` gives lwIP's counts unset, lwIP never started: read, no fault |
+| v1.21 (1.21.0, `3214c58`) by openocd's `program`, then gate 10's full install | **the end's "a unit updated from the release before keeps its settings"**: v1.21 started on its own defaults where today's records were longer (it has no migration) and joined the Wi-Fi; given values of its own through its `/rest/` paths and saved, and kept across its restart (`logs/adr006/picow_v121/`): the charge (the four colours, coarse stop 6.5, fine stop 0.045, the margins 0.035 and 0.021, three decimals, a precharge of 1,250 ms at 1.25 rev/s, the gate's ratio 0.55), powder 7 named G10Test with gains and speeds of its own, an LED colour. Gate 10's full install by the probe, as a user's update by USB: at its first start the loader read the scale's record "stored 6 bytes long by an earlier version", the charge's "52 bytes ... read field by field from its layout then", and the powders' 516 bytes; over the API every value as set, 24 of 24 (`check_after_update.txt`), decimals 3 |
+| gate 10 again, its own settings restored | `settings --restore logs/adr006/picow_before_gate10`, then powder 0 selected again and stored (v1.21's REST read had selected powder 7: a GET of `profile_config?pf=7`); after a restart the settings the same as before gate 1 and before gate 10, `menu_tour --compare`, `charge_cycle`: `VERDICT PASS` |
+
+The unit is left on 2.0.3-355, slot A, its settings as before gate 1, powder 0 selected.
+
+### The owner's two words, later that night
+
+- **The real throw waived, on a condition:** "I will not actually throw on ADR-006, if every throw related calls are indendepently verified using your tests." Checked against what ADR-006 ran: a charge from zero to the cup's return (`charge_cycle`) after every gate, on both boards at the end; the step pulses stopping on a probe reset, an assert and a hard fault (`pulses`), at gates 1, 2, 3, 6 and 7 on the Pico W and at the end on the Pico 2 W; the A&D's frames read as numbers through the make and the scale (`scale_frames`, gates 6 and 7), which hand each reading to the charge by the door the simulated scale uses too (`scale_publish_measurement`); both drivers set up three times without a retry (`tmc ... setup 3`, gate 7); a charge and a purge started and stopped by the API (`api_check`); the controller and the calibration's method against their Python twins (`step2_sim`, `calibration_sim`, gates 4 and 5). **ADR-013's faults during a charge had not been run since gate 5 made the charge C:** they were run on the Pico 2 W (below), each handled. Not among them: a calibration's whole run on a unit (its start and its refusal were run; its method on the PC), and a gate's shutter moving (no gate on the bench; its registers through the probe, gate 7).
+- **The Pico 2 W:** "I will switch to Pico2W for a simple verification", then "Pico 2W is connected, hopper is empty." The A&D stayed on the Pico W's side: no scale on the Pico 2 W (`weight=nan`), so each run that turns a motor was given `--no-cup-check` with the owner's word that the hopper is empty.
+
+### The Pico 2 W
+
+The unit came up at 192.168.2.101 by DHCP (192.168.2.166 before), on 2.0.3-258 (`46346ba`), whose console's control block lies where no image on this PC says: its settings were copied over the web (`logs/adr006/pico2w_before_gate10`).
+
+| Image | Runs |
+|---|---|
+| gate 10, 2.0.3-356 (`5e566b3`) | `flash` `VERDICT PASS`. The settings, every one of 198 fields, the same across the flash but `cup_weight` (445.01), which ADR-009's review took out of the API (O1, its progress; the record keeps it). `menu_tour --compare`: four pages differ, none by ADR-006: `settings/calibration/powder` and `calibration/discard` new and `settings/calibration`'s Powder row a ">" (ADR-009's review), and on `settings/calibration` and `settings/charge` the weights without their unit, the scale not connected to tell it (its baseline was saved with the A&D on it); the cup 442.96 where the baseline has 249.65, the unit calibrated again since. Not saved again: without the A&D the pictures would lose their units. `charge_cycle` (14.6 s); **ADR-013's faults** with the simulated scale, each `--expect not-seen`, `VERDICT PASS`: a frame that does not parse (the fine trickler went on at 0.21 to 0.18 rev/s near the target, no full speed, no early end), the scale quiet (the tricklers paused within 300 ms of the last reading, "Charge: paused, no reading for 300 ms", then "Charge: ended, Scale: no reading"), the web's purge speed during the charge (not taken); `pulses` with its two fault images, all three stopped |
+| | **`slot_trial --expect back` failed: `@err refused update try: wrong_board: built for another board`** (below) |
+| a test image of the fix, never confirming (2.1.1), under 2.0.3-356 | `slot_trial --expect back` `VERDICT PASS`: tried on slot B, back on slot A by the trial's watchdog 69.5 s after it was asked: a firmware from before the fix takes an image built with it |
+| the fix, 2.0.3-357 (`9744d36`) | `flash` `VERDICT PASS`; `slot_trial --expect back` with a test image built by the old rule, its board's item on an odd byte (0x10080e45): back on slot A in 69.7 s; `slot_trial --expect confirmed` with a test image (2.1.0) that confirms itself: confirmed on slot B 7.0 s after it was asked, still slot B after a restart; then 2.0.3-357 flashed back into slot A, the settings as before but `cup_weight` |
+
+The unit is left on 2.0.3-357, slot A, its settings as copied before gate 10 (`logs/adr006/pico2w_end_gate10`).
+
+### Found on the Pico 2 W: no update since the SDK went to `-Os`
+
+- **What:** the Pico 2 W refused every update image as built for another board. The image says its board in the SDK's binary information, a table of pointers to items; the reader took an item only on a word (`(entry & 3u) != 0`, skipped as "one kept in RAM"). The SDK declares its items packed (`structure.h`), which leaves them wherever the compiler puts them, and since ADR-009 compiled the SDK at `-Os` (`0ed6172`, 2026-11-27 01:51) the compiler no longer rounds them up to a word: the Pico 2 W's board item at 0x1008116d. The Pico W's lay on a word by chance (0x100891c4). Read in the images on the PC: v2.0.3 and 2.0.3-162 on a word, 2.0.3-273 (the first after `0ed6172` on this PC) and every one since not.
+- **Why not seen:** neither unit had run an update on the `-Os` build; ADR-009's handover listed exactly that check, and on the Pico W, where gates 6 and 7 ran updates, the item was on a word.
+- **The fix, both sides** (the owner's pick, asked first): the reader takes an item at any byte, read by bytes (`update_image_word`; the RP2040 faults on a word read off one); and the SDK's `standard_binary_info.c` stays at the build's level, so the board's item is on a word again and a unit on an earlier firmware (v2.0.3, ADR-009's builds, ADR-006's gates) takes the next image. Both boards' images: the item on a word (the Pico W 0x100891f4, the Pico 2 W 0x10081198); the symbols against gate 9's as before, but `update_image_board` and the new `update_image_word`.
+- **On the Pico W** the change is proven by its build and its symbols: its item was on a word before and after, and the reader reads it by bytes now. Its slot trial was run at its next turn on the probe, 2026-11-28 (below).
+
+### The Pico W's slot trial of the reader's fix (2026-11-28)
+
+Run the night after, before the PR's merge: a review of the PR (on this PC, `logs/reviews/2026-11-28_adr006_adr017_review.md`) found that the gate's last code commit, `9744d36`, had never run on a Pico W, and the owner had it run first ("Run it first", "probe is on Pico W"). Three images built from the PR's head (`a0ea6d5`, the tree clean) into `build_adr006/review_w`, `review_w_b_update` and `review_w_b_noconfirm`, each 2.0.3-358, each with its board's item on a word (the full install 0x100891f4). No motor turned.
+
+| On the Pico W | Result |
+|---|---|
+| its settings copied first, on 2.0.3-355 (`logs/reviews/picow_before_review`) | 17 resources, the same as before gate 10 |
+| `flash` of the PR's head | `VERDICT PASS`: 2.0.3-358 at `a0ea6d5` |
+| `slot_trial --expect back`, a test image that never confirms (2.1.1) | `VERDICT PASS`: tried on slot B, back on slot A by the trial's watchdog 67.5 s after it was asked, `not_confirmed` |
+| `slot_trial --expect confirmed`, a test image that confirms itself (2.1.0) | `VERDICT PASS`: confirmed on slot B 4.7 s after it was asked, still slot B after a restart |
+| `flash` of the PR's head again, into slot A; the settings compared | `VERDICT PASS`; 17 resources, the same |
+
+- **What it shows:** a Pico W on the gate's code reads the board of an image built by the gate's rule, tries it, and confirms it or goes back.
+- **What it does not:** the read of an item off a word has not run on an RP2040. Tried: the SDK's file at `-Os` again by a build hook, the tree untouched, and a string of one, two and three characters put before the item. On the Pico W's build the item lay on a word each time, so there was no such image to try. The Pico 2 W ran that read (above).
+
+The unit is left on 2.0.3-358 (`a0ea6d5`), slot A, its settings as before gate 1 and gate 10, the probe on it.
+
+### The review (2026-11-28)
+
+A review of the whole ADR and of ADR-017's draft, in a session of its own at the owner's word: [review_2026-11-28.md](review_2026-11-28.md), its findings each read at the line it cites. Its verdict on ADR-006: merge, once the Pico W had run the update's fix (above). It found no fault in gate 10's five changes. The owner had its ADR-006 findings folded into the gate's PR ("Yes, fold them in"):
+
+| Finding | What the PR does |
+|---|---|
+| 2. A stored make that is a number no make has is refused for one start, then stored as the A&D's by the settings' mender (`mend_choices`, `settings.c`), whose driver runs from the next start: against gate 9's decision. Read again here: it holds | Not fixed here: its root is ADR-017's gate 1 (the start writes nothing over a stored value it did not understand), written into ADR-017. AGENTS.md says what the code does until then |
+| 3. CI runs neither `tools/module_graph.py` nor `tests/features_check.py`: three of this ADR's end conditions are held by the first alone | Both are CI steps |
+| 4. Nothing checks that a release's image names its board as the units already out read it | `scripts/build_release.py` reads each image's board as a firmware before gate 10 does (its item on a word) and fails the release when it cannot. Tried on the PC: the five release images pass; 2.0.3-273's, gate 9's and the old rule's test image fail, the item off a word |
+| 5. `system_board_name()` in `services/` reads the SDK's `PICO_RP2350` | Handed to ADR-007, where it matters |
+| 6. `eeprom_save_all`, polished by gate 10, is called by nothing; its list costs nine `malloc`s of the Pico W's 3.5 KB C heap | Gone, with the list and the nine registrations |
+| 7. The update's note is a stored record `release_records.py` does not see | Handed to ADR-017 (the records found by use); AGENTS.md says what the check covers |
+| 8. Gate 4's four `printf` formats in `common.c`, left for gate 10, were not done | Done |
+| 9. Texts no longer true: `base.cmake`'s gate 7 notes, `eeprom.h`'s revision check, AGENTS.md's "v2.0.x was never released" (v2.0.2 and v2.0.3 are published pre-releases), ADR-014's "Why here", `app.c`'s "LED blink" | Each corrected; the rule left behind by gate 10, a record's first two bytes 0, written into AGENTS.md |
+| 10. For ADR-007: lwIP's internals included outside the platform; the radio's one state for "not started" and "did not start"; the radio's test build skips the start | The first to ADR-007, the other two to ADR-017 |
+
+The review's findings on ADR-017 are for its revision before approval: its status points to them.
+
+**Checked:** both boards built, their symbols against the PR's head as before but the nine inits a call shorter each and the list's function and head gone; `module_graph.py`, `host_test.py`, `release_records.py`, `features_check.py --final` `VERDICT PASS`; `build_release.py`, its five images each naming its board as an earlier firmware reads it. On the Pico W, the release's own `pico_w` build, 2.0.3-360 (`cbf1dee`): its settings copied first (`logs/adr006/picow_before_review_fixes`), `flash`, the settings the same as before and as before gate 1, `menu_tour --compare`, `charge_cycle` (12.8 s): `VERDICT PASS`. The unit is left on 2.0.3-360, slot A.
+
+## Closed (2026-11-27)
+
+Closed as Built in its README, here and in the index, on its branch `adr006_gate10`, before its PR.
+
+- **Done:** ten gates, each approved alone and proven on the Pico W, the first nine merged (#139 to #146): every module a folder by what it does, built on its own with what it needs named and linked whole; a PC build for the tests; our code in C; no requirement upward and no loop; no SDK outside the platform and the boards; stored enums one byte by their own type; a part a build may leave out handed over by the start-up alone; the small fixes; ADR-017 for the rest. The end's checks: `tools/module_graph.py` `VERDICT PASS` (no SDK or radio include outside `platform/` and `boards/`, no requirement upward, no loop, no part's switch outside `app/`); the PC build's stand-ins FreeRTOS's alone; a unit updated from v1.21 keeping every value it was given; the Pico W built without the servo gate and reading its record back with it; the three kinds of pick (gate 9); the lines' lists and each interface against ESP-IDF here; the Pico 2 W's runs above.
+- **Waived by the owner:** the real throw, on the condition above, which the runs above meet but for a calibration's whole run on a unit.
+- **Done since:** the Pico W's slot trial of the reader's fix, 2026-11-28, back and confirmed (above); the review's ADR-006 findings folded into the PR, those not fixed handed to ADR-017 and ADR-007 ("The review", above).
+- **Not done, with the occasion that does each** (the handover says so):
+  - the Pico 2 W's menu baseline for ADR-009's four pages: saved again with the A&D on it;
+  - a calibration's whole run on a unit: with ADR-009's runs with powder (the handover);
+  - the servo seen at a shutter's end: ADR-010's, the day a gate is fitted (AGENTS.md).

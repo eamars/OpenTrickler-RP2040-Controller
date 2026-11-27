@@ -13,45 +13,21 @@
 
 
 
-// Linked list implementation
-typedef struct _eeprom_save_handler_node {
-    eeprom_save_handler_t function_handler;
-    struct _eeprom_save_handler_node * next;
-} _eeprom_save_handler_node_t;
-
-// Singleton variables
 SemaphoreHandle_t eeprom_access_mutex = NULL;
-static _eeprom_save_handler_node_t * eeprom_save_handler_head = NULL;
 
 
-void eeprom_register_handler(eeprom_save_handler_t handler) {
-    _eeprom_save_handler_node_t * new_node = malloc(sizeof(_eeprom_save_handler_node_t));
-    new_node->function_handler = handler;
-
-    // Append to the head
-    new_node->next = eeprom_save_handler_head;
-    eeprom_save_handler_head = new_node;
-}
-
-
-uint8_t eeprom_save_all() {
-    // Iterate over all registered handlers and run the save functions
-    for (_eeprom_save_handler_node_t * node = eeprom_save_handler_head; node != NULL; node = node->next) {
-        // Run the save handler
-        node->function_handler();
+// Whether every page was written: the restart follows either way
+bool eeprom_erase(bool reboot) {
+    bool erased = cat24c256_eeprom_erase();
+    if (!erased) {
+        printf("EEPROM: the erase failed: the settings may be left as they were\n");
     }
-    return 37;  // Configuration Menu ID
-}
-
-
-uint8_t eeprom_erase(bool reboot) {
-    cat24c256_eeprom_erase();
 
     if (reboot) {
         software_reboot();
     }
-    
-    return 37;  // Configuration Menu ID
+
+    return erased;
 }
 
 

@@ -50,8 +50,9 @@ target_link_libraries("${TARGET_NAME}"
 
 # Third-party code as a module sees it (ADR-006): its include paths and no source, under ESP-IDF's names for what
 # both platforms have, so a module's REQUIRES line is the same under ESP-IDF.
-#   - rp2_sdk is the Pico SDK itself. Every module that requires it is one gate 7 has still to free of the chip.
-#   - lwip carries the radio's driver too (cyw43), until gate 7 puts it behind the network's interface.
+#   - rp2_sdk is the Pico SDK itself, which only platform/rp2 requires.
+#   - lwip carries the radio's driver's include paths too (cyw43): only tools/module_graph.py's search keeps a module
+#     that requires it from including the driver.
 #   - Each brings the settings its headers include by name.
 ot_third_party(rp2_sdk pico_stdlib hardware_pio hardware_spi hardware_i2c hardware_pwm hardware_dma pico_flash)
 ot_third_party(freertos FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
@@ -85,6 +86,10 @@ set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
 # the kernel stays at the build's own level, the one third-party code stepped through
 file(GLOB_RECURSE THIRD_PARTY_OS_SOURCES ${PICO_SDK_PATH}/lib/lwip/src/*.c ${PICO_SDK_PATH}/lib/cyw43-driver/src/*.c
      ${PICO_SDK_PATH}/src/*.c)
+# But the image's binary information, which says its board: at -Os the compiler puts the SDK's packed items on any
+# byte, and a unit on a firmware before ADR-006's gate 10 reads the board only from an item on a word, refusing the
+# image as built for another board (the Pico 2 W's, met 2026-11-27)
+list(FILTER THIRD_PARTY_OS_SOURCES EXCLUDE REGEX "/pico_standard_binary_info/standard_binary_info\\.c$")
 # In the image only: the Pico W's bootloader (flash_layout.cmake) compiles the SDK's sources at the build's own
 # level, as ADR-004 proved it. These rules hold for targets made in the root folder, which the image is: the SDK's
 # sources compile in the image, and a module compiles none of them

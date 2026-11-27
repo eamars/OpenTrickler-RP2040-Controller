@@ -3,7 +3,6 @@
 
 #include "eeprom.h"
 
-#define EEPROM_APP_CONFIG_DATA_REV              1           // 16 byte
 
 typedef struct {
     

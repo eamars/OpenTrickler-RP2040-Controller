@@ -95,6 +95,11 @@ option(RC_TEST_WIFI_FIRST_JOIN_FAILS "Test build only: the start's Wi-Fi join is
 if (RC_TEST_WIFI_FIRST_JOIN_FAILS)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_WIFI_FIRST_JOIN_FAILS=1)
 endif()
+# A test build whose radio does not start (ADR-006, gate 10): the unit goes on without the network
+option(RC_TEST_RADIO_FAILS "Test build only: the radio's start skipped, as if it had failed" OFF)
+if (RC_TEST_RADIO_FAILS)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_RADIO_FAILS=1)
+endif()
 # A probe build (ADR-008, gate 1): the start's join skipped, so the unit starts as its own access point; the station
 # joins only on the console's `wifi join`, and the access point is kept up when it does; `wifi scan` lists networks
 option(RC_TEST_AP_PROBE "Test build only: the access point kept up through the station's join, wifi join and scan" OFF)

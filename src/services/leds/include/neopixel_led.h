@@ -6,7 +6,6 @@
 #include <semphr.h>
 #include "common.h"
 
-#define EEPROM_NEOPIXEL_LED_METADATA_REV                     4              // 16 byte 
 
 
 // A struct that uses 8bit bitfields to map R, G, B, W into a uint32_t memory space.

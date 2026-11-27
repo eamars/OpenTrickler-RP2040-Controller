@@ -55,6 +55,10 @@ It is the proof of ADR-006. A seam with one platform behind it is a guess.
 - `platform/esp32s3/` behind ADR-006's interfaces, and `boards/esp32s3_pico/`: its pins, its modules, each module's optimisation, and ESP-IDF's own settings (sdkconfig) in place of `FreeRTOSConfig.h`, `lwipopts.h` and `mbedtls_config.h`.
 - Stored enums are written as fixed-width types by ADR-006, so a record's bytes no longer hang on an enum's size (one byte with the Pico's compiler; four with ESP-IDF's, as far as is known, not checked). Whatever else the two compilers lay out apart is checked here: every record's size and offsets, by both.
 - ADR-006's PC build is the modules' second build before this one.
+- Found by ADR-006's review (2026-11-28), each to settle here:
+  - `system_board_name()` (`src/services/system/system_control.c`) reads the SDK's `PICO_RP2350`: an ESP32 build would call itself `pico_w`, and the update's board check would take a Pico W's image for its own. The board's name should come from the board's folder.
+  - lwIP's internals, `lwip/stats.h` and `lwip/memp.h`, are included outside the platform (`api_v1.c`, `http_server_console.c`), for the `net` counts. ESP-IDF builds lwIP with pools of its own.
+  - Whether `bool` and the alignments are the same with ESP-IDF's compiler, and whether it takes `enum : uint8_t` in its C mode (ADR-006's gate 8).
 
 ## Ideas
 

@@ -864,13 +864,12 @@ bool update_poll_init(void) {
     update_poll_mutex = xSemaphoreCreateMutex();
     bool is_ok = update_poll_mutex != NULL && https_client_init();
     if (!load_config(EEPROM_UPDATE_CONFIG_BASE_ADDR, &update_config, &default_update_config,
-                     sizeof(eeprom_update_config_t), EEPROM_UPDATE_CONFIG_REV)) {
+                     sizeof(eeprom_update_config_t))) {
         printf("Update: the stored source could not be read; GitHub's is used\n");
         update_config = default_update_config;
     }
     // A string read back is ended, whatever the slot held
     update_config.source[sizeof(update_config.source) - 1] = '\0';
-    eeprom_register_handler(update_poll_config_save);
     settings_register(&update_settings);
     return is_ok;
 }

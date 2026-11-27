@@ -72,9 +72,10 @@ bool cat24c256_eeprom_erase() {
     memset(dummy_buffer, 0xff, PAGE_SIZE);
 
     
+    bool erased = true;
     for (size_t page=0; page < 512; page++) {
         size_t page_offset = page * PAGE_SIZE;
-        cat24c256_write(page_offset, dummy_buffer, PAGE_SIZE);
+        erased = cat24c256_write(page_offset, dummy_buffer, PAGE_SIZE) && erased;
     }
-    return true;
+    return erased;
 }

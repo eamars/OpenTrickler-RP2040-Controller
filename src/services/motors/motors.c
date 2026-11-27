@@ -303,7 +303,7 @@ bool motor_config_init(void) {
     static const config_layout_t layout = {.header = offsetof(eeprom_motor_data_t, motor_data),
                                            .element = sizeof(motor_persistent_config_t), .count = 2};
     is_ok = load_config_layout(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data,
-                               sizeof(eeprom_motor_data), &layout, EEPROM_MOTOR_DATA_REV);
+                               sizeof(eeprom_motor_data), &layout);
     if (!is_ok) {
         printf("Unable to read motor configuration\n");
         return is_ok;
@@ -345,8 +345,6 @@ bool motor_config_init(void) {
     coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
     fine_trickler_motor_config.step_direction = fine_trickler_motor_config.persistent_config.inverted_direction ? true : false;
 
-    // Register to eeprom save all
-    eeprom_register_handler(motor_config_save);
     settings_register(&coarse_motor_settings);
     settings_register(&fine_motor_settings);
 

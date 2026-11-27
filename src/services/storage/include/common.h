@@ -35,7 +35,7 @@ uint32_t software_crc32_continue(uint32_t crc, const void * data, size_t length)
 /** 
  * @brief Load configuration from persistent storage. 
  */
-bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation);
+bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size);
 
 /*
  * A record that is a header and an array of elements (the powders, the motors): each element may grow at its own end
@@ -72,7 +72,7 @@ typedef struct {
     size_t past_count;
 } config_layout_t;
 bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
-                        const config_layout_t * layout, uint16_t rev_validation);
+                        const config_layout_t * layout);
 
 /**
  * @brief Save configuration to persistent storage

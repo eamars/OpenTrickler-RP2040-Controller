@@ -207,7 +207,7 @@ bool neopixel_led_init(void) {
     
     // Initialize configuration
     memset(&neopixel_led_config, 0x0, sizeof(neopixel_led_config));
-    is_ok = load_config(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, &neopixel_led_config.eeprom_neopixel_led_metadata, &default_neopixel_led_metadata, sizeof(neopixel_led_config.eeprom_neopixel_led_metadata), EEPROM_NEOPIXEL_LED_METADATA_REV);
+    is_ok = load_config(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, &neopixel_led_config.eeprom_neopixel_led_metadata, &default_neopixel_led_metadata, sizeof(neopixel_led_config.eeprom_neopixel_led_metadata));
 
     if (!is_ok) {
         printf("Unable to read neopixel configuration\n");
@@ -249,8 +249,6 @@ bool neopixel_led_init(void) {
         urgbw_u32(colour, neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order)
     );
 
-    // Register to eeprom save all
-    eeprom_register_handler(neopixel_led_config_save);
     settings_register(&led_settings);
 
     return true;

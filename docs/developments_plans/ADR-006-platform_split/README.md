@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept; merged by #145. Gate 9, what a board carries, approved and built the same day and proven on the Pico W: a part a build may leave out declared once, handed over by the start-up's wiring alone; the one-of places refused at configure; a stored make of scale the build lacks refused, nothing in its place. The gates after 9 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Built** 2026-11-27, closed in its branch before gate 10's PR ([progress](progress.md), "Closed"). Reviewed whole 2026-11-28 ([review](review_2026-11-28.md)): its findings folded into gate 10's PR at the owner's word, or handed to ADR-017 and ADR-007; one of them is that a stored make that is a number no make has is refused for one start only (gate 9, below), until ADR-017. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other; merged by #143. Gate 7, the platform's interfaces, approved and built the same day and proven on the Pico W: no file outside the platform and the boards includes the Pico SDK, and only the platform's RP side requires it; merged by #144. Gate 8, stored records apart from the compiler, approved and built the same day and proven on the Pico W: every stored field is of a fixed width, each stored enum one byte by its own type, its name kept; merged by #145. Gate 9, what a board carries, approved and built the same day and proven on the Pico W: a part a build may leave out declared once, handed over by the start-up's wiring alone; the one-of places refused at configure; a stored make of scale the build lacks refused, nothing in its place; merged by #146. Gate 10, the small fixes and the close, approved the same day: the fixes built and proven on the Pico W, ADR-017 drafted for what was handed on, the end's checks passed on the Pico W and then on the Pico 2 W, whose runs had waited, by the owner's word, until the whole ADR was proven on the Pico W. The owner waived the real throw, every throw's path being run by the tests. The Pico 2 W's runs found it had taken no update since ADR-009 put the SDK at `-Os`: fixed and proven on it in the gate.
 
 ## What we want
 
@@ -94,6 +94,14 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 - Approved: "merged, please proceed."
 - **The gate handed over** (asked before cut 1, since its users reached it through `#if FEATURE_SERVO_GATE` in four files and a header that answered "no gate" when its source was left out): an always-present `services/gate`, which `app.c` hands the servo gate to, so `app.c` is the one place that asks. The other way, the stub header kept and the four files' `#if` turned into calls to it, was not taken.
 - **A stored make the build does not carry is refused, nothing standing in** (asked with it): no make runs, the unit says so, and a charge and a calibration refuse. The other way, the A&D's driver kept as the fallback with only the simulated scale dropped, was not taken. It settles "the several, one chosen pick shown on the scale's makes" under "To settle": yes.
+- PR #146 merged by the owner.
+
+**2026-11-27, gate 10**
+- Approved: "The last PR for gate 9 has been merged. I want you to proceed to the remainder of the gates."
+- At the Pico W's end, asked how to go on: "Stop here for today."
+- **The real throw waived, on a condition:** "I will not actually throw on ADR-006, if every throw related calls are indendepently verified using your tests." Checked in progress.md: met, but for a calibration's whole run on a unit.
+- **The Pico 2 W, simply:** "I will switch to Pico2W for a simple verification."
+- **The Pico 2 W's update fixed in this gate, both sides** (asked once it was found refusing every image): the reader takes the image's board at any byte, and the SDK's binary information is kept off `-Os` so a unit on an earlier firmware takes the next image. The other ways, the reader alone, or the fix handed to ADR-017, were not taken.
 
 ## Why here
 
@@ -363,7 +371,7 @@ These change what a user sees, or need tests that are not small:
 - **The scale as one reader with a parser a make**, and with it the reader task not swapped with its make. The draft had it among the small fixes. It is not one (the review): it writes the reading of ten makes again, with one make's scale on the bench. Here each make keeps its task and its framing, and only its serial calls are swapped one for one for the platform's (gate 7). The one reader is designed with the line endings, where a parser can be shown against recorded frames.
 - **The filler rule checked by `release_records.py`:** it needs each record's layout from the compiler, at v1.21 and now.
 
-Its exit: that ADR is drafted before this one closes.
+Its exit: that ADR is drafted before this one closes. Drafted 2026-11-27 at gate 10: [ADR-017](../ADR-017-storage_and_scale_faults/README.md), with two more found on the way: the erase outside the EEPROM's lock (found in ADR-003, handed on with no ADR named), and a radio that does not start shown as "Not joined".
 
 Gone since they were handed on: the menu's one-byte writes into enums (`mui_menu.c`, removed by ADR-010), and the unit's id printed with no ending (`unit_id.c`, written again by ADR-008, makes it with its ending, by `snprintf`).
 
@@ -543,6 +551,14 @@ Proof besides: `menu_tour --compare`, `charge_cycle`, `api_check`; the size by m
 2. The ADR for what was handed on is drafted.
 3. The end's checks (below), the owner's real throw among them.
 4. Closed in its branch, then its PR.
+
+**Built 2026-11-27** ([progress](progress.md)): the four fixes built and proven on the Pico W (the ring buffer's `malloc` went with gate 5); ADR-017 drafted for what was handed on; the end's checks pass on the Pico W, a unit updated from v1.21 among them, every value it was given read back, and on the Pico 2 W, ADR-013's faults during a charge among them. What differs from the steps above:
+- **the radio's fix needed two refusals besides:** a scan and a leave reached the radio from other tasks, and are refused while it is not up;
+- **nothing calls `eeprom_save_all`:** it says the truth now, and so does the erase, which read no write's result either;
+- **the revision numbers went with the path:** the parameter that fed it and the ten numbers nothing else read;
+- **the Generic's parser reads a point before the digits** too, which its comment said it did: ".52 g" read as 52;
+- **a fifth fix, found by the Pico 2 W's runs:** it refused every update image since ADR-009 put the SDK at `-Os`, the image's board read only from an item on a word; the reader takes it at any byte, and the SDK's binary information stays off `-Os` for the readers already on units (the owner's pick);
+- **the real throw waived** by the owner, every throw's path run by the tests (progress, "The owner's two words").
 
 ## How the unit shows it works
 
