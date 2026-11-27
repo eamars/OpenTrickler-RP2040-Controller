@@ -7,7 +7,7 @@
 #include <FreeRTOS.h>
 #include <semphr.h>
 
-#include "pico/time.h"
+#include "chip.h"
 
 #include "activity.h"
 #include "events.h"
@@ -42,7 +42,7 @@ void events_add(const event_t *event) {
     event_t *slot = &events_ring[events_latest % EVENTS_KEPT];
     *slot = *event;
     slot->seq = events_latest;
-    slot->at_ms = time_us_64() / 1000u;
+    slot->at_ms = chip_time_us() / 1000u;
     xSemaphoreGive(events_mutex);
 }
 

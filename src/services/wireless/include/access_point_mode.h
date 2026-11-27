@@ -10,8 +10,9 @@ extern "C" {
 
 uint8_t access_point_mode_menu();
 
-bool access_point_mode_start();
-bool access_point_mode_stop();
+// The hotspot on its channel (0: the radio's), and its end, its DHCP and DNS servers with it
+bool access_point_mode_start(uint8_t channel);
+bool access_point_mode_stop(void);
 // The access point's key made, from the chip, before the scheduler starts (ADR-008, gate 4)
 void access_point_mode_init(void);
 // The access point's key, as the screen's Wi-Fi page shows it (ADR-010, gate 4)

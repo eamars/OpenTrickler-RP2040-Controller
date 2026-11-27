@@ -25,8 +25,6 @@
 // `snap`: the screen's frame, sent in lines of this many bytes before base64
 #define REMOTE_CONTROL_SNAP_CHUNK 256
 
-extern QueueHandle_t encoder_event_queue;
-
 static uint8_t remote_control_snap_buffer[MENU_FRAME_BYTES_MAX];
 static char remote_control_snap_line[8 + (REMOTE_CONTROL_SNAP_CHUNK + 2) / 3 * 4 + 1];
 
@@ -68,7 +66,7 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
     }
 
     for (int idx = 0; idx < count; idx += 1) {
-        if (xQueueSend(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(500)) != pdTRUE) {
+        if (!button_send(button_encoder_event, 500)) {
             snprintf(reply, reply_size, "@err input queue full after %d", idx);
             return false;
         }

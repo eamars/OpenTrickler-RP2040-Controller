@@ -20,6 +20,8 @@
 #include "hardware/structs/powman.h"
 #include "pico/bootrom.h"
 
+#include "update_slots_chip.h"
+
 // rom_load_partition_table()'s and rom_explicit_buy()'s work areas, taken from the heap only while they run
 #define UPDATE_SLOTS_LOAD_BYTES 0x1000
 #define UPDATE_SLOTS_BUY_BYTES 0x1000
@@ -66,6 +68,7 @@ bool update_slots_read(update_slots_t *slots) {
     slots->free_size = 0;
     slots->free_read_at = 0;
     slots->free_runs_at = XIP_BASE;     // the ROM maps whichever slot it boots to the start of flash
+    slots->linked_per_slot = false;
 
     boot_info_t info;
     if (!rom_get_boot_info(&info)) {

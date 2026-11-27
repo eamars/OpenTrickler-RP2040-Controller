@@ -21,13 +21,7 @@
 #include <task.h>
 #include <timers.h>
 
-#include "boot/picobin.h"
-#include "hardware/flash.h"
-#include "hardware/watchdog.h"
 #include "mbedtls/sha256.h"
-#include "pico/binary_info/defs.h"
-#include "pico/binary_info/structure.h"
-#include "pico/flash.h"
 
 #include "activity.h"
 #include "common.h"
@@ -36,19 +30,13 @@
 #include "http_json.h"
 #include "system_control.h"
 #include "jobs.h"
-#include "picobin_image.h"
+#include "rtos_port.h"
 #include "update_slots.h"
 #include "version.h"
 #include "wireless.h"
 
-#if PICO_RP2350
-#define UPDATE_CHIP PICOBIN_IMAGE_TYPE_EXE_CHIP_RP2350
-#else
-#define UPDATE_CHIP PICOBIN_IMAGE_TYPE_EXE_CHIP_RP2040
-#endif
 #define UPDATE_HASH_BYTES 32
 
-#define UPDATE_TRIAL_WATCHDOG_MS 8000       // the watchdog while on trial: the RP2040's longest is 8.3 s
 #define UPDATE_TRIAL_FEED_MS 1000
 #define UPDATE_TRIAL_LIMIT_MS 60000         // fed no longer than this: a trial that is not on its network by then ends
 #define UPDATE_RECEIVING_IDLE_MS 30000      // a job receiving that gets no bytes for this long ends (p)
@@ -58,13 +46,6 @@
 
 // The note left for the start after a trial (update_slots_note_write): the slot tried, and its version
 #define UPDATE_NOTE_MAGIC 0x55504400u       // "UPD", the slot in the low byte
-
-#ifndef PICO_CRT0_VERSION_MAJOR
-#define PICO_CRT0_VERSION_MAJOR 0
-#endif
-#ifndef PICO_CRT0_VERSION_MINOR
-#define PICO_CRT0_VERSION_MINOR 0
-#endif
 
 static update_slots_t update_slots;
 static bool update_slots_known = false;
@@ -104,7 +85,7 @@ static char update_slot_name(int8_t slot) {
 
 
 static uint32_t update_running_version(void) {
-    return ((uint32_t) PICO_CRT0_VERSION_MAJOR << 16) | PICO_CRT0_VERSION_MINOR;
+    return update_slots_running_version();
 }
 
 
@@ -164,117 +145,23 @@ bool update_version_parse(const char *text, uint32_t *version) {
 
 // --- The check of an image
 
-/*
- * An image's SHA-256, as picotool seals it (bintool.cpp, 2.3.1): the data of each load map entry from where it is
- * stored (a cleared region by its size), then the block's words up to and including the hash definition, with the
- * try-before-you-buy mark cleared in the copy hashed, so the hash holds once the image is confirmed. Checked against
- * an image picotool verified (progress, 2026-11-16). Only relative load maps, stored inside the slot, are taken
- */
-static bool update_hash_holds(const picobin_image_t *image, uintptr_t start, uint32_t size) {
-    if (image->load_map == NULL || image->hash_def == NULL || image->hash_value == NULL ||
-        (image->hash_def[0] >> 24) != PICOBIN_HASH_SHA256) {
-        return false;
-    }
-    // Every length and place below is the image's own: each is held inside its item and the slot (review Q3)
-    uint32_t header = image->load_map[0];
-    uint32_t entries = (header << 1) >> 25;
-    uint32_t item_words = (header >> 8) & 0xffu;
-    if ((header >> 31) != 0 || 1 + 3 * entries > item_words) {
-        return false;
-    }
-    mbedtls_sha256_context sha;
-    mbedtls_sha256_init(&sha);
-    bool held = mbedtls_sha256_starts(&sha, 0) == 0;
-    for (uint32_t idx = 0; held && idx < entries; idx += 1) {
-        int32_t storage_rel = (int32_t) image->load_map[1 + 3 * idx];
-        uint32_t bytes = image->load_map[3 + 3 * idx];
-        if (storage_rel == 0) {
-            held = mbedtls_sha256_update(&sha, (const uint8_t *) &bytes, sizeof(bytes)) == 0;
-            continue;
-        }
-        uintptr_t stored = (uintptr_t) image->load_map + storage_rel;
-        held = stored >= start && bytes <= size && stored - start <= size - bytes &&
-               mbedtls_sha256_update(&sha, (const uint8_t *) stored, bytes) == 0;
-    }
-    uint32_t block_words = image->hash_def[1] & 0xffff;
-    held = held && (uintptr_t) image->block >= start && block_words <= (start + size - (uintptr_t) image->block) / 4;
-    for (uint32_t idx = 0; held && idx < block_words; idx += 1) {
-        uint32_t word = image->block[idx];
-        if (idx == 1 && (word & 0xff) == PICOBIN_BLOCK_ITEM_1BS_IMAGE_TYPE) {
-            word &= ~((uint32_t) PICOBIN_IMAGE_TYPE_EXE_TBYB_BITS << 16);
-        }
-        held = mbedtls_sha256_update(&sha, (const uint8_t *) &word, sizeof(word)) == 0;
-    }
-    uint8_t digest[UPDATE_HASH_BYTES];
-    held = held && mbedtls_sha256_finish(&sha, digest) == 0 && memcmp(digest, image->hash_value, sizeof(digest)) == 0;
-    mbedtls_sha256_free(&sha);
-    return held;
-}
-
-
-#define UPDATE_BINARY_INFO_SEARCH_BYTES 1024     // the binary information's header lies near the image's start
-
-
-/*
- * The board an image was built for: its binary information's pico_board, which picotool shows. The image is read
- * where it lies, and its pointers are where it runs, so each is moved from runs_at into the window it is read
- * through. False when the image names none that lies inside it
- */
-static bool update_image_board(uintptr_t read_at, uint32_t size, uint32_t runs_at, char *out, size_t out_size) {
-    const uint32_t *words = (const uint32_t *) read_at;
-    for (uint32_t idx = 0; (idx + 5) * 4 <= UPDATE_BINARY_INFO_SEARCH_BYTES; idx += 1) {
-        if (words[idx] != BINARY_INFO_MARKER_START || words[idx + 4] != BINARY_INFO_MARKER_END) {
-            continue;
-        }
-        // The image's own pointers: each on a word and inside the slot, or not read (review Q3)
-        uint32_t start = words[idx + 1];
-        uint32_t end = words[idx + 2];
-        if (start < runs_at || end < start || end - runs_at > size || ((start | end) & 3u) != 0) {
-            return false;
-        }
-        for (uint32_t at = start; at < end; at += 4) {
-            uint32_t entry = *(const uint32_t *) (read_at + (at - runs_at));
-            if (entry < runs_at || entry - runs_at > size - 12 || (entry & 3u) != 0) {
-                continue;   // one kept in RAM: not the board's
-            }
-            const uint32_t *item = (const uint32_t *) (read_at + (entry - runs_at));
-            if ((item[0] & 0xffffu) != BINARY_INFO_TYPE_ID_AND_STRING || (item[0] >> 16) != BINARY_INFO_TAG_RASPBERRY_PI ||
-                item[1] != BINARY_INFO_ID_RP_PICO_BOARD) {
-                continue;
-            }
-            uint32_t text = item[2];
-            size_t len = 0;
-            while (len + 1 < out_size && text >= runs_at && text - runs_at < size - len &&
-                   ((const char *) (read_at + (text - runs_at)))[len] != '\0') {
-                out[len] = ((const char *) (read_at + (text - runs_at)))[len];
-                len += 1;
-            }
-            out[len] = '\0';
-            return len > 0;
-        }
-        return false;
-    }
-    return false;
-}
-
-
 static update_refusal_t update_refuse(const char *code, const char *message) {
     return (update_refusal_t) {.code = code, .message = message};
 }
 
 
 // What the first block says, which the first 4 KB hold: an executable for this chip, an update, newer
-static update_refusal_t update_check_first(const picobin_image_t *image) {
+static update_refusal_t update_check_first(const update_slots_image_t *image) {
     if (!image->valid) {
         return update_refuse("not_an_image", "no image definition in its first 4 KB");
     }
-    if (image->chip != UPDATE_CHIP) {
+    if (!image->this_chip) {
         return update_refuse("wrong_chip", "an image for the other chip: the other board's");
     }
     if (!image->trial) {
         return update_refuse("not_an_update", "not an update image: it carries no try-before-you-buy mark");
     }
-    if (picobin_image_version(image) <= update_running_version()) {
+    if (image->version <= update_running_version()) {
         return update_refuse("not_newer", "not newer than the image running");
     }
     return update_refuse(NULL, NULL);
@@ -283,28 +170,23 @@ static update_refusal_t update_check_first(const picobin_image_t *image) {
 
 /*
  * The image in the free slot, whole: as its first block, then linked for the free slot, built for this board (its
- * binary information) and its hash holding. On the
- * RP2040 the first load map entry is the image's start, where it runs: the slot's address; on the RP2350 flash's
- * start, which the ROM maps the slot to
+ * binary information) and its hash holding
  */
-static update_refusal_t update_check_free(picobin_image_t *image) {
-    if (!picobin_image_read(update_slots.free_read_at, update_slots.free_size, image)) {
+static update_refusal_t update_check_free(update_slots_image_t *image) {
+    if (!update_slots_read_free(&update_slots, image)) {
         return update_refuse("not_an_image", "no whole image in the free slot");
     }
     update_refusal_t first = update_check_first(image);
     if (first.code != NULL) {
         return first;
     }
-    if (image->load_map == NULL || ((image->load_map[0] << 1) >> 25) == 0 ||
-        image->load_map[2] != update_slots.free_runs_at) {
+    if (!image->fits) {
         return update_refuse("wrong_slot", "not linked for the free slot");
     }
-    char board[32];
-    if (!update_image_board(update_slots.free_read_at, update_slots.free_size, update_slots.free_runs_at, board,
-                            sizeof(board)) || strcmp(board, system_board_name()) != 0) {
+    if (image->board[0] == '\0' || strcmp(image->board, system_board_name()) != 0) {
         return update_refuse("wrong_board", "built for another board");
     }
-    if (!update_hash_holds(image, update_slots.free_read_at, update_slots.free_size)) {
+    if (!update_slots_free_hash_holds(&update_slots)) {
         return update_refuse("hash_mismatch", "its hash does not hold");
     }
     return update_refuse(NULL, NULL);
@@ -525,7 +407,7 @@ static void update_feed(TimerHandle_t timer) {
         xTimerStop(timer, 0);
         return;
     }
-    watchdog_update();
+    update_slots_trial_feed();
 }
 
 
@@ -538,7 +420,7 @@ void update_init(void) {
     events_set_update_texts(&update_event_texts);
     update_slots_known = update_slots_read(&update_slots);
     printf("Update: running slot %c, version %s (block %d.%d)%s\n", update_slot_name(update_slots.running),
-           version_string, PICO_CRT0_VERSION_MAJOR, PICO_CRT0_VERSION_MINOR,
+           version_string, (int) (update_running_version() >> 16), (int) (update_running_version() & 0xffffu),
            update_slots.on_trial ? ", on trial: it confirms itself once the unit is on its network" : "");
     update_read_note();
     if (!update_slots.on_trial) {
@@ -546,7 +428,7 @@ void update_init(void) {
     }
     // Nothing the image it may go back to relies on is written until this one is kept (gap 1)
     config_hold_writes(true);
-    watchdog_enable(UPDATE_TRIAL_WATCHDOG_MS, true);
+    update_slots_trial_watchdog(true);
     update_trial_started = xTaskGetTickCount();
     update_feed_timer = xTimerCreate("Update feed", pdMS_TO_TICKS(UPDATE_TRIAL_FEED_MS), pdTRUE, NULL, update_feed);
     if (update_feed_timer == NULL || xTimerStart(update_feed_timer, 0) != pdPASS) {
@@ -578,7 +460,7 @@ void update_network_ready(bool on_its_network) {
         return;
     }
     update_confirmed = true;
-    watchdog_disable();
+    update_slots_trial_watchdog(false);
     update_clear_note();
     // Kept: what the trial held is written now, and the settings it reset are said (gap 1)
     uint16_t reset_addrs[sizeof(update_records) / sizeof(update_records[0])];
@@ -637,12 +519,13 @@ void update_status(update_status_t *status) {
     status->version = version_string;
     update_version_text(update_running_version(), status->block, sizeof(status->block));
     // The release manifest's name for the image this unit takes: one for the Pico 2 W, one a slot for the Pico W
-#if PICO_RP2350
-    snprintf(status->takes, sizeof(status->takes), "%s", system_board_name());
-#else
-    snprintf(status->takes, sizeof(status->takes), "%s_%c", system_board_name(),
-             update_slot_name(1 - update_slots.running));
-#endif
+    if (update_slots.linked_per_slot) {
+        snprintf(status->takes, sizeof(status->takes), "%s_%c", system_board_name(),
+                 update_slot_name(1 - update_slots.running));
+    }
+    else {
+        snprintf(status->takes, sizeof(status->takes), "%s", system_board_name());
+    }
 }
 
 
@@ -727,39 +610,31 @@ bool update_install(activity_by_t by) {
 
 // --- The image, in pieces (the web server's task)
 
-static void update_flash_sector(void *param) {
-    uint32_t offset = *(const uint32_t *) param;
-    flash_range_erase(offset, FLASH_SECTOR_SIZE);
-    flash_range_program(offset, update_sector, FLASH_SECTOR_SIZE);
-}
-
-
 // The sector in the buffer, into the free slot. The first is checked before it is written. Nothing outside the free
-// slot is ever written: the bound is held here, where flash is written (review Q1)
+// slot is ever written: the bound is held here, and where flash is written (update_slots_write)
 static bool update_write_sector(void) {
-    if (update_written + FLASH_SECTOR_SIZE > update_slots.free_size) {
+    if (update_written + UPDATE_SLOTS_PIECE_BYTES > update_slots.free_size) {
         update_upload_refusal = update_refuse("too_large", "larger than the free slot");
         return false;
     }
     if (update_written == 0) {
-        picobin_image_t first;
-        picobin_image_read_first((uintptr_t) update_sector, FLASH_SECTOR_SIZE, &first);
+        update_slots_image_t first;
+        update_slots_read_first(update_sector, UPDATE_SLOTS_PIECE_BYTES, &first);
         update_upload_refusal = update_check_first(&first);
-        if (update_upload_refusal.code == NULL && !update_slots_first_fits(update_sector, FLASH_SECTOR_SIZE)) {
+        if (update_upload_refusal.code == NULL && !first.fits) {
             update_upload_refusal = update_refuse("wrong_slot", "not linked for the free slot");
         }
         if (update_upload_refusal.code != NULL) {
             return false;
         }
-        update_job_version = picobin_image_version(&first);
+        update_job_version = first.version;
     }
-    uint32_t offset = update_slots.free_offset + update_written;
-    // Flash is written with the other core held off it; no job but this one runs, so no motor waits for a feed
-    if (flash_safe_execute(update_flash_sector, &offset, UINT32_MAX) != PICO_OK) {
+    // No job but this one runs, so no motor waits for a feed while the other core is held off flash
+    if (!update_slots_write(&update_slots, update_written, update_sector)) {
         update_upload_refusal = update_refuse("failed", "the flash could not be written");
         return false;
     }
-    update_written += FLASH_SECTOR_SIZE;
+    update_written += UPDATE_SLOTS_PIECE_BYTES;
     update_sector_fill = 0;
     return true;
 }
@@ -816,7 +691,7 @@ static bool update_image_piece_in(uint32_t token, const uint8_t *data, size_t le
             }
             return false;
         }
-        size_t take = FLASH_SECTOR_SIZE - update_sector_fill;
+        size_t take = UPDATE_SLOTS_PIECE_BYTES - update_sector_fill;
         if (take > len) {
             take = len;
         }
@@ -825,7 +700,7 @@ static bool update_image_piece_in(uint32_t token, const uint8_t *data, size_t le
         update_taken += (uint32_t) take;
         data += take;
         len -= take;
-        if (update_sector_fill == FLASH_SECTOR_SIZE && !update_write_sector()) {
+        if (update_sector_fill == UPDATE_SLOTS_PIECE_BYTES && !update_write_sector()) {
             return false;
         }
     }
@@ -840,11 +715,11 @@ static update_refusal_t update_image_end_in(uint32_t token, int *status) {
         *status = 409;
         return update_refuse("not_running", "the update was stopped");
     }
-    picobin_image_t image;
+    update_slots_image_t image;
     update_refusal_t refusal = update_upload_refusal;
     if (refusal.code == NULL && update_sector_fill > 0 && update_state == UPDATE_RECEIVING) {
         // The last sector, filled out as erased flash; only while the job runs, whose buffer it is
-        memset(update_sector + update_sector_fill, 0xff, FLASH_SECTOR_SIZE - update_sector_fill);
+        memset(update_sector + update_sector_fill, 0xff, UPDATE_SLOTS_PIECE_BYTES - update_sector_fill);
         if (!update_write_sector()) {
             refusal = update_upload_refusal;
         }
@@ -888,16 +763,16 @@ static update_refusal_t update_image_end_in(uint32_t token, int *status) {
 static volatile int update_sector_users = 0;
 
 static void update_sector_enter(void) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     update_sector_users += 1;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 
 static void update_sector_leave(void) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     update_sector_users -= 1;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 
@@ -1076,7 +951,7 @@ uint8_t update_mode_menu(void) {
     activity_job_begin(ACTIVITY_UPDATE);
     activity_by_t by = activity_job_by();
     if (update_sector == NULL) {
-        update_sector = pvPortMalloc(FLASH_SECTOR_SIZE);
+        update_sector = pvPortMalloc(UPDATE_SLOTS_PIECE_BYTES);
     }
     if (update_sector == NULL) {
         update_end_locked(UPDATE_RESULT_STOPPED, ACTIVITY_BY_UNIT, update_refuse("failed", "no room for a sector"));
@@ -1109,9 +984,9 @@ uint8_t update_mode_menu(void) {
             printf("Update: installing; the job task's stack left %lu bytes\n",
                    (unsigned long) (uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
             vTaskDelay(pdMS_TO_TICKS(UPDATE_INSTALL_DELAY_MS));
-            picobin_image_t image;
-            picobin_image_read(update_slots.free_read_at, update_slots.free_size, &image);
-            int refused = update_try(picobin_image_version(&image));
+            update_slots_image_t image;
+            update_slots_read_free(&update_slots, &image);
+            int refused = update_try(image.version);
             // Only when the restart was refused
             activity_lock();
             update_end_locked(UPDATE_RESULT_STOPPED, ACTIVITY_BY_UNIT,
@@ -1168,8 +1043,8 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
                  "@ok update slot=%c known=%d trial=%d confirmed=%d confirm_result=%d ver=%s block=%d.%d "
                  "free=0x%lx+0x%lx state=%d takes=%s last=%d reason=%s reset=0x%x",
                  update_slot_name(update_slots.running), update_slots_known, update_slots.on_trial,
-                 update_confirmed, update_confirm_result, version_string, PICO_CRT0_VERSION_MAJOR,
-                 PICO_CRT0_VERSION_MINOR, (unsigned long) update_slots.free_offset,
+                 update_confirmed, update_confirm_result, version_string, (int) (update_running_version() >> 16),
+                 (int) (update_running_version() & 0xffffu), (unsigned long) update_slots.free_offset,
                  (unsigned long) update_slots.free_size, (int) status.state, status.takes, (int) status.last.result,
                  events_reason_name((event_reason_t) status.last.reason), (unsigned) status.last.reset);
         return true;
@@ -1187,14 +1062,14 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
             snprintf(reply, reply_size, "@err not_found update try: the slots are not known");
             return false;
         }
-        picobin_image_t image;
+        update_slots_image_t image;
         update_refusal_t refused = update_check_free(&image);
         if (refused.code != NULL) {
             snprintf(reply, reply_size, "@err refused update try: %s: %s", refused.code, refused.message);
             return false;
         }
         printf("@ok update try: restarting into a trial of slot %c\n", update_slot_name(1 - update_slots.running));
-        int result = update_try(picobin_image_version(&image));
+        int result = update_try(image.version);
         snprintf(reply, reply_size, "@err failed update try: the restart was refused (%d)", result);
         return false;
     }

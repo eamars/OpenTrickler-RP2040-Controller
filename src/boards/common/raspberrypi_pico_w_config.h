@@ -1,15 +1,12 @@
 #ifndef RASPBERRYPI_PICO_W_CONFIG_H_
 #define RASPBERRYPI_PICO_W_CONFIG_H_
 
-#include "pico/cyw43_arch.h"
-
 /* Specify board PIN mapping
     Reference: https://github.com/eamars/RaspberryPi-Pico-Motor-Expansion-Board?tab=readme-ov-file#peripherals
 */
 
-#define WATCHDOG_LED_PIN CYW43_WL_GPIO_LED_PIN
 
-#define DISPLAY0_SPI spi0
+#define DISPLAY0_SPI 0
 #define DISPLAY0_RX_PIN 16
 #define DISPLAY0_TX_PIN 19
 #define DISPLAY0_CS_PIN 17
@@ -24,13 +21,12 @@
 #define NEOPIXEL_PIN 13
 #define NEOPIXEL_PWM3_PIN 28
 
-#define MOTOR_UART uart1
+#define MOTOR_UART 1
 #define MOTOR_UART_TX 4
 #define MOTOR_UART_RX 5
 // Not the PIO the radio takes (pio0, the first with room when the Wi-Fi task starts it): the CYW43 driver turns its
 // state machine on and off with a read, change and write of the PIO's CTRL at each transfer, and a stepper's own
 // on the other core lost its turn-on: the radio's transfer waited for ever and the web stopped (ADR-008)
-#define MOTOR_PIO pio1
 
 #define COARSE_MOTOR_ADDR 0
 #define COARSE_MOTOR_EN_PIN 6
@@ -42,18 +38,17 @@
 #define FINE_MOTOR_STEP_PIN 8
 #define FINE_MOTOR_DIR_PIN 7
 
-#define SCALE_UART uart0
+#define SCALE_UART 0
 #define SCALE_UART_BAUDRATE 19200
 #define SCALE_UART_TX 0
 #define SCALE_UART_RX 1
 
-#define EEPROM_I2C i2c1
+#define EEPROM_I2C 1
 #define EEPROM_SDA_PIN 10
 #define EEPROM_SCL_PIN 11
 #define EEPROM_ADDR 0x50
 
 #define SERVO0_PWM_PIN 26
 #define SERVO1_PWM_PIN 27
-#define SERVO_PWM_SLICE_NUM 5
 
 #endif  // RASPBERRYPI_PICO_W_CONFIG_H_

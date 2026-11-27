@@ -1,3 +1,4 @@
+#include <string.h>
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@
 #include <task.h>
 #include <stdlib.h>
 
-#include "hardware/uart.h"
+#include "chip_serial.h"
 #include "configuration.h"
 #include "scale_make.h"
 
@@ -75,11 +76,12 @@ void _gng_scale_listener_task(void *p) {
 
     while (true) {
         // Request for a data transfer (ESC p)
-        uart_puts(SCALE_UART, CMD_REQUEST_DATA_TRANSFER);
+        chip_serial_write(SCALE_UART, (const uint8_t *) CMD_REQUEST_DATA_TRANSFER, strlen(CMD_REQUEST_DATA_TRANSFER));
 
             // Read all data 
-        while (uart_is_readable(SCALE_UART)) {   
-            char ch = uart_getc(SCALE_UART);
+        int got;
+        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
+            char ch = (char) got;
             frame.bytes[string_buf_idx++] = ch;
 
             // If we have received 14 bytes then we can decode the message

@@ -8,8 +8,9 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "pico/stdlib.h"
-#include "hardware/spi.h"
+#include "chip.h"
+#include "chip_gpio.h"
+#include "chip_spi.h"
 
 #include "configuration.h"
 #include "display.h"
@@ -53,20 +54,20 @@ static void display_delay_ms(uint32_t ms, BaseType_t scheduler_state) {
         vTaskDelay(pdMS_TO_TICKS(ms));
     }
     else {
-        busy_wait_us(ms * 1000ULL);
+        chip_busy_wait_us(ms * 1000u);
     }
 }
 
 
 static void display_commands(const uint8_t *commands, size_t len) {
-    gpio_put(DISPLAY0_CS_PIN, 0);
-    gpio_put(DISPLAY0_A0_PIN, 0);
-    spi_write_blocking(DISPLAY0_SPI, commands, len);
-    gpio_put(DISPLAY0_CS_PIN, 1);
+    chip_gpio_put(DISPLAY0_CS_PIN, 0);
+    chip_gpio_put(DISPLAY0_A0_PIN, 0);
+    chip_spi_write(DISPLAY0_SPI, commands, len);
+    chip_gpio_put(DISPLAY0_CS_PIN, 1);
 }
 
 
-// One page of 128 columns at the panel's first column. spi_write_blocking returns once the last bit is out, so A0
+// One page of 128 columns at the panel's first column. chip_spi_write returns once the last bit is out, so A0
 // changes between bytes, never during one
 static void display_write_page(int page, const uint8_t *columns) {
     uint8_t address[] = {
@@ -74,36 +75,29 @@ static void display_write_page(int page, const uint8_t *columns) {
         (uint8_t) (display_first_column & 0x0f),
         (uint8_t) (0xb0 | page),
     };
-    gpio_put(DISPLAY0_CS_PIN, 0);
-    gpio_put(DISPLAY0_A0_PIN, 0);
-    spi_write_blocking(DISPLAY0_SPI, address, sizeof(address));
-    gpio_put(DISPLAY0_A0_PIN, 1);
-    spi_write_blocking(DISPLAY0_SPI, columns, DISPLAY_WIDTH);
-    gpio_put(DISPLAY0_CS_PIN, 1);
+    chip_gpio_put(DISPLAY0_CS_PIN, 0);
+    chip_gpio_put(DISPLAY0_A0_PIN, 0);
+    chip_spi_write(DISPLAY0_SPI, address, sizeof(address));
+    chip_gpio_put(DISPLAY0_A0_PIN, 1);
+    chip_spi_write(DISPLAY0_SPI, columns, DISPLAY_WIDTH);
+    chip_gpio_put(DISPLAY0_CS_PIN, 1);
 }
 
 
 void display_init(bool flipped) {
-    spi_init(DISPLAY0_SPI, DISPLAY_SPI_HZ);
-    gpio_set_function(DISPLAY0_SCK_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(DISPLAY0_TX_PIN, GPIO_FUNC_SPI);
+    chip_spi_open(DISPLAY0_SPI, DISPLAY0_SCK_PIN, DISPLAY0_TX_PIN, DISPLAY_SPI_HZ);
 
-    gpio_init(DISPLAY0_CS_PIN);
-    gpio_set_dir(DISPLAY0_CS_PIN, GPIO_OUT);
-    gpio_put(DISPLAY0_CS_PIN, 1);
-    gpio_init(DISPLAY0_A0_PIN);
-    gpio_set_dir(DISPLAY0_A0_PIN, GPIO_OUT);
-    gpio_put(DISPLAY0_A0_PIN, 0);
-    gpio_init(DISPLAY0_RESET_PIN);
-    gpio_set_dir(DISPLAY0_RESET_PIN, GPIO_OUT);
+    chip_gpio_output(DISPLAY0_CS_PIN, 1);
+    chip_gpio_output(DISPLAY0_A0_PIN, 0);
+    chip_gpio_output(DISPLAY0_RESET_PIN, 0);
 
     // The reset pulse, then 6 ms for the controller to come up
     BaseType_t scheduler_state = xTaskGetSchedulerState();
-    gpio_put(DISPLAY0_RESET_PIN, 1);
+    chip_gpio_put(DISPLAY0_RESET_PIN, 1);
     display_delay_ms(1, scheduler_state);
-    gpio_put(DISPLAY0_RESET_PIN, 0);
+    chip_gpio_put(DISPLAY0_RESET_PIN, 0);
     display_delay_ms(1, scheduler_state);
-    gpio_put(DISPLAY0_RESET_PIN, 1);
+    chip_gpio_put(DISPLAY0_RESET_PIN, 1);
     display_delay_ms(6, scheduler_state);
 
     display_commands(display_setup, sizeof(display_setup));

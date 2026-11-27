@@ -6,7 +6,10 @@ is to require only modules of its own layer or below. This prints what stands ag
 
 - each requirement that goes up, from a module to one in a layer above it;
 - each loop: modules that require each other, directly or through others;
-- each module that still requires the Pico SDK itself (rp2_sdk), which only platform/rp2 is to do in the end.
+- each module that still requires the Pico SDK itself (rp2_sdk), which only platform/rp2 is to do;
+- each file outside platform/ and boards/ that includes the Pico SDK or the radio's driver. The build file alone does
+  not hold that: FreeRTOS's and lwIP's headers on the Pico carry the SDK's include paths with them, so a module that
+  names either could include the SDK and compile.
 
 Third-party names (freertos, lwip, mbedtls, lvgl, rp2_sdk) and the made ones (board, version) have no layer.
 
@@ -15,9 +18,8 @@ Usage:
     python tools/module_graph.py --modules    every module with what it requires, first
     python tools/module_graph.py --markdown   the lists as Markdown, for an ADR's progress
 
-Ends with VERDICT PASS when nothing goes up, nothing loops and only platform/rp2 requires rp2_sdk, else VERDICT FAIL
-with the counts, and exits 0 or 1. Since ADR-006's gate 6 nothing goes up and nothing loops; until its gate 7 is
-built it still fails, on the modules that require the Pico SDK: that count is gate 7's meter.
+Ends with VERDICT PASS when nothing goes up, nothing loops, only platform/rp2 requires rp2_sdk and no file outside
+platform/ and boards/ includes the SDK, else VERDICT FAIL with the counts, and exits 0 or 1 (ADR-006's gates 6 and 7).
 """
 
 import argparse
@@ -34,6 +36,10 @@ NO_LAYER = {"freertos", "lwip", "mbedtls", "lvgl", "rp2_sdk", "board", "version"
 SDK_SIDE = "rp2"
 
 CALL = re.compile(r"ot_module\s*\((.*?)\)", re.S)
+# An include of the Pico SDK, its boot ROM's headers, the radio's driver or RTT, which the SDK's stdio brings
+SDK_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](pico/|pico\.h|hardware/|boot/|cyw43|SEGGER_RTT)', re.M)
+# Where the chip may be named: the platform's side of it, and the boards
+SDK_PLACES = ("platform", "boards")
 KEYWORDS = ("SRCS", "INCLUDE_DIRS", "PRIV_INCLUDE_DIRS", "REQUIRES", "PRIV_REQUIRES")
 
 
@@ -122,12 +128,31 @@ def find_loops(modules):
     return sorted(groups, key=lambda group: (-len(group), group))
 
 
+def find_sdk_includes():
+    """
+    Find each file outside platform/ and boards/ that includes the Pico SDK or the radio's driver.
+
+    Returns:
+        A sorted list of the files' paths under src/.
+    """
+    found = []
+    for path in sorted(SRC.rglob("*")):
+        if path.suffix not in (".c", ".h", ".cpp") or path.relative_to(SRC).parts[0] in SDK_PLACES:
+            continue
+        if path.relative_to(SRC).parts[0] == "generated":
+            continue
+        if SDK_INCLUDE.search(path.read_text(encoding="utf-8", errors="replace")):
+            found.append(path.relative_to(SRC).as_posix())
+    return found
+
+
 def main():
     """
     Print the modules' requirements that stand against the layers, and the verdict.
 
     Returns:
-        0 when nothing goes up, nothing loops and only the SDK's side requires rp2_sdk, else 1.
+        0 when nothing goes up, nothing loops, only the SDK's side requires rp2_sdk and nothing outside the platform
+        and the boards includes the SDK, else 1.
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--modules", action="store_true", help="list every module with what it requires")
@@ -147,6 +172,7 @@ def main():
     loops = find_loops(modules)
     on_sdk = sorted(f"{layer}/{name}" for name, (layer, public, private) in modules.items()
                     if "rp2_sdk" in public | private and name != SDK_SIDE)
+    includes = find_sdk_includes()
 
     bullet = "- " if args.markdown else "  "
     if args.modules:
@@ -163,13 +189,17 @@ def main():
     print(f"{len(on_sdk)} modules besides platform/{SDK_SIDE} require the Pico SDK itself:")
     if on_sdk:
         print(f"{bullet}{' '.join(on_sdk)}")
+    print(f"{len(includes)} files outside platform/ and boards/ include the Pico SDK or the radio's driver:")
+    for path in includes:
+        print(f"{bullet}{path}")
     if unknown:
         print(f"required and not found: {' '.join(unknown)}")
 
-    if upward or loops or on_sdk or unknown:
+    if upward or loops or on_sdk or includes or unknown:
         looped = sum(len(group) for group in loops)
         print(f"VERDICT FAIL {len(upward)} requirements go up, {looped} modules in {len(loops)} loops, "
-              f"{len(on_sdk)} modules on the Pico SDK" + (f", {len(unknown)} names not found" if unknown else ""))
+              f"{len(on_sdk)} modules on the Pico SDK, {len(includes)} files include it"
+              + (f", {len(unknown)} names not found" if unknown else ""))
         return 1
     print("VERDICT PASS")
     return 0

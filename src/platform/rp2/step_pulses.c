@@ -10,6 +10,9 @@
 
 #include "configuration.h"
 #include "step_pulses.h"
+
+// The steppers' PIO, as the pin map's MOTOR_PIO was until ADR-006's gate 7
+#define STEP_PULSES_PIO pio1
 #include "stepper.pio.h"
 
 // A rate under this is a stop: the longest period the PIO's 32-bit count can hold is some 28 s
@@ -61,7 +64,7 @@ bool step_pulses_init(unsigned int channel, unsigned int step_pin) {
     step_pulses_channel_t *ch = &step_pulses_channels[channel];
 
     // The stepper program is loaded once and shared by the channels
-    PIO pio = MOTOR_PIO;
+    PIO pio = STEP_PULSES_PIO;
     if (step_pulses_program_offset < 0) {
         if (!pio_can_add_program(pio, &stepper_program)) {
             printf("Step pulses: no room for the stepper program\n");
@@ -92,7 +95,7 @@ bool step_pulses_init(unsigned int channel, unsigned int step_pin) {
     ch->has_counter = false;
     for (uint idx = 0; idx < NUM_PIOS && !ch->has_counter; idx += 1) {
         PIO candidate = pio_get_instance(idx);
-        if (candidate == MOTOR_PIO) {
+        if (candidate == STEP_PULSES_PIO) {
             continue;
         }
         int offset = step_counter_offsets[idx];

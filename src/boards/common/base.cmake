@@ -66,12 +66,11 @@ foreach(name freertos lwip mbedtls)
     target_include_directories(ot_${name} INTERFACE ${OT_THIRD_PARTY_SETTINGS})
 endforeach()
 
-# The controller board as a module names it: the pin map (configuration.h). Its header includes the SDK's and the
-# radio's, for the types its pins are given by
+# The controller board as a module names it: the pin map (configuration.h), plain numbers, the ports by their number
+# (ADR-006, gate 7): it carries nothing of the SDK
 add_library(ot_board INTERFACE)
 add_library(ot::board ALIAS ot_board)
 target_include_directories(ot_board INTERFACE ${SRC_DIRECTORY}/boards/common)
-target_link_libraries(ot_board INTERFACE ot::rp2_sdk ot::lwip)
 
 # SHA-256 optimised: at the build's -O0 an image's check took 5 s on the Pico W, and the web server, whose task it
 # runs in, answered nothing meanwhile (ADR-004). It is third-party code nobody steps through

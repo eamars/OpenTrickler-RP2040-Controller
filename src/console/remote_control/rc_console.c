@@ -9,18 +9,16 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "pico/stdlib.h"
+#include "chip.h"
+#include "rtos_port.h"
 
 #include "rc_console.h"
 #include "remote_control.h"
 
-#if LIB_PICO_STDIO_RTT
 #include <string.h>
-#include "SEGGER_RTT.h"
 
-// How long a command's line waits for room in the RTT buffer before it is printed anyway
+// How long a command's line waits for room in the console's output before it is printed anyway
 #define RC_CONSOLE_WRITE_WAIT_MS 500
-#endif
 
 
 // Large enough for `state`
@@ -29,7 +27,7 @@
 // RTT has no interrupt, so the console is polled. A line of 128 characters arrives within a few polls
 #define RC_CONSOLE_POLL_MS 20
 
-#define RC_CONSOLE_TASK_STACK 768       // words: 2,164 bytes used under ADR-008's full workload
+#define RC_CONSOLE_TASK_STACK_BYTES 3072     // 2,164 used under ADR-008's full workload
 #define RC_CONSOLE_TASK_PRIORITY 2      // below the menu (6) and the modes
 
 // A test build (-DRC_TEST_FAULT=1 or 2, see CMakeLists.txt) faults this long after start-up
@@ -43,14 +41,12 @@ static char rc_console_reply[RC_CONSOLE_REPLY_SIZE];
 // RTT drops a line that does not fit its buffer. Wait for the probe to make room, a little, so a snap's lines and the
 // reply after them all arrive; if it never does (no probe reading), the line is dropped as any log line would be
 static void rc_console_wait_room(const char *line) {
-#if LIB_PICO_STDIO_RTT
     for (int waited_ms = 0; waited_ms < RC_CONSOLE_WRITE_WAIT_MS; waited_ms += RC_CONSOLE_POLL_MS) {
-        if (SEGGER_RTT_GetAvailWriteSpace(0) > strlen(line) + 1) {
+        if (chip_console_room() > strlen(line) + 1) {
             break;
         }
         vTaskDelay(pdMS_TO_TICKS(RC_CONSOLE_POLL_MS));
     }
-#endif
 }
 
 
@@ -74,14 +70,14 @@ static void rc_console_task(void *p) {
     bool discarding = false;  // dropping the rest of an over-long line until its line ending
 
     // Never run what was typed before the task started
-    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
+    while (chip_console_read(0) != CHIP_CONSOLE_NONE) {
     }
 
     printf("@hello remote control ready\n");
 
     while (true) {
-        int c = getchar_timeout_us(0);
-        if (c == PICO_ERROR_TIMEOUT) {
+        int c = chip_console_read(0);
+        if (c == CHIP_CONSOLE_NONE) {
             vTaskDelay(pdMS_TO_TICKS(RC_CONSOLE_POLL_MS));
             continue;
         }
@@ -135,15 +131,14 @@ static void rc_test_fault_task(void *p) {
 
 
 bool rc_console_init(void) {
-    BaseType_t rtos_return = xTaskCreate(rc_console_task, "RC Console", RC_CONSOLE_TASK_STACK, NULL,
-                                         RC_CONSOLE_TASK_PRIORITY, NULL);
-    if (rtos_return != pdPASS) {
+    if (!rtos_task_start(rc_console_task, "RC Console", RC_CONSOLE_TASK_STACK_BYTES, NULL, RC_CONSOLE_TASK_PRIORITY,
+                         NULL)) {
         printf("Unable to create the remote control's console task\n");
         return false;
     }
 
 #ifdef RC_TEST_FAULT
-    xTaskCreate(rc_test_fault_task, "RC Test Fault", 512, NULL, RC_CONSOLE_TASK_PRIORITY, NULL);
+    rtos_task_start(rc_test_fault_task, "RC Test Fault", 2048, NULL, RC_CONSOLE_TASK_PRIORITY, NULL);
 #endif
 
     return true;

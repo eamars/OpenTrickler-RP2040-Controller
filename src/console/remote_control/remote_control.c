@@ -13,8 +13,7 @@
 #include <task.h>
 #include <queue.h>
 
-#include "pico/stdlib.h"
-#include "hardware/watchdog.h"
+#include "chip.h"
 
 #include "remote_control.h"
 #include "system_control.h"
@@ -62,7 +61,7 @@ static bool remote_control_help(const char *args, char *reply, size_t reply_size
 static bool remote_control_state(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
     profile_t *profile = profile_get_selected();
-    uint32_t up_s = (uint32_t) (time_us_64() / 1000000);
+    uint32_t up_s = (uint32_t) (chip_time_us() / 1000000);
     char unit_id[UNIT_ID_LENGTH + 1];
     unit_id_get(unit_id, sizeof(unit_id));
 
@@ -250,7 +249,7 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
         snprintf(reply, reply_size,
                  "@ok motor t_us=%llu counted=%d coarse_made=%lu coarse_fed=%lu coarse_underruns=%lu coarse_rate=%.2f "
                  "fine_made=%lu fine_fed=%lu fine_underruns=%lu fine_rate=%.2f",
-                 (unsigned long long) time_us_64(), (coarse.counted_on_pin && fine.counted_on_pin) ? 1 : 0,
+                 (unsigned long long) chip_time_us(), (coarse.counted_on_pin && fine.counted_on_pin) ? 1 : 0,
                  (unsigned long) coarse.steps_made, (unsigned long) coarse.steps_fed, (unsigned long) coarse.underruns,
                  motor_get_step_rate(SELECT_COARSE_TRICKLER_MOTOR),
                  (unsigned long) fine.steps_made, (unsigned long) fine.steps_fed, (unsigned long) fine.underruns,
@@ -591,7 +590,7 @@ bool remote_control_execute(const char *line, char *reply, size_t reply_size, re
 
 void remote_control_after_reply(void) {
     if (remote_control_reboot_pending) {
-        watchdog_reboot(0, 0, REMOTE_CONTROL_REBOOT_DELAY_MS);
+        chip_restart(REMOTE_CONTROL_REBOOT_DELAY_MS);
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }

@@ -20,13 +20,14 @@
 // EXP1_6 (Neopixel) <-> PIN17 (GP13)
 // 
 #include <stdint.h>
+#include <stdio.h>
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
 #include <string.h>
 
 #include "neopixel_led.h"
-#include "ws2812.pio.h"
+#include "chip_leds.h"
 #include "configuration.h"
 #include "eeprom.h"
 #include "common.h"
@@ -34,11 +35,9 @@
 #include "settings.h"
 
 
-// The parameters for updating the NeoPixel LED colors (including the target LED information)
-typedef struct {
-    pio_config_t * pio_config;
-    uint32_t colour;
-} _neopixel_led_colour_update_params_t;
+// The two strips: the 12864's (its knob's two LEDs and its backlight), and the one on PWM3's pin
+#define NEOPIXEL_STRIP_12864 0
+#define NEOPIXEL_STRIP_PWM3 1
 
 
 // Global configuration for neopixel LED instance
@@ -74,21 +73,21 @@ uint32_t urgbw_u32(rgbw_u32_t colour, neopixel_colour_order_t colour_order) {
     return output;
 }
  
-static inline void put_pixel(pio_config_t * pio_config, uint32_t pixel_grb) {
-    pio_sm_put_blocking(pio_config->pio, pio_config->sm, pixel_grb << 8u);
+static inline void put_pixel(unsigned int strip, uint32_t pixel_grb) {
+    chip_leds_put(strip, pixel_grb);
 }
 
 
 // Low level function to bypass RTOS to configure colour directly
 void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour) {
-    put_pixel(&neopixel_led_config.mini12864_pio_config, led1_colour);  // Encoder RGB1
-    put_pixel(&neopixel_led_config.mini12864_pio_config, led2_colour);  // Encoder RGB2
-    put_pixel(&neopixel_led_config.mini12864_pio_config, mini12864_backlight_colour);  // 12864 Backlight
+    put_pixel(NEOPIXEL_STRIP_12864, led1_colour);  // Encoder RGB1
+    put_pixel(NEOPIXEL_STRIP_12864, led2_colour);  // Encoder RGB2
+    put_pixel(NEOPIXEL_STRIP_12864, mini12864_backlight_colour);  // 12864 Backlight
 }
 
 void _neopixel_pwm_out_set_colour(uint32_t new_colour) {
     for (int i = 0; i < neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_chain_count; i++) {
-        put_pixel(&neopixel_led_config.pwm3_pio_config, new_colour);
+        put_pixel(NEOPIXEL_STRIP_PWM3, new_colour);
     }
 }
 
@@ -223,23 +222,10 @@ bool neopixel_led_init(void) {
     }
 
     // Configure Neopixel for mini12864 display
-    PIO pio;
-    uint sm;
-    uint offset;
-
-    is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
-        &ws2812_program, &pio, &sm, &offset, NEOPIXEL_PIN, 1, true
-    );
-    if (!is_ok) {
+    if (!chip_leds_open(NEOPIXEL_STRIP_12864, NEOPIXEL_PIN, false)) {
         printf("Unable to initialize mini12864 Neopixel PIO\n");
         return false;
     }
-
-    ws2812_program_init(pio, sm, offset, NEOPIXEL_PIN, 800000, false);
-
-    // Save pio and sm for later access
-    neopixel_led_config.mini12864_pio_config.pio = pio;
-    neopixel_led_config.mini12864_pio_config.sm = sm;
 
     // Set default colour
     _neopixel_led_set_colour(
@@ -249,19 +235,12 @@ bool neopixel_led_init(void) {
     );
 
     // Configure Neopixel for PWM3
-    is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
-        &ws2812_program, &pio, &sm, &offset, NEOPIXEL_PWM3_PIN, 1, true
-    );
-    if (!is_ok) {
+    if (!chip_leds_open(NEOPIXEL_STRIP_PWM3, NEOPIXEL_PWM3_PIN,
+                        neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_is_rgbw)) {
         printf("Unable to initialize PWM3 Neopixel PIO");
         return false;
     }
-
-    ws2812_program_init(pio, sm, offset, NEOPIXEL_PWM3_PIN, 800000, neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_is_rgbw);
     
-    // Save pio and sm for later access
-    neopixel_led_config.pwm3_pio_config.pio = pio;
-    neopixel_led_config.pwm3_pio_config.sm = sm;
 
     // Set default colour for PWM3
     // Infuse white intensity

@@ -5,7 +5,7 @@
     What the firmware does when it cannot go on (ADR-012, step 2): a hard fault stops one core, and the other may run
     on, so what must not go on by itself is stopped first, by register writes alone. Who has such a thing hands its
     stop over at its start (the motors: the step pulses off, then the drivers); the handler names none of them
-    (ADR-006, gate 6).
+    (ADR-006, gate 6). A platform interface (gate 7); the RP chips' is fault_handler.c.
 */
 
 #ifdef __cplusplus

@@ -8,9 +8,11 @@
 #include <semphr.h>
 #include <task.h>
 #include "tmc2209.h"
-#include "hardware/uart.h"
 #include "configuration.h"
-#include "hardware/gpio.h"
+#include "chip.h"
+#include "chip_gpio.h"
+#include "chip_serial.h"
+#include "rtos_port.h"
 #include "step_pulses.h"
 #include "fault_handler.h"
 
@@ -159,29 +161,30 @@ static SemaphoreHandle_t motor_driver_mutex = NULL;
 static bool motor_uart_exchange(const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len) {
     bool is_ok = true;
 
-    busy_wait_us(MOTOR_UART_IDLE_US);
+    chip_busy_wait_us(MOTOR_UART_IDLE_US);
 
     // Whatever is left from before is not this exchange's
-    while (uart_is_readable(MOTOR_UART)) {
-        uart_getc(MOTOR_UART);
+    while (chip_serial_read(MOTOR_UART) != CHIP_SERIAL_NONE) {
     }
 
-    uart_write_blocking(MOTOR_UART, tx, tx_len);
+    chip_serial_write(MOTOR_UART, tx, tx_len);
 
     for (size_t idx = 0; idx < tx_len; idx += 1) {
-        if (!uart_is_readable_within_us(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US)) {
+        int echo = chip_serial_read_within(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US);
+        if (echo == CHIP_SERIAL_NONE) {
             return false;
         }
-        if ((uint8_t) uart_getc(MOTOR_UART) != tx[idx]) {
+        if ((uint8_t) echo != tx[idx]) {
             is_ok = false;
         }
     }
 
     for (size_t idx = 0; idx < rx_len; idx += 1) {
-        if (!uart_is_readable_within_us(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US)) {
+        int got = chip_serial_read_within(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US);
+        if (got == CHIP_SERIAL_NONE) {
             return false;
         }
-        rx[idx] = (uint8_t) uart_getc(MOTOR_UART);
+        rx[idx] = (uint8_t) got;
     }
 
     return is_ok;
@@ -253,21 +256,16 @@ static bool driver_setup(motor_config_t * motor_config) {
 
 
 bool driver_io_init(motor_config_t * motor_config) {
-    gpio_init(motor_config->en_pin);
-    gpio_set_dir(motor_config->en_pin, GPIO_OUT);
-
     // If enable is inverted the GPIO shall output enable state directly, otherwise invert it. 
     // If not inverted the GPIO shall be the opposite state of the enable signal
-    gpio_put(motor_config->en_pin, motor_config->persistent_config.inverted_enable ? false : true); 
+    chip_gpio_output(motor_config->en_pin, motor_config->persistent_config.inverted_enable ? false : true);
 
     // Note: STEP PIN is controlled by PIO block
     // gpio_init(motor_config->step_pin);
     // gpio_set_dir(motor_config->step_pin, GPIO_OUT);
     // gpio_put(motor_config->step_pin, 1);
 
-    gpio_init(motor_config->dir_pin);
-    gpio_set_dir(motor_config->dir_pin, GPIO_OUT);
-    gpio_put(motor_config->dir_pin, motor_config->step_direction);
+    chip_gpio_output(motor_config->dir_pin, motor_config->step_direction);
 
     return true;
 }
@@ -554,7 +552,7 @@ static void motor_tick(motor_config_t * motor_config, float dt_s) {
             }
             else {
                 motor_config->step_direction = wanted_direction;
-                gpio_put(motor_config->dir_pin, wanted_direction);
+                chip_gpio_put(motor_config->dir_pin, wanted_direction);
             }
         }
     }
@@ -631,7 +629,7 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
     if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
         bool en_signal = coarse_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-        gpio_put(coarse_trickler_motor_config.en_pin, en_signal);
+        chip_gpio_put(coarse_trickler_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -642,7 +640,7 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
     if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
         bool en_signal = fine_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-        gpio_put(fine_trickler_motor_config.en_pin, en_signal);
+        chip_gpio_put(fine_trickler_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -905,9 +903,7 @@ void motors_init(void) {
     fine_trickler_motor_config.pulse_channel = 1;
 
     // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 250000);
-    gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
-    gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
+    chip_serial_open(MOTOR_UART, MOTOR_UART_TX, MOTOR_UART_RX, 250000);
 
     motor_driver_mutex = xSemaphoreCreateMutex();
     if (!motor_driver_mutex) {
@@ -931,10 +927,10 @@ void motors_init(void) {
     driver_setup(&coarse_trickler_motor_config);
     driver_setup(&fine_trickler_motor_config);
 
-    if (xTaskCreate(motor_control_task, "Motors", configMINIMAL_STACK_SIZE, NULL, MOTOR_TASK_PRIORITY, NULL) != pdPASS) {
+    if (!rtos_task_start(motor_control_task, "Motors", 1024, NULL, MOTOR_TASK_PRIORITY, NULL)) {
         printf("Unable to create the motors' task\n");
     }
-    if (xTaskCreate(motor_status_task, "Motor Status", 2 * configMINIMAL_STACK_SIZE, NULL, MOTOR_STATUS_TASK_PRIORITY, NULL) != pdPASS) {
+    if (!rtos_task_start(motor_status_task, "Motor Status", 2048, NULL, MOTOR_STATUS_TASK_PRIORITY, NULL)) {
         printf("Unable to create the motor drivers' status task\n");
     }
 }
@@ -943,8 +939,8 @@ void motors_init(void) {
 void motors_fault_stop(void) {
     // Register writes only: the pulses off, then the drivers
     step_pulses_fault_stop();
-    gpio_put(coarse_trickler_motor_config.en_pin, coarse_trickler_motor_config.persistent_config.inverted_enable ? false : true);
-    gpio_put(fine_trickler_motor_config.en_pin, fine_trickler_motor_config.persistent_config.inverted_enable ? false : true);
+    chip_gpio_put(coarse_trickler_motor_config.en_pin, coarse_trickler_motor_config.persistent_config.inverted_enable ? false : true);
+    chip_gpio_put(fine_trickler_motor_config.en_pin, fine_trickler_motor_config.persistent_config.inverted_enable ? false : true);
 }
 
 

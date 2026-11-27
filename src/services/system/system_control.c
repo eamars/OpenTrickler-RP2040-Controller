@@ -1,7 +1,6 @@
 #include <string.h>
 
-#include "hardware/watchdog.h"
-
+#include "chip.h"
 #include "system_control.h"
 
 // What ends before a restart, in the order handed over
@@ -29,7 +28,7 @@ void system_prepare_restart(void) {
 
 int software_reboot() {
     system_prepare_restart();
-    watchdog_reboot(0, 0, 0);
+    chip_restart(0);
 
     return 0;
 }

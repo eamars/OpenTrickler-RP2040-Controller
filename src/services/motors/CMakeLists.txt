@@ -1,4 +1,4 @@
 ot_module(SRCS motors.c
           INCLUDE_DIRS include
-          REQUIRES freertos rp2 storage
-          PRIV_REQUIRES board events rp2_sdk settings tmc2209)
+          REQUIRES freertos platform storage
+          PRIV_REQUIRES board events settings tmc2209)

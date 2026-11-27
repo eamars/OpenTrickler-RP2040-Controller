@@ -1,7 +1,7 @@
 ot_module(SRCS menu_view_12864.c
           INCLUDE_DIRS include
           REQUIRES menu
-          PRIV_REQUIRES freertos lvgl rp2_sdk uc1701)
+          PRIV_REQUIRES freertos lvgl platform uc1701)
 
 # The menu's fonts, made from the BDF files in fonts/ (ADR-010): one family, Helvetica, in three sizes, as the owner
 # chose (skill embedded-ui-design): 8 regular for text, 8 bold for titles, 18 bold for the figure a job screen shows.

@@ -1,15 +1,17 @@
-#include <pico/cyw43_arch.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <FreeRTOS.h>
 #include <queue.h>
 
 #include "wireless.h"
+#include "chip_net.h"
+#include "rtos_port.h"
 #include "eeprom.h"
 #include "unit_id.h"
 #include "access_point_mode.h"
 #include "common.h"
 #include "settings.h"
 #include "version.h"
-#include "lwip/apps/mdns.h"
 #include "events.h"
 #include "setup.h"
 #include <string.h>
@@ -24,7 +26,6 @@ static void wireless_station_up(void);
 static void wireless_hotspot_on_strongest_channel(void);
 static void wireless_scan_run(void);
 static void wireless_join_run(void);
-static void srv_txt(struct mdns_service *service, void *txt_userdata);
 
 
 #define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
@@ -169,8 +170,8 @@ bool wireless_init() {
 
     // Create Wireless handler task
     // Its stack holds the set-up's join's store too, a settings write with two copies of the struct (ADR-008, gate 4:
-    // it took 1,640 bytes at most, measured with 1,024 words); `stats tasks` gives what it never touched
-    xTaskCreate(wireless_task, "Wireless Task", 768, NULL, 3, NULL);
+    // it took 1,640 bytes at most, measured with 4,096); `stats tasks` gives what it never touched
+    rtos_task_start(wireless_task, "Wireless Task", 3072, NULL, 3, NULL);
 
     // Register to eeprom save all
     eeprom_register_handler(wireless_config_save);
@@ -199,27 +200,26 @@ bool wireless_config_save() {
 }
 
 
-uint32_t get_cyw43_auth(cyw43_auth_t auth) {
-    uint32_t cyw43_auth = 0;
-
+// The stored security as the radio joins it, and a security heard as the settings store it
+static chip_net_security_t wireless_security(cyw43_auth_t auth) {
     switch (auth) {
+        case AUTH_WPA_TKIP_PSK: return CHIP_NET_WPA_TKIP;
+        case AUTH_WPA2_AES_PSK: return CHIP_NET_WPA2_AES;
+        case AUTH_WPA2_MIXED_PSK: return CHIP_NET_WPA2_MIXED;
         case AUTH_OPEN:
-            cyw43_auth = CYW43_AUTH_OPEN;
-            break;
-        case AUTH_WPA_TKIP_PSK:
-            cyw43_auth = CYW43_AUTH_WPA_TKIP_PSK;
-            break;
-        case AUTH_WPA2_AES_PSK:
-            cyw43_auth = CYW43_AUTH_WPA2_AES_PSK;
-            break;
-        case AUTH_WPA2_MIXED_PSK:
-            cyw43_auth = CYW43_AUTH_WPA2_MIXED_PSK;
-            break;
-        default:
-            break;
+        default: return CHIP_NET_OPEN;
     }
+}
 
-    return cyw43_auth;
+
+static cyw43_auth_t wireless_auth_of(chip_net_security_t security) {
+    switch (security) {
+        case CHIP_NET_WPA_TKIP: return AUTH_WPA_TKIP_PSK;
+        case CHIP_NET_WPA2_AES: return AUTH_WPA2_AES_PSK;
+        case CHIP_NET_WPA2_MIXED: return AUTH_WPA2_MIXED_PSK;
+        case CHIP_NET_OPEN:
+        default: return AUTH_OPEN;
+    }
 }
 
 
@@ -269,7 +269,8 @@ void led_interface_task(void *p) {
         }
 
         
-        vTaskDelay(pdMS_TO_TICKS(MAX(blink_interval_ms, LED_INTERFACE_MINIMUM_POLL_PERIOD_MS)));
+        vTaskDelay(pdMS_TO_TICKS(blink_interval_ms > LED_INTERFACE_MINIMUM_POLL_PERIOD_MS
+                                     ? blink_interval_ms : LED_INTERFACE_MINIMUM_POLL_PERIOD_MS));
     }
 }
 
@@ -304,12 +305,8 @@ static void wireless_tell_station_joined(void) {
 
 
 bool wireless_own_address(char *buf, size_t len) {
-    int itf = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN ? CYW43_ITF_AP : CYW43_ITF_STA;
-    const ip4_addr_t *addr = netif_ip4_addr(&cyw43_state.netif[itf]);
-    if (addr == NULL || ip4_addr_isany(addr)) {
-        return false;
-    }
-    return ip4addr_ntoa_r(addr, buf, (int) len) != NULL;
+    return wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN ? chip_net_hotspot_address(buf, len)
+                                                                                 : chip_net_station_address(buf, len);
 }
 
 
@@ -318,9 +315,9 @@ bool wireless_own_address(char *buf, size_t len) {
  * the trial's confirmation read this copy, never a write not yet saved, nor one half made (review C2)
  */
 static eeprom_wireless_metadata_t wireless_started_with;
-// The station's last join, as the SDK answered it (PICO_OK when joined): the screen says why it failed, as the old
-// Wi-Fi screen gave the link's status (ADR-010, gate 6)
-static volatile int wireless_last_join = PICO_OK;
+// The station's last join, as the radio answered it: the screen says why it failed, as the old Wi-Fi screen gave the
+// link's status (ADR-010, gate 6)
+static volatile chip_net_join_t wireless_last_join = CHIP_NET_JOINED;
 
 
 // mDNS on the station, once: the unit's name, and its two services
@@ -330,18 +327,17 @@ static void wireless_station_mdns(void) {
         return;
     }
     announced = true;
-    cyw43_arch_lwip_begin();
-    mdns_resp_init();
-
-    // The opentrickler can be accessed via hostname.local
-    mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
-
-    // Add service HTTP, allowing user to access the web interface with hostname.local format
-    mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "rest_httpd", "_http", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
-
-    // Add secondary service to allow client to discover with service _opentrickler._tcp.local
-    mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
-    cyw43_arch_lwip_end();
+    // The web interface at hostname.local, and found by its service _opentrickler._tcp.local too
+    static const chip_net_service_t services[] = {
+        {.instance = "rest_httpd", .type = "_http", .port = 80},
+        {.instance = "app_httpd", .type = "_opentrickler", .port = 80},
+    };
+    // The API's version and the firmware's, so a client finds which unit runs what before it asks (ADR-003, gate 4)
+    static char firmware[64];
+    static const char *txt[] = {"path=/", "api=1", firmware};
+    int len = snprintf(firmware, sizeof(firmware), "firmware=%s", version_string);
+    size_t txt_count = len > 0 && len < (int) sizeof(firmware) ? 3 : 2;
+    chip_net_announce(host_name, services, sizeof(services) / sizeof(services[0]), txt, txt_count);
 }
 
 
@@ -402,7 +398,7 @@ static uint8_t wireless_hotspot_channel = 0;
 
 static void wireless_station_set(station_state_t state, const char *ssid, const char *reason) {
     size_t len = ssid != NULL ? strnlen(ssid, sizeof(wireless_station_ssid) - 1) : 0;
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     wireless_station_state = state;
     if (ssid != NULL) {
         memcpy(wireless_station_ssid, ssid, len);
@@ -410,53 +406,45 @@ static void wireless_station_set(station_state_t state, const char *ssid, const 
     }
     wireless_station_reason = reason;
     wireless_station_since = xTaskGetTickCount();
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
 }
 
 
 // A join's end in the API's words
-static const char *wireless_join_reason(int joined) {
-    if (joined == PICO_ERROR_BADAUTH) {
+static const char *wireless_join_reason(chip_net_join_t joined) {
+    if (joined == CHIP_NET_WRONG_KEY) {
         return "wrong_password";
     }
-    return joined == PICO_ERROR_TIMEOUT ? "timeout" : "failed";
+    return joined == CHIP_NET_NOT_FOUND ? "timeout" : "failed";
 }
 
 
 // The station's interface up, beside the hotspot if it is up: a unit that started with Wi-Fi off never brought it up
 static void wireless_station_up(void) {
-    if ((cyw43_state.itf_state & (1u << CYW43_ITF_STA)) != 0) {
-        return;
-    }
-    cyw43_arch_enable_sta_mode();
-    // The name the router is told by DHCP: the unit's own, as mDNS announces it. The driver set its own default
-    // ("PicoW", the same on every unit) as it brought the interface up; nothing has asked for an address yet
-    cyw43_arch_lwip_begin();
-    netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], host_name);
-    cyw43_arch_lwip_end();
+    // The name the router is told by DHCP: the unit's own, as mDNS announces it
+    chip_net_station_up(host_name);
 }
 
 
 void wireless_get_station(wireless_station_info_t *station) {
     static const char *const names[] = {"idle", "joining", "joined", "failed"};
     memset(station, 0, sizeof(*station));
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     station_state_t state = wireless_station_state;
     memcpy(station->ssid, wireless_station_ssid, sizeof(station->ssid));
     station->reason = wireless_station_reason;
     TickType_t since = wireless_station_since;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (state == STATION_JOINING) {
         station->joining_ms = (uint32_t) ((xTaskGetTickCount() - since) * portTICK_PERIOD_MS);
     }
-    bool up = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+    bool up = chip_net_joined();
     if (state == STATION_JOINED && !up) {
         state = STATION_IDLE;       // it left (its router went away, `wifi leave`): the retry says what comes next
     }
     station->state = names[state];
-    const ip4_addr_t *addr = netif_ip4_addr(&cyw43_state.netif[CYW43_ITF_STA]);
-    if (up && addr != NULL && !ip4_addr_isany(addr)) {
-        ip4addr_ntoa_r(addr, station->address, sizeof(station->address));
+    if (up && !chip_net_station_address(station->address, sizeof(station->address))) {
+        station->address[0] = '\0';
     }
 }
 
@@ -488,15 +476,12 @@ static bool wireless_auth_from_text(const char *text, cyw43_auth_t *auth) {
  * network (no name) is left out, and one with WEP alone, which the unit cannot join. The radio tells WPA2 from WPA
  * but not AES from TKIP: WPA2 alone is taken as wpa2_aes, WPA2 and WPA as wpa2_mixed
  */
-static int wireless_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
-    (void) env;
-    if (result->ssid_len == 0 || result->ssid_len > 32 || ((result->auth_mode & 6) == 0 && result->auth_mode != 0)) {
-        return 0;
+static void wireless_scan_result(const chip_net_heard_t *result) {
+    if (result->ssid_len == 0 || result->ssid_len > 32 || !result->joinable) {
+        return;
     }
-    cyw43_auth_t auth = (result->auth_mode & 4) != 0 ? ((result->auth_mode & 2) != 0 ? AUTH_WPA2_MIXED_PSK
-                                                                                      : AUTH_WPA2_AES_PSK)
-                                                     : ((result->auth_mode & 2) != 0 ? AUTH_WPA_TKIP_PSK : AUTH_OPEN);
-    taskENTER_CRITICAL();
+    cyw43_auth_t auth = wireless_auth_of(result->security);
+    rtos_critical_enter();
     uint8_t idx = 0;
     while (idx < wireless_heard_count && (strlen(wireless_heard[idx].ssid) != result->ssid_len ||
                                           memcmp(wireless_heard[idx].ssid, result->ssid, result->ssid_len) != 0)) {
@@ -525,12 +510,11 @@ static int wireless_scan_result(void *env, const cyw43_ev_scan_result_t *result)
         }
         if (ap < wireless_access_point_count && result->rssi > wireless_access_points[ap].rssi) {
             wireless_access_points[ap].rssi = result->rssi;
-            wireless_access_points[ap].channel = (uint8_t) (result->channel & 0xff);
+            wireless_access_points[ap].channel = result->channel;
             wireless_access_points[ap].network = idx;
         }
     }
-    taskEXIT_CRITICAL();
-    return 0;
+    rtos_critical_exit();
 }
 
 
@@ -559,30 +543,25 @@ static void wireless_scan_run(void) {
         wireless_scan_running = false;
         return;
     }
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     wireless_heard_count = 0;
     wireless_access_point_count = 0;
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     wireless_station_up();
     TickType_t started = xTaskGetTickCount();
     for (int pass = 0; pass < WIRELESS_SCAN_PASSES; pass += 1) {
-        cyw43_wifi_scan_options_t options = {0};
-        cyw43_arch_lwip_begin();
-        int err = cyw43_wifi_scan(&cyw43_state, &options, NULL, wireless_scan_result);
-        cyw43_arch_lwip_end();
-        if (err != 0) {
-            printf("Wi-Fi: a scan did not start (%d)\n", err);
+        if (!chip_net_scan_start(wireless_scan_result)) {
             break;
         }
         TickType_t pass_started = xTaskGetTickCount();
-        while (cyw43_wifi_scan_active(&cyw43_state) &&
+        while (chip_net_scanning() &&
                xTaskGetTickCount() - pass_started < pdMS_TO_TICKS(WIRELESS_SCAN_PASS_MS)) {
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
     // Strongest first, once, so a reader takes them in order a network at a time; the table itself stays as heard,
     // the access points pointing into it
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     for (uint8_t idx = 0; idx < wireless_heard_count; idx += 1) {
         uint8_t at = idx;
         while (at > 0 && wireless_heard[wireless_heard_order[at - 1]].rssi < wireless_heard[idx].rssi) {
@@ -591,7 +570,7 @@ static void wireless_scan_run(void) {
         }
         wireless_heard_order[at] = idx;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     wireless_scan_running = false;
     printf("Wi-Fi: scanned, %u networks heard in %lu ms\n", (unsigned) wireless_heard_count,
            (unsigned long) ((xTaskGetTickCount() - started) * portTICK_PERIOD_MS));
@@ -599,12 +578,12 @@ static void wireless_scan_run(void) {
 
 
 bool wireless_scan_start(void) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool free = !wireless_scan_running && wireless_station_state != STATION_JOINING;
     if (free) {
         wireless_scan_running = true;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (!free) {
         return false;
     }
@@ -623,12 +602,12 @@ bool wireless_scanning(void) {
 
 
 bool wireless_network_at(size_t idx, wireless_network_t *out) {
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool there = wireless_heard != NULL && idx < wireless_heard_count && !wireless_scan_running;
     if (there) {
         *out = wireless_heard[wireless_heard_order[idx]];
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     return there;
 }
 
@@ -639,13 +618,13 @@ static wireless_join_result_t wireless_join_ask(const char *ssid, const char *ke
     if (wireless_config.current_wireless_state != WIRELESS_STATE_AP_MODE_LISTEN) {
         return WIRELESS_JOIN_NOT_HOTSPOT;
     }
-    taskENTER_CRITICAL();
+    rtos_critical_enter();
     bool free = !wireless_scan_running && wireless_station_state != STATION_JOINING;
     if (free) {
         wireless_station_state = STATION_JOINING;
         wireless_station_reason = NULL;
     }
-    taskEXIT_CRITICAL();
+    rtos_critical_exit();
     if (!free) {
         return WIRELESS_JOIN_BUSY;
     }
@@ -704,29 +683,26 @@ static void wireless_join_run(void) {
     const char *password = auth != AUTH_OPEN ? wireless_join_asked.key : NULL;
     const wireless_access_point_t *on_channel = wireless_hotspot_channel != 0 && wireless_access_points != NULL
                                                     ? wireless_access_point_of(ssid, wireless_hotspot_channel) : NULL;
-    int joined;
+    chip_net_join_t joined;
     if (on_channel != NULL) {
         printf("Wi-Fi: joining %s on channel %u, the hotspot's, the hotspot kept up\n", ssid, wireless_hotspot_channel);
-        joined = cyw43_arch_wifi_connect_bssid_timeout_ms(ssid, on_channel->bssid, password, get_cyw43_auth(auth),
-                                                         wireless_join_timeout_ms());
+        joined = chip_net_join(ssid, password, wireless_security(auth), on_channel->bssid, wireless_join_timeout_ms());
     }
     else {
         printf("Wi-Fi: joining %s, heard on no access point on channel %u: the hotspot moves to its channel\n", ssid,
                wireless_hotspot_channel);
-        joined = cyw43_arch_wifi_connect_timeout_ms(ssid, password, get_cyw43_auth(auth), wireless_join_timeout_ms());
+        joined = chip_net_join(ssid, password, wireless_security(auth), NULL, wireless_join_timeout_ms());
         wireless_hotspot_channel = 0;   // where it went is not known here
     }
-    if (joined != PICO_OK) {
-        cyw43_arch_lwip_begin();
-        cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
-        cyw43_arch_lwip_end();
+    if (joined != CHIP_NET_JOINED) {
+        chip_net_leave();
         memset(wireless_join_asked.key, 0, sizeof(wireless_join_asked.key));
         wireless_station_set(STATION_FAILED, ssid, wireless_join_reason(joined));
         event_t ended = {.source = EVENT_SOURCE_WIFI, .kind = EVENT_NOT_JOINED, .by = (uint8_t) wireless_join_asked.by,
-                         .reason = (uint8_t) (joined == PICO_ERROR_BADAUTH ? EVENT_REASON_WRONG_PASSWORD :
-                                              joined == PICO_ERROR_TIMEOUT ? EVENT_REASON_TIMEOUT : EVENT_REASON_FAILED)};
+                         .reason = (uint8_t) (joined == CHIP_NET_WRONG_KEY ? EVENT_REASON_WRONG_PASSWORD :
+                                              joined == CHIP_NET_NOT_FOUND ? EVENT_REASON_TIMEOUT : EVENT_REASON_FAILED)};
         events_add(&ended);
-        printf("Wi-Fi: not joined %s (%d), nothing stored\n", ssid, joined);
+        printf("Wi-Fi: not joined %s (%d), nothing stored\n", ssid, (int) joined);
         return;
     }
     static const char *const names[] = {"enable", "ssid", "auth", "password"};
@@ -764,7 +740,6 @@ static void wireless_hotspot_on_strongest_channel(void) {
     wireless_hotspot_channel = strongest != NULL && strongest->channel >= 1 && strongest->channel <= 13
                                    ? strongest->channel : 0;
     if (wireless_hotspot_channel != 0) {
-        cyw43_wifi_ap_set_channel(&cyw43_state, wireless_hotspot_channel);
         printf("Wi-Fi: the hotspot on channel %u, the strongest network's (%s, %d dBm)\n", wireless_hotspot_channel,
                wireless_heard[strongest->network].ssid, strongest->rssi);
     }
@@ -775,7 +750,6 @@ static void wireless_hotspot_on_strongest_channel(void) {
 static void wireless_hotspot_stop(void) {
     if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
         access_point_mode_stop();
-        cyw43_arch_disable_ap_mode();
     }
     wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
 }
@@ -802,7 +776,7 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
     }
     setup_set_step(SETUP_STEP_DONE, NULL, by);
     bool hotspot = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
-    bool joined = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+    bool joined = chip_net_joined();
     *hotspot_stays = hotspot && !joined;
     if (hotspot && joined) {
         wireless_ctrl_t ctrl = WIRELESS_CTRL_SETUP_END;
@@ -814,7 +788,7 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
 
 static void wireless_setup_end(void) {
     vTaskDelay(pdMS_TO_TICKS(WIRELESS_SETUP_END_MS));
-    if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP) {
+    if (!chip_net_joined()) {
         return;     // the station left meanwhile: the hotspot stays, the unit's only network
     }
     wireless_hotspot_stop();
@@ -824,19 +798,19 @@ static void wireless_setup_end(void) {
 
 
 static void wireless_rejoin(void) {
-    if (!wireless_started_with.enable || cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
+    if (!wireless_started_with.enable || chip_net_joined()) {
         return;
     }
     const char *password = wireless_started_with.auth != AUTH_OPEN ? wireless_started_with.pw : NULL;
     printf("Wi-Fi: not joined; trying %s again\n", wireless_started_with.ssid);
     wireless_station_set(STATION_JOINING, wireless_started_with.ssid, NULL);
-    int joined = cyw43_arch_wifi_connect_timeout_ms(wireless_started_with.ssid, password,
-                                                    get_cyw43_auth(wireless_started_with.auth),
-                                                    WIRELESS_REJOIN_TIMEOUT_MS);
+    chip_net_join_t joined = chip_net_join(wireless_started_with.ssid, password,
+                                           wireless_security(wireless_started_with.auth), NULL,
+                                           WIRELESS_REJOIN_TIMEOUT_MS);
     wireless_last_join = joined;
-    if (joined != PICO_OK) {
+    if (joined != CHIP_NET_JOINED) {
         wireless_station_set(STATION_FAILED, wireless_started_with.ssid, wireless_join_reason(joined));
-        printf("Wi-Fi: not joined (%d)\n", joined);
+        printf("Wi-Fi: not joined (%d)\n", (int) joined);
         return;
     }
     wireless_station_set(STATION_JOINED, wireless_started_with.ssid, NULL);
@@ -851,10 +825,7 @@ static void wireless_rejoin(void) {
 
 // The console's `wifi leave` (ADR-004): the station leaves its network, as when its router goes away
 bool wireless_station_leave(void) {
-    cyw43_arch_lwip_begin();
-    int left = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
-    cyw43_arch_lwip_end();
-    return left == 0;
+    return chip_net_leave();
 }
 
 
@@ -892,9 +863,7 @@ bool wireless_host_is_own(const char *host) {
         return true;
     }
     // The station's, while the hotspot is up beside it (the set-up's join, ADR-008, gate 4)
-    const ip4_addr_t *station = netif_ip4_addr(&cyw43_state.netif[CYW43_ITF_STA]);
-    if (station != NULL && !ip4_addr_isany(station) && ip4addr_ntoa_r(station, address, sizeof(address)) != NULL &&
-        strcmp(name, address) == 0) {
+    if (chip_net_station_address(address, sizeof(address)) && strcmp(name, address) == 0) {
         return true;
     }
     size_t host_len = strlen(host_name);
@@ -903,26 +872,6 @@ bool wireless_host_is_own(const char *host) {
         return true;
     }
     return false;
-}
-
-
-static void srv_txt(struct mdns_service *service, void *txt_userdata)
-{
-  err_t res;
-  LWIP_UNUSED_ARG(txt_userdata);
-
-  res = mdns_resp_add_service_txtitem(service, "path=/", 6);
-  LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
-
-  // The API's version and the firmware's, so a client finds which unit runs what before it asks (ADR-003, gate 4)
-  res = mdns_resp_add_service_txtitem(service, "api=1", 5);
-  LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
-  char firmware[64];
-  int len = snprintf(firmware, sizeof(firmware), "firmware=%s", version_string);
-  if (len > 0 && len < (int) sizeof(firmware)) {
-      res = mdns_resp_add_service_txtitem(service, firmware, (u8_t) len);
-      LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
-  }
 }
 
 
@@ -948,11 +897,11 @@ void wireless_get_link(wireless_info_t *info) {
         info->address[0] = '\0';
     }
     // Why a station set up is not joined (its own access point may stand in meanwhile): its last join's answer
-    int last = wireless_last_join;
+    chip_net_join_t last = wireless_last_join;
     if (wireless_config.eeprom_wireless_metadata.enable &&
-        wireless_config.current_wireless_state != WIRELESS_STATE_STA_MODE_LISTEN && last != PICO_OK) {
-        info->trouble = last == PICO_ERROR_BADAUTH ? "Wrong key" :
-                        (last == PICO_ERROR_TIMEOUT ? "Not found" : "Join failed");
+        wireless_config.current_wireless_state != WIRELESS_STATE_STA_MODE_LISTEN && last != CHIP_NET_JOINED) {
+        info->trouble = last == CHIP_NET_WRONG_KEY ? "Wrong key" :
+                        (last == CHIP_NET_NOT_FOUND ? "Not found" : "Join failed");
     }
 }
 
@@ -961,9 +910,7 @@ void wireless_get_info(wireless_info_t *info) {
     wireless_get_link(info);
     if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
         int32_t rssi = 0;
-        cyw43_arch_lwip_begin();
-        info->has_rssi = cyw43_wifi_get_rssi(&cyw43_state, &rssi) == 0;
-        cyw43_arch_lwip_end();
+        info->has_rssi = chip_net_rssi(&rssi);
         info->rssi = rssi;
     }
 }
@@ -975,7 +922,7 @@ void wireless_task(void *p) {
     wireless_config.current_wireless_state = WIRELESS_STATE_NOT_INITIALIZED;
     wireless_ctrl_queue = xQueueCreate(5, sizeof(wireless_ctrl_t));
 
-    if (cyw43_arch_init()) {
+    if (!chip_net_start()) {
         exit(-1);
     }
 
@@ -985,7 +932,8 @@ void wireless_task(void *p) {
     if (led_interface_task_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-        xTaskCreate(led_interface_task, "LED Interface Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &led_interface_task_handler);
+        rtos_task_start(led_interface_task, "LED Interface Task", 1024, NULL, current_task_priority - 1,
+                        &led_interface_task_handler);
     }
     else {
         vTaskResume(led_interface_task_handler);
@@ -1012,13 +960,11 @@ void wireless_task(void *p) {
         printf("Wi-Fi: a test build: the start's join skipped\n");
 #endif
         while (xTaskGetTickCount() < stop_tick) {
-            int resp;
-            resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
-                                                      wifi_password,
-                                                      get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
-                                                      wireless_config.eeprom_wireless_metadata.timeout_ms);
+            chip_net_join_t resp = chip_net_join(wireless_config.eeprom_wireless_metadata.ssid, wifi_password,
+                                                 wireless_security(wireless_config.eeprom_wireless_metadata.auth), NULL,
+                                                 wireless_config.eeprom_wireless_metadata.timeout_ms);
             wireless_last_join = resp;
-            if (resp == PICO_OK) {
+            if (resp == CHIP_NET_JOINED) {
                 wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
                 break;
             }
@@ -1026,7 +972,7 @@ void wireless_task(void *p) {
         if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
             wireless_station_set(STATION_JOINED, wireless_config.eeprom_wireless_metadata.ssid, NULL);
         }
-        else if (wireless_last_join != PICO_OK) {
+        else if (wireless_last_join != CHIP_NET_JOINED) {
             wireless_station_set(STATION_FAILED, wireless_config.eeprom_wireless_metadata.ssid,
                                  wireless_join_reason(wireless_last_join));
         }
@@ -1043,7 +989,7 @@ void wireless_task(void *p) {
         // If previous configured, then start STA mode by default
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_INIT;
         wireless_hotspot_on_strongest_channel();
-        access_point_mode_start();
+        access_point_mode_start(wireless_hotspot_channel);
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
     }
     else {
@@ -1076,10 +1022,10 @@ void wireless_task(void *p) {
 
         switch (wireless_ctrl) {
             case WIRELESS_CTRL_LED_ON:
-                cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, true);
+                chip_net_led(true);
                 break;
             case WIRELESS_CTRL_LED_OFF:
-                cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+                chip_net_led(false);
                 break;
             case WIRELESS_CTRL_SCAN:
                 wireless_scan_run();
@@ -1094,9 +1040,6 @@ void wireless_task(void *p) {
                 break;
         }
     }
-
-    mdns_resp_remove_netif(&cyw43_state.netif[CYW43_ITF_STA]);
-    cyw43_arch_deinit();
 
     vTaskSuspend(led_interface_task_handler);
 }

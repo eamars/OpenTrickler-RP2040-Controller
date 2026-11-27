@@ -7,8 +7,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "pico/stdlib.h"
-#include "hardware/watchdog.h"
+#include "chip.h"
+#include "rtos_port.h"
 
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
@@ -65,11 +65,11 @@ int main()
 #if RC_TEST_HANG_AT_START
     // A test build (rc_run.py update --expect back): it never starts, and only the boot's own watchdog ends its trial
     while (true) {
-        tight_loop_contents();
+        // nothing: the hang is the test
     }
 #endif
     // The console, over RTT through the debug probe (ADR-001): first, so every printf below reaches it
-    stdio_init_all();
+    chip_console_start();
     printf("OpenTrickler starting\n");
 
     // What the unit is doing, and the lock its settings' writes share (ADR-003, gate 3), and its event log, which
@@ -139,7 +139,7 @@ int main()
     // console read its frame
     menu_set_view(menu_view_12864());       // the build's one view; the menu names none (ADR-006, gate 6)
     menu_init();
-    xTaskCreate(menu_task, "Menu Task", 1280, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
+    rtos_task_start(menu_task, "Menu Task", 5120, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
 
     // The remote control's console task, the screen's and the web server's commands handed to it first: it names
     // neither (ADR-006, gate 6)

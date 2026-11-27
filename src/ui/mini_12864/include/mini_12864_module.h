@@ -52,6 +52,15 @@ extern "C" {
 */
 ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms);
 
+/**
+ * An event put in the knob's queue as a press or a turn would be, waiting at most this long for room: the menu's own
+ * wakes and the console's presses. False when there was no room, or no queue yet.
+*/
+bool button_send(ButtonEncoderEvent_t event, uint32_t timeout_ms);
+
+// Whether the screen is stored inverted (its settings, mini_12864_settings.c)
+bool mini_12864_inverted_display(void);
+
 
 /**
  * The knob's tap (ADR-010): what its interrupts saw, newest last, kept until read. Kinds: 'd' and 'u' the button's

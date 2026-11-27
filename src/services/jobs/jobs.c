@@ -5,10 +5,11 @@
 #include <task.h>
 
 #include "jobs.h"
+#include "rtos_port.h"
 
 // As the menu's task had for the modes, which ran in it before (ADR-010, gate 2). On the Pico W a charge used 984
 // bytes of it, an update's download over HTTPS with its check 2,952 (gate 5, progress.md)
-#define JOBS_TASK_STACK_WORDS 1024
+#define JOBS_TASK_STACK_BYTES 4096
 #define JOBS_TASK_PRIORITY 6
 
 static QueueHandle_t jobs_queue = NULL;
@@ -56,7 +57,7 @@ static void jobs_task(void *p) {
 bool jobs_init(void) {
     jobs_queue = xQueueCreate(1, sizeof(activity_t));
     return jobs_queue != NULL &&
-           xTaskCreate(jobs_task, "Jobs", JOBS_TASK_STACK_WORDS, NULL, JOBS_TASK_PRIORITY, &jobs_task_handle) == pdPASS;
+           rtos_task_start(jobs_task, "Jobs", JOBS_TASK_STACK_BYTES, NULL, JOBS_TASK_PRIORITY, &jobs_task_handle);
 }
 
 

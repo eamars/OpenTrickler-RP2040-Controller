@@ -22,17 +22,19 @@
 // EXP2_3 (ENCODER1) <-> PIN20 (GP15)
 // EXP2_8 (BTN_RST) <-> PIN16 (GP12)
 
+#include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <FreeRTOS.h>
 #include <queue.h>
 
-#include "pico/stdlib.h"
-#include "pico/critical_section.h"
+#include "chip.h"
+#include "chip_gpio.h"
+#include "rtos_port.h"
 
 #include "configuration.h"
-#include "gpio_irq_handler.h"
 #include "mini_12864_module.h"
 #include "eeprom.h"
 #include "common.h"
@@ -49,29 +51,29 @@ const mini_12864_module_config_t default_mini_12864_module_config = {
     .charge_view = DISPLAY_CHARGE_VIEW_WEIGHT,
 };
 
-// Statics (to be shared between IRQ and tasks)
-QueueHandle_t encoder_event_queue = NULL;
+// The knob's and the buttons' events for the menu: put in by the interrupts, the menu's own wakes and the console
+static QueueHandle_t encoder_event_queue = NULL;
 
-// The knob's tap: written by the interrupts, taken by a task on either core, under a critical section (its spin lock
-// holds the other core off too)
+// The knob's tap: written by the interrupts, taken by a task on either core, under the RTOS's critical section (its
+// lock holds the other core off too)
 #define KNOB_TAP_SIZE 128
 static knob_tap_entry_t knob_tap[KNOB_TAP_SIZE];
 static size_t knob_tap_count = 0;
 static uint32_t knob_tap_lost = 0;
-static critical_section_t knob_tap_lock;
 
 
+// From the interrupts only
 static void knob_tap_add(char kind) {
-    critical_section_enter_blocking(&knob_tap_lock);
+    UBaseType_t saved = rtos_critical_enter_from_isr();
     if (knob_tap_count < KNOB_TAP_SIZE) {
-        knob_tap[knob_tap_count].at_us = time_us_32();
+        knob_tap[knob_tap_count].at_us = (uint32_t) chip_time_us();
         knob_tap[knob_tap_count].kind = kind;
         knob_tap_count += 1;
     }
     else {
         knob_tap_lost += 1;
     }
-    critical_section_exit(&knob_tap_lock);
+    rtos_critical_exit_from_isr(saved);
 }
 
 
@@ -84,23 +86,43 @@ static void knob_send_from_isr(ButtonEncoderEvent_t event) {
 
 
 size_t mini_12864_knob_tap(knob_tap_entry_t *out, size_t max, uint32_t *lost) {
-    critical_section_enter_blocking(&knob_tap_lock);
+    rtos_critical_enter();
     size_t count = knob_tap_count < max ? knob_tap_count : max;
     memcpy(out, knob_tap, count * sizeof(knob_tap_entry_t));
     *lost = knob_tap_lost + (uint32_t) (knob_tap_count - count);
     knob_tap_count = 0;
     knob_tap_lost = 0;
-    critical_section_exit(&knob_tap_lock);
+    rtos_critical_exit();
     return count;
 }
 
 
-void _isr_on_encoder_update(uint gpio, uint32_t event){
+bool button_send(ButtonEncoderEvent_t event, uint32_t timeout_ms) {
+    return encoder_event_queue != NULL && xQueueSend(encoder_event_queue, &event, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
+}
+
+
+ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms) {
+    ButtonEncoderEvent_t button_encoder_event;
+    if (encoder_event_queue == NULL ||
+        !xQueueReceive(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(timeout_ms))) {
+        return BUTTON_NO_EVENT;
+    }
+    return button_encoder_event;
+}
+
+
+bool mini_12864_inverted_display(void) {
+    return mini_12864_module_config.inverted_display;
+}
+
+
+static void _isr_on_encoder_update(unsigned int pin) {
     static uint8_t state = 2;
     static int8_t count = 0;
 
-    bool en1 = gpio_get(BUTTON0_ENCODER_PIN1);
-    bool en2 = gpio_get(BUTTON0_ENCODER_PIN2);
+    bool en1 = chip_gpio_get(BUTTON0_ENCODER_PIN1);
+    bool en2 = chip_gpio_get(BUTTON0_ENCODER_PIN2);
 
     switch (state) {
         case 0: {
@@ -183,12 +205,12 @@ void _isr_on_encoder_update(uint gpio, uint32_t event){
 // only on an edge whose level differs from it, and an edge within the debounce time of the last change is its bounce
 #define KNOB_DEBOUNCE_US 20000u
 
-void _isr_on_button_enc_update(uint gpio, uint32_t event) {
+static void _isr_on_button_enc_update(unsigned int pin) {
     static bool down = false;
     static uint32_t changed_us = 0;
 
-    uint32_t now_us = time_us_32();
-    bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
+    uint32_t now_us = (uint32_t) chip_time_us();
+    bool pressed = !chip_gpio_get(BUTTON0_ENC_PIN);     // pulled up: low while pressed
     if (pressed == down || now_us - changed_us < KNOB_DEBOUNCE_US) {
         knob_tap_add(pressed ? 'X' : 'x');
         return;
@@ -201,7 +223,7 @@ void _isr_on_button_enc_update(uint gpio, uint32_t event) {
     }
 }
 
-void _isr_on_button_rst_update(uint gpio, uint32_t event) {
+static void _isr_on_button_rst_update(unsigned int pin) {
     static TickType_t last_call_time = 0;
     const TickType_t debounce_timeout_ticks = pdMS_TO_TICKS(250);
 
@@ -265,38 +287,23 @@ bool mini_12864_module_init() {
 void button_init() {
     printf("Initializing Button Task -- ");
 
-    // Configure button encoder
-    gpio_init(BUTTON0_ENCODER_PIN1);
-    gpio_set_dir(BUTTON0_ENCODER_PIN1, GPIO_IN);
-    gpio_pull_up(BUTTON0_ENCODER_PIN1);
+    // The knob's two pins, its button and the reset button, each pulled up
+    chip_gpio_input(BUTTON0_ENCODER_PIN1, true);
+    chip_gpio_input(BUTTON0_ENCODER_PIN2, true);
+    chip_gpio_input(BUTTON0_ENC_PIN, true);
+    chip_gpio_input(BUTTON0_RST_PIN, true);
 
-    gpio_init(BUTTON0_ENCODER_PIN2);
-    gpio_set_dir(BUTTON0_ENCODER_PIN2, GPIO_IN);
-    gpio_pull_up(BUTTON0_ENCODER_PIN2);
-
-    // Configure button encoder
-    gpio_init(BUTTON0_ENC_PIN);
-    gpio_set_dir(BUTTON0_ENC_PIN, GPIO_IN);
-    gpio_pull_up(BUTTON0_ENC_PIN);
-
-    // // Configure button reset
-    gpio_init(BUTTON0_RST_PIN);
-    gpio_set_dir(BUTTON0_RST_PIN, GPIO_IN);
-    gpio_pull_up(BUTTON0_RST_PIN);
-
-    // The queue and the tap's lock first: an interrupt in the first moments of a start writes to them (ADR-012's
-    // audit, ADR-010)
-    critical_section_init(&knob_tap_lock);
+    // The queue first: an interrupt in the first moments of a start writes to it (ADR-012's audit, ADR-010)
     encoder_event_queue = xQueueCreate(8, sizeof(ButtonEncoderEvent_t));
     if (encoder_event_queue == 0) {
         assert(false);
     }
 
-    irq_handler.register_interrupt(BUTTON0_ENCODER_PIN1, gpio_irq_handler::irq_event::change, _isr_on_encoder_update);
-    irq_handler.register_interrupt(BUTTON0_ENCODER_PIN2, gpio_irq_handler::irq_event::change, _isr_on_encoder_update);
+    chip_gpio_on_edges(BUTTON0_ENCODER_PIN1, CHIP_GPIO_EDGE_BOTH, _isr_on_encoder_update);
+    chip_gpio_on_edges(BUTTON0_ENCODER_PIN2, CHIP_GPIO_EDGE_BOTH, _isr_on_encoder_update);
     // Both edges of the knob's button: down and up (ADR-010, gate 4)
-    irq_handler.register_interrupt(BUTTON0_ENC_PIN, gpio_irq_handler::irq_event::change, _isr_on_button_enc_update);
-    irq_handler.register_interrupt(BUTTON0_RST_PIN, gpio_irq_handler::irq_event::fall, _isr_on_button_rst_update);
+    chip_gpio_on_edges(BUTTON0_ENC_PIN, CHIP_GPIO_EDGE_BOTH, _isr_on_button_enc_update);
+    chip_gpio_on_edges(BUTTON0_RST_PIN, CHIP_GPIO_EDGE_FALL, _isr_on_button_rst_update);
 
     printf("done\n");
 }

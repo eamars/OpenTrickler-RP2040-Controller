@@ -19,6 +19,7 @@
 #include "pico/flash.h"
 
 #include "picobin_image.h"
+#include "update_slots_chip.h"
 #include "update_boot.h"
 
 #define UPDATE_SLOTS_TRY_DELAY_MS 100   // the console's reply gets out first
@@ -38,6 +39,7 @@ bool update_slots_read(update_slots_t *slots) {
     slots->free_size = UPDATE_SLOT_SIZE;
     slots->free_read_at = XIP_BASE + slots->free_offset;
     slots->free_runs_at = XIP_BASE + slots->free_offset;
+    slots->linked_per_slot = true;
     return own.valid;
 }
 

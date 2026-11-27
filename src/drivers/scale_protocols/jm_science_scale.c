@@ -7,7 +7,7 @@
 #include <task.h>
 #include <stdlib.h>
 
-#include "hardware/uart.h"
+#include "chip_serial.h"
 #include "configuration.h"
 #include "scale_make.h"
 
@@ -70,8 +70,9 @@ void _jm_science_scale_listener_task(void *p) {
 
     while (true) {
         // Read all data 
-        while (uart_is_readable(SCALE_UART)) {
-            char ch = uart_getc(SCALE_UART);
+        int got;
+        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
+            char ch = (char) got;
 
             // Determine if the frame header is received
             // If a header is received then we should reset the decode sequence

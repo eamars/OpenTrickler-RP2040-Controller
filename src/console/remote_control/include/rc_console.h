@@ -9,7 +9,7 @@ extern "C" {
 
 /**
  * @brief Start the task that reads command lines from the console (stdio, which is RTT through the debug probe)
- * and prints each reply (ADR-001, step 3). Call after stdio_init_all(), before the scheduler starts.
+ * and prints each reply (ADR-001, step 3). Call after chip_console_start(), before the scheduler starts.
  */
 bool rc_console_init(void);
 

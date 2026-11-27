@@ -24,7 +24,7 @@
 #include <task.h>
 
 #include "lvgl/lvgl.h"
-#include "pico/time.h"
+#include "chip.h"
 
 #include "display.h"
 #include "menu_view_12864.h"
@@ -1094,9 +1094,9 @@ static uint32_t view_tick(void) {
 
 // The frame's pages sent, and how long that took
 static void view_send(uint8_t pages) {
-    uint64_t start_us = time_us_64();
+    uint64_t start_us = chip_time_us();
     display_send_pages(view_frame + VIEW_PALETTE_BYTES, pages);
-    view_send_last_us = (uint32_t) (time_us_64() - start_us);
+    view_send_last_us = (uint32_t) (chip_time_us() - start_us);
     view_times.send_us = view_send_last_us;
     if (view_send_last_us > view_times.send_max_us) {
         view_times.send_max_us = view_send_last_us;
@@ -1152,9 +1152,9 @@ static void view_draw(const menu_screen_t *screen) {
     // LVGL draws what changed and sends it (view_flush), under the frame's lock: the draw's time is the rest
     xSemaphoreTake(view_frame_lock, portMAX_DELAY);
     view_send_last_us = 0;
-    uint64_t start_us = time_us_64();
+    uint64_t start_us = chip_time_us();
     lv_timer_handler();
-    uint32_t took_us = (uint32_t) (time_us_64() - start_us);
+    uint32_t took_us = (uint32_t) (chip_time_us() - start_us);
     if (view_send_last_us > 0) {
         view_times.frames += 1;
         view_times.draw_us = took_us - view_send_last_us;
