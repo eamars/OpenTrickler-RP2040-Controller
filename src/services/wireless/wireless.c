@@ -173,8 +173,6 @@ bool wireless_init() {
     // it took 1,640 bytes at most, measured with 4,096); `stats tasks` gives what it never touched
     rtos_task_start(wireless_task, "Wireless Task", 3072, NULL, 3, NULL);
 
-    // Register to eeprom save all
-    eeprom_register_handler(wireless_config_save);
     settings_register(&wifi_settings);
 
     // The host name: the id's first four characters (ADR-003, gate 4), the id the Pico's own (ADR-008, gate 4)

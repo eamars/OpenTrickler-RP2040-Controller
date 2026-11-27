@@ -50,8 +50,9 @@ target_link_libraries("${TARGET_NAME}"
 
 # Third-party code as a module sees it (ADR-006): its include paths and no source, under ESP-IDF's names for what
 # both platforms have, so a module's REQUIRES line is the same under ESP-IDF.
-#   - rp2_sdk is the Pico SDK itself. Every module that requires it is one gate 7 has still to free of the chip.
-#   - lwip carries the radio's driver too (cyw43), until gate 7 puts it behind the network's interface.
+#   - rp2_sdk is the Pico SDK itself, which only platform/rp2 requires.
+#   - lwip carries the radio's driver's include paths too (cyw43): only tools/module_graph.py's search keeps a module
+#     that requires it from including the driver.
 #   - Each brings the settings its headers include by name.
 ot_third_party(rp2_sdk pico_stdlib hardware_pio hardware_spi hardware_i2c hardware_pwm hardware_dma pico_flash)
 ot_third_party(freertos FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)

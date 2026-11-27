@@ -1080,8 +1080,6 @@ bool charge_mode_config_init(void) {
         return is_ok;
     }
 
-    // Register to eeprom save all
-    eeprom_register_handler(charge_mode_config_save);
     charge_mode_settings_register();
 
     return true;

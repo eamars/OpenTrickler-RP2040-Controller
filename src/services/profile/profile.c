@@ -236,8 +236,6 @@ bool profile_data_init() {
         return false;
     }
 
-    // Register to eeprom save all
-    eeprom_register_handler(profile_data_save);
     settings_register(&profile_settings);
 
     return true;

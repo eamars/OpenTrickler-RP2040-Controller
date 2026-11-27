@@ -13,35 +13,7 @@
 
 
 
-// Linked list implementation
-typedef struct _eeprom_save_handler_node {
-    eeprom_save_handler_t function_handler;
-    struct _eeprom_save_handler_node * next;
-} _eeprom_save_handler_node_t;
-
-// Singleton variables
 SemaphoreHandle_t eeprom_access_mutex = NULL;
-static _eeprom_save_handler_node_t * eeprom_save_handler_head = NULL;
-
-
-void eeprom_register_handler(eeprom_save_handler_t handler) {
-    _eeprom_save_handler_node_t * new_node = malloc(sizeof(_eeprom_save_handler_node_t));
-    new_node->function_handler = handler;
-
-    // Append to the head
-    new_node->next = eeprom_save_handler_head;
-    eeprom_save_handler_head = new_node;
-}
-
-
-// Every registered module's save, each run even when one before it failed; whether every one was stored
-bool eeprom_save_all(void) {
-    bool all_saved = true;
-    for (_eeprom_save_handler_node_t * node = eeprom_save_handler_head; node != NULL; node = node->next) {
-        all_saved = node->function_handler() && all_saved;
-    }
-    return all_saved;
-}
 
 
 // Whether every page was written: the restart follows either way

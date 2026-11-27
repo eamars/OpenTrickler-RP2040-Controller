@@ -269,8 +269,6 @@ bool servo_gate_config_init() {
         return false;
     }
 
-    // Register to eeprom save all
-    eeprom_register_handler(servo_gate_config_save);
     settings_register(&gate_settings);
 
     // Initialize settings

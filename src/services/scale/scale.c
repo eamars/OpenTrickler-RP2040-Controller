@@ -427,8 +427,6 @@ bool scale_init() {
                "are refused\n", (int) scale_config.persistent_config.scale_driver);
     }
 
-    // Register to eeprom save all
-    eeprom_register_handler(scale_config_save);
     settings_register(&scale_settings);
 
     return is_ok;

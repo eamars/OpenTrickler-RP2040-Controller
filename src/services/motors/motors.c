@@ -345,8 +345,6 @@ bool motor_config_init(void) {
     coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
     fine_trickler_motor_config.step_direction = fine_trickler_motor_config.persistent_config.inverted_direction ? true : false;
 
-    // Register to eeprom save all
-    eeprom_register_handler(motor_config_save);
     settings_register(&coarse_motor_settings);
     settings_register(&fine_motor_settings);
 

@@ -1,5 +1,5 @@
 /*
- * LED blink with FreeRTOS
+ * The start-up: each module started in order, and what each needs of another handed to it (ADR-006)
  */
 
 #include <FreeRTOS.h>

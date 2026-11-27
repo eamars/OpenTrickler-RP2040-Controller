@@ -885,7 +885,7 @@ Each module hands its settings table and its EEPROM save handler over in its own
 | 2 | `ot_feature(servo_gate services/servo_gate "...")`: its option, its module out of the board's list when off, `FEATURE_<NAME>` for `app/`, the `Features:` line, and `ot_features.h` in each build's folder, which the index's `features` is made from. `tools/module_graph.py` fails on a part's switch read outside `app/` | `cmake/ot_module.cmake`, `base.cmake`, `api_v1.c` |
 | 3 | `ot_fills(platform)` (`platform/rp2`) and `ot_fills(view)` (`view_12864`); `ot_check_places(platform view)` refuses none or two | `cmake/ot_module.cmake`, the root `CMakeLists.txt` |
 | 4 | `OT_MODULE_OPTIONS_<module>` in a board's file, applied after the image's own; neither board names one | `cmake/ot_module.cmake`, both `board.cmake` |
-| 5 | A stored make the build does not carry, or a number no make has: no make runs, the start says so, `GET /api/v1/scale`'s `driver` is null, a charge and a calibration are refused (`409 no_scale`, the console's `@err no_scale`, the screen's "No scale"); the simulation still runs when asked. A test build leaves the A&D's make out (`-DRC_TEST_NO_AND_FXI=ON`) | `scale.c`, the charge, the calibration, the API, the console, the menu |
+| 5 | A stored make the build does not carry, or a number no make has: no make runs, the start says so, `GET /api/v1/scale`'s `driver` is null, a charge and a calibration are refused (`409 no_scale`, the console's `@err no_scale`, the screen's "No scale"); the simulation still runs when asked. A test build leaves the A&D's make out (`-DRC_TEST_NO_AND_FXI=ON`). (The review of 2026-11-28 found a number no make has refused for that start only: the settings' mender then stores the A&D's. Below, "The review") | `scale.c`, the charge, the calibration, the API, the console, the menu |
 | - | `tools/size_report.py` gives our flash by module (each module's library) | |
 
 ### Found on the way
@@ -1024,13 +1024,31 @@ Run the night after, before the PR's merge: a review of the PR (on this PC, `log
 
 The unit is left on 2.0.3-358 (`a0ea6d5`), slot A, its settings as before gate 1 and gate 10, the probe on it.
 
+### The review (2026-11-28)
+
+A review of the whole ADR and of ADR-017's draft, in a session of its own at the owner's word: [review_2026-11-28.md](review_2026-11-28.md), its findings each read at the line it cites. Its verdict on ADR-006: merge, once the Pico W had run the update's fix (above). It found no fault in gate 10's five changes. The owner had its ADR-006 findings folded into the gate's PR ("Yes, fold them in"):
+
+| Finding | What the PR does |
+|---|---|
+| 2. A stored make that is a number no make has is refused for one start, then stored as the A&D's by the settings' mender (`mend_choices`, `settings.c`), whose driver runs from the next start: against gate 9's decision. Read again here: it holds | Not fixed here: its root is ADR-017's gate 1 (the start writes nothing over a stored value it did not understand), written into ADR-017. AGENTS.md says what the code does until then |
+| 3. CI runs neither `tools/module_graph.py` nor `tests/features_check.py`: three of this ADR's end conditions are held by the first alone | Both are CI steps |
+| 4. Nothing checks that a release's image names its board as the units already out read it | `scripts/build_release.py` reads each image's board as a firmware before gate 10 does (its item on a word) and fails the release when it cannot. Tried on the PC: the five release images pass; 2.0.3-273's, gate 9's and the old rule's test image fail, the item off a word |
+| 5. `system_board_name()` in `services/` reads the SDK's `PICO_RP2350` | Handed to ADR-007, where it matters |
+| 6. `eeprom_save_all`, polished by gate 10, is called by nothing; its list costs nine `malloc`s of the Pico W's 3.5 KB C heap | Gone, with the list and the nine registrations |
+| 7. The update's note is a stored record `release_records.py` does not see | Handed to ADR-017 (the records found by use); AGENTS.md says what the check covers |
+| 8. Gate 4's four `printf` formats in `common.c`, left for gate 10, were not done | Done |
+| 9. Texts no longer true: `base.cmake`'s gate 7 notes, `eeprom.h`'s revision check, AGENTS.md's "v2.0.x was never released" (v2.0.2 and v2.0.3 are published pre-releases), ADR-014's "Why here", `app.c`'s "LED blink" | Each corrected; the rule left behind by gate 10, a record's first two bytes 0, written into AGENTS.md |
+| 10. For ADR-007: lwIP's internals included outside the platform; the radio's one state for "not started" and "did not start"; the radio's test build skips the start | The first to ADR-007, the other two to ADR-017 |
+
+The review's findings on ADR-017 are for its revision before approval: its status points to them.
+
 ## Closed (2026-11-27)
 
 Closed as Built in its README, here and in the index, on its branch `adr006_gate10`, before its PR.
 
 - **Done:** ten gates, each approved alone and proven on the Pico W, the first nine merged (#139 to #146): every module a folder by what it does, built on its own with what it needs named and linked whole; a PC build for the tests; our code in C; no requirement upward and no loop; no SDK outside the platform and the boards; stored enums one byte by their own type; a part a build may leave out handed over by the start-up alone; the small fixes; ADR-017 for the rest. The end's checks: `tools/module_graph.py` `VERDICT PASS` (no SDK or radio include outside `platform/` and `boards/`, no requirement upward, no loop, no part's switch outside `app/`); the PC build's stand-ins FreeRTOS's alone; a unit updated from v1.21 keeping every value it was given; the Pico W built without the servo gate and reading its record back with it; the three kinds of pick (gate 9); the lines' lists and each interface against ESP-IDF here; the Pico 2 W's runs above.
 - **Waived by the owner:** the real throw, on the condition above, which the runs above meet but for a calibration's whole run on a unit.
-- **Done since:** the Pico W's slot trial of the reader's fix, 2026-11-28, back and confirmed (above).
+- **Done since:** the Pico W's slot trial of the reader's fix, 2026-11-28, back and confirmed (above); the review's ADR-006 findings folded into the PR, those not fixed handed to ADR-017 and ADR-007 ("The review", above).
 - **Not done, with the occasion that does each** (the handover says so):
   - the Pico 2 W's menu baseline for ADR-009's four pages: saved again with the A&D on it;
   - a calibration's whole run on a unit: with ADR-009's runs with powder (the handover);

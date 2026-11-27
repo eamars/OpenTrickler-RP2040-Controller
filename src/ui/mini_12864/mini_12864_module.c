@@ -269,8 +269,6 @@ bool mini_12864_module_init() {
         mini_12864_module_config_save();
     }
 
-    // Register to eeprom save all
-    eeprom_register_handler(mini_12864_module_config_save);
     mini_12864_settings_register();
 
     // Run subsequent function inits

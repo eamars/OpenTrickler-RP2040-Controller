@@ -249,8 +249,6 @@ bool neopixel_led_init(void) {
         urgbw_u32(colour, neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order)
     );
 
-    // Register to eeprom save all
-    eeprom_register_handler(neopixel_led_config_save);
     settings_register(&led_settings);
 
     return true;

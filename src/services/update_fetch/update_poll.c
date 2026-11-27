@@ -870,7 +870,6 @@ bool update_poll_init(void) {
     }
     // A string read back is ended, whatever the slot held
     update_config.source[sizeof(update_config.source) - 1] = '\0';
-    eeprom_register_handler(update_poll_config_save);
     settings_register(&update_settings);
     return is_ok;
 }

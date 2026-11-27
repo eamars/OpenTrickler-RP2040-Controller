@@ -14,7 +14,7 @@ What is thrown is kept apart from how a powder flows. Two calibres that use one 
 
 ## Why here
 
-Fourth, after ADR-010, ADR-008 and ADR-009, and before ADR-006 (the owner, 2026-11-17: the current Pico platform first). ADR-006 changes how settings are stored, so the stored profiles are migrated twice: once here, and again by ADR-006. That is the cost of the order. Its row on the screen goes into ADR-010's new menu ("Charge: <name>" on the Charge page, `ADR-010-lvgl/menu_design.md`), and its page into ADR-008's web UI.
+After ADR-006 (the owner, 2026-11-26: the earlier the split, the less to move), which is built; ADR-006 left the stored layouts as they were. ADR-017, a draft, is recommended before it: this ADR adds a stored record, and today a record whose CRC fails is overwritten with its defaults at the start. Its row on the screen goes into ADR-010's new menu ("Charge: <name>" on the Charge page, `ADR-010-lvgl/menu_design.md`), and its page into ADR-008's web UI.
 
 ## What we know (read in the code 2026-11-15)
 

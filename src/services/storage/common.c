@@ -1,4 +1,5 @@
 #include <FreeRTOS.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -397,7 +398,7 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
     uint8_t * buf = malloc(read_size);
 
     if (!buf) {
-        printf("Unable to allocate buffer with size: %d", read_size);
+        printf("Unable to allocate buffer with size: %u\n", (unsigned) read_size);
         return false;
     }
 
@@ -406,7 +407,7 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
 
     // Unable to read from eeprom, then we will quit
     if (!is_ok) {
-        printf("Unable to read from addr: 0x%04x", addr);
+        printf("Unable to read from addr: 0x%04x\n", (unsigned) addr);
         free(buf);
         return is_ok;
     }
@@ -447,7 +448,8 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
             printf("EEPROM is unlikely initialized, will populate with default configuration\n");
         }
         if (calculated_crc32 != received_crc32) {
-            printf("CRC32 mismatch at address %x, received: %08lX, calculated: %08lX\n", addr, received_crc32, calculated_crc32);
+            printf("CRC32 mismatch at address %x, received: %08" PRIX32 ", calculated: %08" PRIX32 "\n", (unsigned) addr,
+                   received_crc32, calculated_crc32);
         }
         // Apply the default configuration: on trial, held as the defaults, written only once the update is kept
         free(buf);
@@ -487,7 +489,7 @@ bool save_config_now(uint16_t addr, void * cfg, size_t size) {
     uint8_t * buf = malloc(write_size);
 
     if (!buf) {
-        printf("Unable to allocate buffer with size: %d\n", write_size);
+        printf("Unable to allocate buffer with size: %u\n", (unsigned) write_size);
         return false;
     }
 

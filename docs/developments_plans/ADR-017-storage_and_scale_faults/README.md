@@ -1,6 +1,6 @@
 # ADR-017: the settings' storage and the scale's frames, when they fail
 
-Status: **Draft** 2026-11-27. Not approved. It holds what ADR-006 handed on: faults found in the code whose fixes change what a user sees, or need tests that are not small (the owner, 2026-11-27: "Small bug fixes are acceptable, as long as they don't need extensive tests"). Nothing here is designed yet, and nothing is built. Not placed in the order: the owner's to say.
+Status: **Draft** 2026-11-27. Not approved. It holds what ADR-006 handed on: faults found in the code whose fixes change what a user sees, or need tests that are not small (the owner, 2026-11-27: "Small bug fixes are acceptable, as long as they don't need extensive tests"). Nothing here is designed yet, and nothing is built. Not placed in the order: the owner's to say. **A review of this draft (2026-11-28) is to be folded in before approval:** [ADR-006's review](../ADR-006-platform_split/review_2026-11-28.md), "ADR-017: the draft". Its verdict: revise, then approve. Gate 1 as one rule (a load never writes over what it could not read or did not understand, and never stops a module starting; the trial's hold reused), with failure modes the draft misses (a save cut by the power, a write believed on its address alone, a held write that fails, the erase round a trial's hold, the Pico W's 3.5 KB C heap); gate 2's one reader does not fit six of the ten makes as coded, and its proof should run the old reading code against the new on the PC.
 
 ## What we want
 
@@ -33,11 +33,12 @@ Read in the code 2026-11-27, at ADR-006's gate 10 (`077f109`), but where a line 
 - **The I2C calls have no time limit** (`chip_i2c_rp2.c`: `i2c_write_blocking`, `i2c_read_blocking`). A chip that does not answer is a NACK, which returns; a bus held low is not.
 - **An EEPROM that does not answer leaves the unit blank, then calls through NULL** (ADR-006's review; not read again here).
 - **The erase runs outside the EEPROM's lock** (`eeprom_erase`, `eeprom.c`): a save from another task (the menu, a charge) can interleave with it. Found in ADR-003 and handed on with no ADR named (HANDOVER.md). Since ADR-006's gate 10 it says whether every page was written, and its two callers restart either way.
-- **The filler rule is checked by no tool** (AGENTS.md: an appended field never starts in the old struct's tail padding). `tests/release_records.py` reads each record's fields by type and name, not where the compiler lays them; three fields sit in v1.21's padding today, each reading v1.21's 0 as its default (ADR-009's progress).
+- **The filler rule is checked by no tool** (AGENTS.md: an appended field never starts in the old struct's tail padding). `tests/release_records.py` reads each record's fields by type and name, not where the compiler lays them; three fields sit in v1.21's padding today, each reading v1.21's 0 as its default (ADR-009's progress). It finds records by the name `eeprom_*_t`, so the update's note (`update_note_t`, `update.c`), stored with a CRC, is not seen at all (ADR-006's review, finding 7).
+- **The settings' mender writes over a stored choice it does not know** (`mend_choices`, `settings.c`, run by `settings_register` at the start): the first choice is put in its place and stored. A stored make of scale that is a number no make has is refused for one start, as ADR-006's gate 9 decided, then stored as the A&D's, whose driver runs from the next start (ADR-006's review, finding 2). The second place the start writes over a stored value.
 
 ### The radio
 
-- **A radio that does not start leaves the unit running without the network** since ADR-006's gate 10 (it stopped a core before). The screen's Wi-Fi page then says "Not joined", as it does for a unit set up and not yet joined: nothing says the radio failed.
+- **A radio that does not start leaves the unit running without the network** since ADR-006's gate 10 (it stopped a core before). The screen's Wi-Fi page then says "Not joined", as it does for a unit set up and not yet joined: nothing says the radio failed. Its state is one for both "not started yet" and "did not start" (`WIRELESS_STATE_NOT_INITIALIZED`): "No radio" needs them apart. The radio's test build skips the start; what a real failure leaves behind in the SDK was not run (ADR-006's review).
 
 ### The scale's frames
 
