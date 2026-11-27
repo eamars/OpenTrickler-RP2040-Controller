@@ -1,5 +1,5 @@
 /*
- * The image slots on the RP2040 (ADR-004): our bootloader's (bootloader/bootloader.c, src/update_boot.h). An image
+ * The image slots on the RP2040 (ADR-004): our bootloader's (bootloader/bootloader.c, src/platform/rp2/include/update_boot.h). An image
  * runs only where it was linked, so it knows its slot from its link (APP_SLOT_INDEX), and it is on trial when its
  * own mark is still set: the bootloader boots a marked image only on a trial. A trial is asked through the watchdog's
  * scratch registers; an image confirms itself by clearing its mark in its last metadata block, a write that only

@@ -2,7 +2,7 @@
 No feature silently dropped (ADR-008): every row of features.md either shown by the new pages, left out by its
 "Proposed" column, or still to come with the gate that brings it, and nothing else.
 
-A row is shown where a comment `features: <row> ...` stands beside the code that does it, in src/web or the firmware's page routes. The rows of
+A row is shown where a comment `features: <row> ...` stands beside the code that does it, in src/web/api/portal or the firmware's page routes. The rows of
 features.md's tables are numbered; its new items are N1, N2, ... Listed, then judged:
 
     venv\\Scripts\\python tests\\features_check.py [--final]
@@ -17,9 +17,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 FEATURES = REPO / "docs" / "developments_plans" / "ADR-008-web_ui" / "features.md"
-SOURCES = REPO / "src" / "web"
+SOURCES = REPO / "src" / "web" / "api" / "portal"
 # The pages' routes in the firmware (gate 3): where the portal is served, its addresses and its encoding
-ROUTES = REPO / "src" / "rest_endpoints.c"
+ROUTES = REPO / "src" / "web" / "api" / "rest_endpoints.c"
 MARK = re.compile(r"features:((?:\s+N?\d+)+)")
 ROW = re.compile(r"^\| (\d+) \|")
 NEW = re.compile(r"^- \*\*(N\d+)\. ")

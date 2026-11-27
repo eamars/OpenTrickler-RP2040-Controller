@@ -10,7 +10,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   - Its active area is not measured here. A typical 2.4 inch 12864 is about 55 x 27.5 mm, about 0.43 mm a pixel; measure the unit's glass before relying on a figure in mm.
 - **How it is read:** at a bench, from about 50 cm. A charge's weight is glanced at from further away.
 - **Input:** a knob that turns (next, previous), its click (Enter, taken as it goes down), and the reset button (Back). Back is also a click on the title's "<". No long press, no double click, and no hint on screen teaching the controls: nothing hidden (the owner, 2026-11-17). The one exception is a job whose turn acts (rule 5): there the knob means something new, and its line says so.
-- **Drawing:** LVGL 9 into the screen's one frame, only what changed, and the panel sent the pages that changed (`src/menu_view_12864.c`, `src/menu.c`, `src/display.c`); the navigator (`src/menu_nav.c`) fills a screen model in words and knows no pixels (ADR-010).
+- **Drawing:** LVGL 9 into the screen's one frame, only what changed, and the panel sent the pages that changed (`src/ui/view_12864/menu_view_12864.c`, `src/ui/menu/menu.c`, `src/drivers/uc1701/display.c`); the navigator (`src/ui/menu/menu_nav.c`) fills a screen model in words and knows no pixels (ADR-010).
 
 ## Rules
 
@@ -125,7 +125,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   (ADR-010, 2026-11-17). An animated figure is one label of tiles, a pose a different set of tiles
   (`scripts/bdf2lvgl.py`, `:art`), rather than an object for each moving part; check the heap's free piece before
   making it, and let it go when it is short.
-- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/lv_conf.h`, and a 3 KB pool from the FreeRTOS heap, `src/menu.c`: 17 KB). It holds every object of the view,
+- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/ui/view_12864/include/lv_conf.h`, and a 3 KB pool from the FreeRTOS heap, `src/ui/menu/menu.c`: 17 KB). It holds every object of the view,
   a frame's draw tasks while it draws, and a glyph's working buffer (384 bytes for an 18 px figure). When it runs
   short, LVGL silently skips the glyphs it cannot buffer: the redesigned view in 12 KB drew its figures as a lone "."
   and lost a title's first letter (2026-11-17). After adding objects to the view, read `screen`'s
@@ -159,7 +159,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 ## Relation to the other project skills
 
 - `c-style` for the code.
-- The LVGL mechanics live in `src/menu_view_12864.c` and ADR-010's `menu_design.md` (the tree, the keys, what leaves the screen). This skill decides how a screen looks and reads; `menu_design.md` decides what is on the menu and where. If they disagree on looks, this skill wins.
+- The LVGL mechanics live in `src/ui/view_12864/menu_view_12864.c` and ADR-010's `menu_design.md` (the tree, the keys, what leaves the screen). This skill decides how a screen looks and reads; `menu_design.md` decides what is on the menu and where. If they disagree on looks, this skill wins.
 
 ## Sources
 

@@ -47,7 +47,7 @@ RESTS = (2.0, 3.0, 4.0, 6.0, 8.0)
 ESTIMATES = {"gng": scale_models.GNG_JJB, "strain": scale_models.SLOW_STRAIN_GAUGE}
 TIMEOUT_S = 130.0               # past C18's 120 s: a throw the controller does not end shows as a timeout
 # The user's limits a case throws with: the simulation's stand-in user (`staged.sim_limits()`: coarse 0.3 to 2, fine
-# 0.01 to 0.5 rev/s, the plant's modelled range), or the firmware's default powder profile's (src/profile.c: coarse
+# 0.01 to 0.5 rev/s, the plant's modelled range), or the firmware's default powder profile's (src/services/profile/profile.c: coarse
 # 0.1 to 5, fine 0.08 to 2; the motors' 5 rev/s), the user a unit never calibrated has. Set in each worker
 LIMITS = {"sim": None, "profile": (0.1, 5.0, 0.08, 2.0)}
 

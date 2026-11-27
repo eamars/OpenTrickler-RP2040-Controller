@@ -1,4 +1,4 @@
-"""The charge controller and the auto-tuner in C (src/charge_controller.c, src/charge_tuner.c) run on the simulation
+"""The charge controller and the auto-tuner in C (src/services/charge_control/charge_controller.c, src/services/charge_control/charge_tuner.c) run on the simulation
 beside the Python (tools/charge_sim/step2.py, step2_tuner.py): ADR-009, step 2, gate 2, with no unit.
 
 The C is compiled for this PC as a library (tests/host/charge_lib.c; the host's compiler as tests/host_test.py finds
@@ -29,6 +29,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+# The firmware's module with the controller and the tuner, free of the chip (ADR-006)
+CONTROL = REPO / "src" / "services" / "charge_control"
 sys.path.insert(0, str(REPO / "tools" / "charge_sim"))
 sys.path.insert(0, str(REPO / "tests"))
 
@@ -104,9 +106,10 @@ def python_controller(profile, records, rig):
 def build_library() -> None:
     """The controller and the tuner built for this PC as a library."""
     LIBRARY.parent.mkdir(exist_ok=True)
-    command = compiler() + ["-shared", "-std=c11", "-Wall", "-Wextra", "-O1", "-fPIC", "-I", str(REPO / "src"),
-                            str(REPO / "tests" / "host" / "charge_lib.c"), str(REPO / "src" / "charge_controller.c"),
-                            str(REPO / "src" / "charge_tuner.c"), "-o", str(LIBRARY)]
+    command = compiler() + ["-shared", "-std=c11", "-Wall", "-Wextra", "-O1", "-fPIC",
+                            "-I", str(CONTROL / "include"),
+                            str(REPO / "tests" / "host" / "charge_lib.c"), str(CONTROL / "charge_controller.c"),
+                            str(CONTROL / "charge_tuner.c"), "-o", str(LIBRARY)]
     built = subprocess.run(command, capture_output=True, text=True)
     if built.returncode != 0 or built.stderr.strip():
         raise SystemExit(built.stdout + built.stderr + "\nVERDICT FAIL the controller did not build cleanly")

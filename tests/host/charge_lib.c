@@ -1,5 +1,5 @@
 /*
- * The charge controller and the tuner (src/charge_controller.c, src/charge_tuner.c) as a library for the PC, so the
+ * The charge controller and the tuner (src/services/charge_control/charge_controller.c, src/services/charge_control/charge_tuner.c) as a library for the PC, so the
  * simulation can run the firmware's own C (tests/step2_sim.py): each entry point exported under its own name, the
  * controller and the tuner held by the library.
  */

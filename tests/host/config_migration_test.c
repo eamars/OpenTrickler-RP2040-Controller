@@ -65,7 +65,7 @@ typedef struct {
     char name[PROFILE_NAME_MAX_LEN];
     float coarse_kp, coarse_ki, coarse_kd, coarse_min, coarse_max;
     float fine_kp, fine_ki, fine_kd, fine_min, fine_max;
-} profile_v121_t;                       // v1.21's src/profile.h
+} profile_v121_t;                       // v1.21's src/services/profile/include/profile.h
 
 typedef struct {
     uint16_t profile_data_rev;

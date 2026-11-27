@@ -28,7 +28,7 @@ import unit_api  # noqa: E402  (the client's folder, put on the path just above)
 from calibration_mock import PATH as CALIBRATION, CalibrationMock  # noqa: E402  (beside this file; ADR-009's mock)
 
 DATA = Path(__file__).resolve().with_name("web_test_data.json")
-MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web by scripts/web_build.py
+MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web/api/portal by scripts/web_build.py
 # The unit's addresses of the portal (rest_endpoints.c), and the wizard's old one, which it redirects to the set-up
 PAGES = {"/", "/mobile", "/display_mirror"}
 REDIRECTS = {"/wizard": "/#setup"}

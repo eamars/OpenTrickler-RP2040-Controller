@@ -7,7 +7,7 @@ description: Enforce and review this project's C/C++ coding style for RP2040/RP2
 
 This skill captures the C/C++ style used in this repository. Apply it proactively when writing or reviewing firmware code.
 
-This project is Pico SDK firmware for RP2040/RP2350-class boards, with FreeRTOS, LVGL, lwIP/CYW43 networking, EEPROM-backed configuration, PIO stepper control, and small C++ bridge islands. The strongest style signal is tracked project code under `src/` and target hardware configuration under `targets/`.
+This project is Pico SDK firmware for RP2040/RP2350-class boards, with FreeRTOS, LVGL, lwIP/CYW43 networking, EEPROM-backed configuration, PIO stepper control, and small C++ bridge islands. The strongest style signal is tracked project code under `src/` and target hardware configuration under `src/boards/`.
 
 Treat `library/` code as third-party unless the user explicitly asks to modify it. Generated files under `src/generated/` should normally be regenerated rather than hand edited.
 
@@ -187,9 +187,9 @@ When writing a new config feature, preserve EEPROM layout compatibility. Add fie
 
 ---
 
-## Rule 6 - Keep target hardware configuration in `targets/`
+## Rule 6 - Keep target hardware configuration in `src/boards/`
 
-Board-specific pin and peripheral mappings live under `targets/`, for example `targets/raspberrypi_pico_w_config.h`. Use macros for fixed hardware resources:
+Board-specific pin and peripheral mappings live under `src/boards/`, for example `src/boards/common/raspberrypi_pico_w_config.h`. Use macros for fixed hardware resources:
 
 ```c
 #define MOTOR_UART uart1
@@ -362,7 +362,7 @@ Prefer:
 
 - `target_sources(...)` for explicit generated or library-owned source additions
 - `target_link_libraries(...)` for Pico SDK hardware libraries such as `hardware_pio`, `hardware_spi`, `hardware_i2c`, `hardware_pwm`
-- target config include paths through `PICO_BOARD_HEADER_DIRS` and `targets/`
+- target config include paths through `PICO_BOARD_HEADER_DIRS` and `src/boards/common`
 
 Do not vendor new dependencies into `library/` or alter SDK import behavior unless the user asks for that scope.
 

@@ -1,6 +1,6 @@
 /*
  * The image slots on the RP2350: its ROM's (ADR-004). The partition table names slot A and slot B
- * (targets/pico2_w_partition_table.json). The ROM boots the better of their two images, maps its slot to the start
+ * (src/boards/pico2_w/pico2_w_partition_table.json). The ROM boots the better of their two images, maps its slot to the start
  * of flash, and boots an image marked try-before-you-buy only on a restart that asks for it, once, until the image
  * confirms itself (rom_explicit_buy).
  */
