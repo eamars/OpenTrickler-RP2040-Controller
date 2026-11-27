@@ -229,7 +229,7 @@ bool profile_data_init() {
     static const config_layout_t layout = {.header = offsetof(eeprom_profile_data_t, profiles),
                                            .element = sizeof(profile_t), .count = MAX_PROFILE_CNT};
     is_ok = load_config_layout(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data,
-                               sizeof(profile_data), &layout, EEPROM_PROFILE_DATA_REV);
+                               sizeof(profile_data), &layout);
 
     if (!is_ok) {
         printf("Unable to read profile data\n");

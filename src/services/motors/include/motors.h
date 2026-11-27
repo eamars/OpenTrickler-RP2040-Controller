@@ -8,7 +8,6 @@
 #include "common.h"
 #include "step_pulses.h"
 
-#define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
 
 
 // Terms

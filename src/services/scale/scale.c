@@ -392,7 +392,7 @@ bool scale_init() {
     scale_makes_set_host(&scale_as_host);
 
     // Read config from EEPROM
-    is_ok = load_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, &default_scale_persistent_config, sizeof(scale_config.persistent_config), EEPROM_SCALE_DATA_REV);
+    is_ok = load_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, &default_scale_persistent_config, sizeof(scale_config.persistent_config));
     if (!is_ok) {
         printf("Unable to read scale configuration\n");
         return is_ok;

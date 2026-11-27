@@ -24,7 +24,6 @@
 
 #define UPDATE_SOURCE_MAX 128
 #define UPDATE_NOTE_MAX 96
-#define EEPROM_UPDATE_CONFIG_REV 1                  // never stored: a new slot validates by its CRC (common.c)
 
 typedef enum : uint8_t {
     UPDATE_CHANNEL_STABLE = 0,

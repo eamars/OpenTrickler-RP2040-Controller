@@ -864,7 +864,7 @@ bool update_poll_init(void) {
     update_poll_mutex = xSemaphoreCreateMutex();
     bool is_ok = update_poll_mutex != NULL && https_client_init();
     if (!load_config(EEPROM_UPDATE_CONFIG_BASE_ADDR, &update_config, &default_update_config,
-                     sizeof(eeprom_update_config_t), EEPROM_UPDATE_CONFIG_REV)) {
+                     sizeof(eeprom_update_config_t))) {
         printf("Update: the stored source could not be read; GitHub's is used\n");
         update_config = default_update_config;
     }

@@ -14,7 +14,6 @@
 #include "charge_mode.h"
 
 #define ADDR 0x0400
-#define REV 7               // an old revision number no record carries
 
 typedef struct {
     uint16_t rev;
@@ -112,7 +111,7 @@ static void powders(void) {
     fake_eeprom_erase();
     save_config_now(POWDERS_ADDR, &old, sizeof(old));
     static eeprom_profile_data_t now;
-    bool ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout, REV);
+    bool ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout);
     bool kept = ok && now.current_profile_idx == 3;
     for (int idx = 0; idx < MAX_PROFILE_CNT && kept; idx += 1) {
         const profile_t *p = &now.profiles[idx];
@@ -138,7 +137,7 @@ static void powders(void) {
     fake_eeprom_erase();
     save_config_now(POWDERS_ADDR, &old, sizeof(old));
     config_hold_writes(true);
-    ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout, REV);
+    ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout);
     check(ok && config_read_part(POWDERS_ADDR + second, &part, sizeof(part)) &&
           memcmp(&part, &now.profiles[1], sizeof(part)) == 0 && strcmp(part.name, "Powder1") == 0,
           "on a trial, a powder read back is the write held, not v1.21's bytes");
@@ -161,7 +160,7 @@ static void powders(void) {
     }
     fake_eeprom_erase();
     save_config_now(POWDERS_ADDR, &later, sizeof(later));
-    ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout, REV);
+    ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout);
     kept = ok && now.current_profile_idx == 5;
     for (int idx = 0; idx < MAX_PROFILE_CNT && kept; idx += 1) {
         kept = memcmp(&now.profiles[idx], &later.profiles[idx].now, sizeof(profile_t)) == 0;
@@ -229,7 +228,7 @@ static void charge_record(void) {
     save_config_now(CHARGE_ADDR, v121, sizeof(v121));
 
     static eeprom_charge_mode_data_t charge;
-    bool ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout, REV);
+    bool ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout);
     check(ok && charge.coarse_stop_threshold == 7.5f && charge.fine_stop_threshold == 0.04f &&
           charge.set_point_sd_margin == 0.03f && charge.set_point_mean_margin == 0.025f &&
           charge.coarse_stop_gate_ratio == 0.6f && charge.decimal_places == (decimal_places_t) 1 &&
@@ -246,7 +245,7 @@ static void charge_record(void) {
     check(config_read_stored(CHARGE_ADDR, &back, sizeof(back)) && memcmp(&back, &charge, sizeof(back)) == 0,
           "and stored at this version's size");
     memset(&charge, 0, sizeof(charge));
-    ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout, REV);
+    ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout);
     check(ok && memcmp(&charge, &back, sizeof(back)) == 0, "the next start reads it whole");
 
     // A layout before v1.21 (v1.16 to v1.18's 48 bytes): not read as a prefix, the defaults
@@ -254,7 +253,7 @@ static void charge_record(void) {
     memcpy(v118, v121, sizeof(v118));
     fake_eeprom_erase();
     save_config_now(CHARGE_ADDR, v118, sizeof(v118));
-    ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout, REV);
+    ok = load_config_layout(CHARGE_ADDR, &charge, &defaults, sizeof(charge), &charge_mode_layout);
     check(ok && memcmp(&charge, &defaults, sizeof(charge)) == 0, "a layout before v1.21 gets the defaults, not a shifted prefix");
 }
 
@@ -265,7 +264,7 @@ int main(void) {
 
     // An update from the earlier version: its fields kept, the appended ones their defaults, stored at the new size
     store_v1();
-    bool ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    bool ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "an earlier version's record is kept, the appended fields default");
     record_v2_t read_back;
     check(config_read_stored(ADDR, &read_back, sizeof(read_back)) && v2_is(&read_back, 1.5f, 2.5f, -1.0f, -1.0f),
@@ -274,31 +273,31 @@ int main(void) {
 
     // The next start reads it as it is
     memset(&v2, 0, sizeof(v2));
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "the next start reads the new record as it is");
 
     // A record of the new size, its appended fields set, is read whole
     record_v2_t full = {.rev = 0, .a = 3.0f, .b = 4.0f, .c = 5.0f, .d = 6.0f};
     fake_eeprom_erase();
     save_config_now(ADDR, &full, sizeof(full));
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 3.0f, 4.0f, 5.0f, 6.0f), "a record of the new size is read whole");
 
     // A damaged record matches at no size: the defaults, as today
     store_v1();
     fake_eeprom_bytes()[ADDR + 3] ^= 0x5A;
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f), "a damaged record gets the defaults");
 
     // A new chip, erased: the defaults
     fake_eeprom_erase();
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f), "an erased EEPROM gets the defaults");
 
     // On an update's trial: kept in RAM, nothing written until it is confirmed, and not reported as a reset
     store_v1();
     config_hold_writes(true);
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "on trial, the earlier record is kept in RAM");
     record_v1_t still;
     check(config_read_stored(ADDR, &still, sizeof(still)) && still.a == 1.5f && still.b == 2.5f &&
@@ -315,7 +314,7 @@ int main(void) {
     fake_eeprom_erase();
     save_config_now(ADDR, &later, sizeof(later));
     record_v1_t v1;
-    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1), REV);
+    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1));
     check(ok && v1.rev == 0 && v1.a == 7.0f && v1.b == 8.0f, "a later version's longer record: our fields read");
     record_v1_t v1_back;
     check(config_read_stored(ADDR, &v1_back, sizeof(v1_back)) && v1_back.a == 7.0f && v1_back.b == 8.0f &&
@@ -324,14 +323,14 @@ int main(void) {
     check(config_is_saved(ADDR, &v1, sizeof(v1)), "and it counts as saved");
 
     // The later version again: ours read back, its own fields at their defaults
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
+    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
     check(ok && v2_is(&v2, 7.0f, 8.0f, -1.0f, -1.0f), "the later version reads them back, its own at their defaults");
 
     // A damaged longer record matches at no size: the defaults
     fake_eeprom_erase();
     save_config_now(ADDR, &later, sizeof(later));
     fake_eeprom_bytes()[ADDR + 5] ^= 0x5A;
-    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1), REV);
+    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1));
     check(ok && v1.a == 10.0f && v1.b == 20.0f, "a damaged longer record gets the defaults");
 
     powders();

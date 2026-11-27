@@ -94,6 +94,10 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 - Approved: "merged, please proceed."
 - **The gate handed over** (asked before cut 1, since its users reached it through `#if FEATURE_SERVO_GATE` in four files and a header that answered "no gate" when its source was left out): an always-present `services/gate`, which `app.c` hands the servo gate to, so `app.c` is the one place that asks. The other way, the stub header kept and the four files' `#if` turned into calls to it, was not taken.
 - **A stored make the build does not carry is refused, nothing standing in** (asked with it): no make runs, the unit says so, and a charge and a calibration refuse. The other way, the A&D's driver kept as the fallback with only the simulated scale dropped, was not taken. It settles "the several, one chosen pick shown on the scale's makes" under "To settle": yes.
+- PR #146 merged by the owner.
+
+**2026-11-27, gate 10**
+- Approved: "The last PR for gate 9 has been merged. I want you to proceed to the remainder of the gates."
 
 ## Why here
 

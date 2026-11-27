@@ -6,7 +6,6 @@
 
 #include <semphr.h>
 
-#define EEPROM_SCALE_DATA_REV                     3              // 16 byte 
 
 
 // A make of scale, and what it is given by the scale (drivers/scale_protocols)

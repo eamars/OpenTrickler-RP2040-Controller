@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define EEPROM_MINI_12864_MODULE_DATA_REV           2
 
 
 

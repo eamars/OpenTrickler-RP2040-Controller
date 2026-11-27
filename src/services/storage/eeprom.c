@@ -34,24 +34,28 @@ void eeprom_register_handler(eeprom_save_handler_t handler) {
 }
 
 
-uint8_t eeprom_save_all() {
-    // Iterate over all registered handlers and run the save functions
+// Every registered module's save, each run even when one before it failed; whether every one was stored
+bool eeprom_save_all(void) {
+    bool all_saved = true;
     for (_eeprom_save_handler_node_t * node = eeprom_save_handler_head; node != NULL; node = node->next) {
-        // Run the save handler
-        node->function_handler();
+        all_saved = node->function_handler() && all_saved;
     }
-    return 37;  // Configuration Menu ID
+    return all_saved;
 }
 
 
-uint8_t eeprom_erase(bool reboot) {
-    cat24c256_eeprom_erase();
+// Whether every page was written: the restart follows either way
+bool eeprom_erase(bool reboot) {
+    bool erased = cat24c256_eeprom_erase();
+    if (!erased) {
+        printf("EEPROM: the erase failed: the settings may be left as they were\n");
+    }
 
     if (reboot) {
         software_reboot();
     }
-    
-    return 37;  // Configuration Menu ID
+
+    return erased;
 }
 
 

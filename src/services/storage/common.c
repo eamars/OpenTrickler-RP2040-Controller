@@ -372,13 +372,13 @@ static void config_fill(void *cfg, const void *default_cfg, size_t size, const u
 }
 
 
-bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
-    return load_config_layout(addr, cfg, default_cfg, size, NULL, rev_validation);
+bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size) {
+    return load_config_layout(addr, cfg, default_cfg, size, NULL);
 }
 
 
 bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
-                        const config_layout_t * layout, uint16_t rev_validation) {
+                        const config_layout_t * layout) {
     bool is_ok;
     uint32_t calculated_crc32;
 
@@ -411,29 +411,9 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
         return is_ok;
     }
 
-    /**
-     * FIXME: This is only for backward compatibility purpose: 
-     *  In the past (pre 1.17) the code relies on the revision number (uint16_t) to identify the change of configuration structure.
-     *  Now we are switching to CRC32 based, but we still want the old configuration to be migrated. In this case the migration is 
-     *      achieved by accepting rev validation, then erase the validation from the subsequent write operation. If the rev validation
-     *      failed then the code will valiate CRC32 instead. 
-     */
+    // A record's first two bytes, its revision before v1.17, are 0 in every record since
     uint16_t received_rev;
     memcpy(&received_rev, buf, sizeof(received_rev));
-    if (received_rev == rev_validation) {
-        // Accept the buffer
-        memcpy(cfg, buf, size);
-        free(buf);
-
-        // Erase the rev from the stored data to highlight the rev is deprecated
-        memset(cfg, 0x00, sizeof(received_rev));
-
-        // Save it back
-        is_ok = save_config(addr, cfg, size);
-
-        return is_ok;
-    }
-    // Following are the new validation method based on crc32
 
     // Verify crc
     uint32_t received_crc32 = 0;

@@ -154,7 +154,7 @@ bool wireless_init() {
     bool is_ok = true;
 
     memset(&wireless_config, 0x00, sizeof(wireless_config_t));
-    is_ok = load_config(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata, &default_eeprom_wireless_metadata, sizeof(wireless_config.eeprom_wireless_metadata), EEPROM_WIRELESS_CONFIG_METADATA_REV);
+    is_ok = load_config(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata, &default_eeprom_wireless_metadata, sizeof(wireless_config.eeprom_wireless_metadata));
     if (!is_ok) {
         printf("Unable to read WiFi configuration\n");
         return false;
@@ -578,6 +578,9 @@ static void wireless_scan_run(void) {
 
 
 bool wireless_scan_start(void) {
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_NOT_INITIALIZED) {
+        return false;   // no radio: it has not started, or it did not
+    }
     rtos_critical_enter();
     bool free = !wireless_scan_running && wireless_station_state != STATION_JOINING;
     if (free) {
@@ -776,7 +779,7 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
     }
     setup_set_step(SETUP_STEP_DONE, NULL, by);
     bool hotspot = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
-    bool joined = chip_net_joined();
+    bool joined = hotspot && chip_net_joined();
     *hotspot_stays = hotspot && !joined;
     if (hotspot && joined) {
         wireless_ctrl_t ctrl = WIRELESS_CTRL_SETUP_END;
@@ -825,7 +828,7 @@ static void wireless_rejoin(void) {
 
 // The console's `wifi leave` (ADR-004): the station leaves its network, as when its router goes away
 bool wireless_station_leave(void) {
-    return chip_net_leave();
+    return wireless_config.current_wireless_state != WIRELESS_STATE_NOT_INITIALIZED && chip_net_leave();
 }
 
 
@@ -922,8 +925,16 @@ void wireless_task(void *p) {
     wireless_config.current_wireless_state = WIRELESS_STATE_NOT_INITIALIZED;
     wireless_ctrl_queue = xQueueCreate(5, sizeof(wireless_ctrl_t));
 
-    if (!chip_net_start()) {
-        exit(-1);
+    // A radio that does not start leaves the unit without the network, the rest of it running. A test build skips the
+    // start, as if it had failed
+#if RC_TEST_RADIO_FAILS
+    bool radio = false;
+#else
+    bool radio = chip_net_start();
+#endif
+    if (!radio) {
+        printf("Wi-Fi: the radio did not start: the unit goes on without the network\n");
+        vTaskDelete(NULL);
     }
 
     wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;

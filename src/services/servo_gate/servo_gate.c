@@ -263,7 +263,7 @@ bool servo_gate_config_init() {
 
     // Read charge mode config from EEPROM
     memset(&servo_gate, 0x0, sizeof(servo_gate));
-    is_ok = load_config(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config, &default_eeprom_servo_gate_config, sizeof(servo_gate.eeprom_servo_gate_config), EEPROM_SERVO_GATE_CONFIG_REV);
+    is_ok = load_config(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config, &default_eeprom_servo_gate_config, sizeof(servo_gate.eeprom_servo_gate_config));
     if (!is_ok) {
         printf("Unable to read servo gate configuration\n");
         return false;
