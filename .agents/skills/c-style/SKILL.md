@@ -333,7 +333,9 @@ When reviewing: flag misleading comments and empty narration, but do not demand 
 
 ## Rule 13 - Keep C++ as a bridge, not a second architecture
 
-Use C++ where it is already needed for helper classes or modules such as `FloatRingBuffer` and selected mode implementations. Keep public headers C-callable with `extern "C"` guards when C modules need to call them.
+Our own code is C (ADR-006, gate 5): write new code in C. The C++ left is `mini_12864_module.cpp` and the interrupt class in `gpio_irq_handler.h`, which go with the platform's inputs (ADR-006, gate 7); do not add to it. Keep public headers C-callable with `extern "C"` guards: they let C++ code call ours, as ESP-IDF's own headers do.
+
+When a file moves from C++ to C, the compiler does not flag every change of meaning: `abs()` of a float is the float's in C++ and the integer's in C (write `fabsf`), and the same holds for every overloaded maths call. Compare what each function calls before and after.
 
 **Right:**
 ```c

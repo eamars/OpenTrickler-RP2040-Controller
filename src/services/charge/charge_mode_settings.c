@@ -1,6 +1,6 @@
 /*
- * Charge mode's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/charge). In C beside
- * charge_mode.c: the table is written with C's designated initializers.
+ * Charge mode's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/charge), in a file of
+ * their own beside charge_mode.c.
  */
 #include <math.h>
 #include <stddef.h>

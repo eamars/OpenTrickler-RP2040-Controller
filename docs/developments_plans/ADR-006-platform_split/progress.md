@@ -349,4 +349,84 @@ The three SDK headers are all `storage`'s: `common.h` names the PIO's type, `com
 
 ### For gate 5
 
-- `ring` in C joins `HOST_MODULES`, and the check of the new ring against the old class can be a test of the PC build.
+- `ring` in C joins `HOST_MODULES`.
+
+## Gate 5: C only
+
+2026-11-27, approved by the owner ("Approve gate 5"), after PR #141 merged gate 4. On the branch `adr006_gate5`. Commit cf8d4b2.
+
+**The verdict: the two modes and the ring buffer are C, every function of the two modes calls and touches what it did, and on the Pico W a charge and a purge run as before.** One line would have changed its meaning in C with no error, and was written to keep it.
+
+### What was built
+
+- **`cleanup_mode.cpp` and `charge_mode.cpp` are `.c`.**
+- **`FloatRingBuffer`, the one class, is `float_ring`** (`src/common/ring`): a struct and five functions (`init`, `add`, `count`, `mean`, `sd`) over an array its user gives. The charge's three rings have their arrays on the stack, 20 or 40 bytes. No heap: the class took its array by a `malloc` it never checked.
+- **The ring is in the PC build**, whole: the fifth free module.
+- The C++ left is `mini_12864_module.cpp` and the interrupt class in `gpio_irq_handler.h`, for gate 7.
+
+### Found on the way
+
+- **`abs()` of a float means another thing in C, and the compiler says nothing.** The zero test asks `abs(mean) < margin`. In C++ that was `std::abs(float)` (read off the old object file: its one call). In C, `abs` is the integer's: the mean would be cut to a whole number first, and any mean under 1 would pass as zero. It is `fabsf` now. The ADR said `charge_mode.cpp` "uses only `FloatRingBuffer`" of C++; it also used this overload.
+- **The cup-return wait made a ring it never used:** a `malloc` and a `free` at each cup's return, for nothing. Gone.
+- **Of the class's 17 methods the charge used four.** The rest (the lock, the overflow flag, `dequeue`, `first`, `last`, the index) are not carried over.
+- **A function's size is not the measure the gate's text took it for.** 19 functions changed size, by a few bytes each way, with nothing changed in their lines: the C and the C++ front ends pick other instructions at `-O0` (a `bool` tested another way, a `? :` laid out otherwise). So the comparison is of what each function calls and what data it touches, counted by name; the sizes are listed and their kinds named.
+- **The Pico W's menu tour is run with the screen's inversion off live** (the handover says so; `AGENTS.md` said "stored upside down", which is no longer so). Run without, every judged page fails as the exact inverse of its picture. That cost a look into the menu's code before the handover was read again; `AGENTS.md` now says it at the tour.
+
+### The proofs, on the PC
+
+**The ring, checked once against the class** (`zig`, the old class from git beside the new C, the same readings into both: a scale's level and noise, with jumps, in rings of 5 and of 10): 214,000 means and standard deviations compared bit for bit, 0 differ; `VERDICT PASS`. Not kept as a test: the class is gone.
+
+**What each function calls and touches**, the old object file against the new, both boards the same:
+
+| | `charge_mode` | `cleanup_mode` |
+|---|---|---|
+| Functions before | 36 (3 of them C++'s own: `std::abs`, `std::isnan`, `std::isfinite`) | 8 (1: `std::isfinite`) |
+| Functions after | 33 | 7 |
+| The same names, the same number of times | 26 | 5 |
+| Differ, each accounted for below | 7 | 2 |
+
+- **The ring's four users** (`wait_for_zero`, `pause`, `wait_for_cup_removal`, `wait_for_cup_return`): the class's calls for the ring's, one for one; the constructor and destructor gone; the last of the four calls nothing of it any more.
+- **`wait_for_zero`:** `std::abs(float)` gone, `fabsf` in its place, which the compiler does in place (the sign bit cleared). No conversion to an integer in the function.
+- **`isnan` and `isfinite`** (`request_start`, `target_fits_at`; `cleanup_mode_limit_speed`, `cleanup_mode_set_speed`): C++ called its own small functions for them; C's are macros that compare in place. On the RP2040 that is the float library's compare (`__aeabi_fcmpun`, `__aeabi_fcmpgt`); on the RP2350 the FPU's own instructions. The same question asked of the same number.
+- **`wait_for_complete`:** one read fewer of `charge_heap_low`, in `low = free < low ? free : low`. C reads each side of a minimum once; C++ read the variable again for the result. Nothing else touches it between.
+- **The data the two files start with:** 16 objects in `charge_mode`, none in `cleanup_mode`; the bytes the same but for one table of ten strings' addresses, whose strings and order are the same (the spacing between its entries, entry by entry). Every string constant the same.
+
+**The whole image, by name and size:**
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Names before, after | 4,441, 4,438 | 4,449, 4,446 |
+| Gone | the class's 9 functions; a table renamed | the same |
+| New | the ring's 6 functions; the table | the same |
+| Of another size | 19, all in the two modes | 19, the same |
+| `app.bin` | 938,452 to 937,964 bytes (488 fewer) | 923,788 to 923,268 (520 fewer) |
+
+Nothing outside the two modes and the ring changed its name or size. `tools/size_report.py`: the Pico W's flash 915.1 KB to 914.7 KB of its 1,016 KB slot; RAM at link time 252.1 KB, the same.
+
+- `tests/host_test.py` (the ring in the PC build), `release_records.py`, `features_check.py`: `VERDICT PASS`.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, asked again before the first contact). Before: 2.0.3-296 (`dceafe6`), as it had run since gate 3. After: 2.0.3-305 (`cf8d4b2`), flashed by the probe.
+
+| After a restart and one `charge_cycle` | Before | After |
+|---|---|---|
+| The charge | 30.000 for 30.000, 13.0 s | 30.000 for 30.000, 12.9 s |
+| The job task's stack never touched | 2,984 bytes | 2,968 bytes |
+| The heap's low mark (`heap_min`) | 39,816 bytes | 39,816 bytes |
+| The charge's own heap low mark | 40,624 bytes | 40,624 bytes |
+
+- **The stack: 16 bytes more used**, the rings' arrays now on it. 2,968 bytes are left.
+- **`charge_cycle`: `VERDICT PASS`**, the cup 0.0 gr after.
+- **`menu_tour --compare tests/menu_baseline/pico_w`: `VERDICT PASS`**, with the inversion off live, then reverted.
+- **`api_check`: `VERDICT PASS`** (the local OTA server up for it, without its name, and stopped after). In it the purge: started by the API, its speed and time set, stopped by the unit at its time; started again and stopped by the API. And a charge started and stopped the same way.
+- **The unit's settings** against the copy from before gate 1, after the flash and after the check's restart: 17 resources, the same.
+
+The Pico 2 W waits, by the owner's word; its image builds, and compares as the Pico W's does.
+
+**Gate 5 is built.**
+
+### For gate 6
+
+- Our code is C but for the display's module, so every module but `mini_12864` can be built by a C compiler alone.
+- A file moved from C++ to C is judged by what each function calls, not by its size: `build_adr006/refs_compare.py` is the scratch script that did it here.
