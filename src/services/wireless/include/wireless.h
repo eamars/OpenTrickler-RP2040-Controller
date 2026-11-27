@@ -15,14 +15,14 @@ typedef enum {
     AUTH_WPA_TKIP_PSK = 1,
     AUTH_WPA2_AES_PSK = 2,
     AUTH_WPA2_MIXED_PSK = 3,
-} cyw43_auth_t;
+} wireless_auth_t;
 
 
 typedef struct {
     uint16_t wireless_data_rev;
     char ssid[32];
     char pw[64];
-    cyw43_auth_t auth;
+    uint8_t auth;               // wireless_auth_t
     uint32_t timeout_ms;
     bool enable;
     // The set-up finished or skipped (ADR-008, gate 4). In the struct's filler: the size stays 108 bytes, so no unit's

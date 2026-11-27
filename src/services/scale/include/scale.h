@@ -60,9 +60,9 @@ typedef struct {
 
 typedef struct {
     uint16_t scale_data_rev;
-    scale_driver_t scale_driver;
-    scale_baudrate_t scale_baudrate;
-    scale_uart_format_t scale_uart_format;
+    uint8_t scale_driver;                   // scale_driver_t
+    uint8_t scale_baudrate;                 // scale_baudrate_t
+    uint8_t scale_uart_format;              // scale_uart_format_t
     // The calibration's scale (ADR-009 step 1, items 3 and 4); -1 never calibrated. Appended at the end: an earlier
     // version's record is kept by load_config (ADR-009, gate 2)
     float settle_ms;

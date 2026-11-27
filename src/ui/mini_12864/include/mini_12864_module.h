@@ -36,7 +36,7 @@ typedef enum {
 typedef struct {
     uint32_t data_rev;
     bool inverted_encoder_direction;
-    display_rotation_t display_rotation;
+    uint8_t display_rotation;   // display_rotation_t
     bool inverted_display;
     uint8_t charge_view;        // display_charge_view_t, in the struct's last byte of filler (ADR-010, gate 6)
 } mini_12864_module_config_t;

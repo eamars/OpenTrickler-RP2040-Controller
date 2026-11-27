@@ -201,7 +201,7 @@ bool wireless_config_save() {
 
 
 // The stored security as the radio joins it, and a security heard as the settings store it
-static chip_net_security_t wireless_security(cyw43_auth_t auth) {
+static chip_net_security_t wireless_security(wireless_auth_t auth) {
     switch (auth) {
         case AUTH_WPA_TKIP_PSK: return CHIP_NET_WPA_TKIP;
         case AUTH_WPA2_AES_PSK: return CHIP_NET_WPA2_AES;
@@ -212,7 +212,7 @@ static chip_net_security_t wireless_security(cyw43_auth_t auth) {
 }
 
 
-static cyw43_auth_t wireless_auth_of(chip_net_security_t security) {
+static wireless_auth_t wireless_auth_of(chip_net_security_t security) {
     switch (security) {
         case CHIP_NET_WPA_TKIP: return AUTH_WPA_TKIP_PSK;
         case CHIP_NET_WPA2_AES: return AUTH_WPA2_AES_PSK;
@@ -365,7 +365,7 @@ static TickType_t wireless_station_since = 0;           // when the state was la
 static struct {
     char ssid[33];
     char key[64];
-    cyw43_auth_t auth;
+    wireless_auth_t auth;
     bool stored_key;        // the stored network's own key: not written again
     activity_by_t by;
 } wireless_join_asked;
@@ -450,7 +450,7 @@ void wireless_get_station(wireless_station_info_t *station) {
 
 
 // The settings' word for a security, and the security for a word
-static const char *wireless_auth_text(cyw43_auth_t auth) {
+static const char *wireless_auth_text(wireless_auth_t auth) {
     for (size_t idx = 0; idx < sizeof(wifi_auth_choices) / sizeof(wifi_auth_choices[0]); idx += 1) {
         if (wifi_auth_choices[idx].held == auth) {
             return wifi_auth_choices[idx].text;
@@ -460,10 +460,10 @@ static const char *wireless_auth_text(cyw43_auth_t auth) {
 }
 
 
-static bool wireless_auth_from_text(const char *text, cyw43_auth_t *auth) {
+static bool wireless_auth_from_text(const char *text, wireless_auth_t *auth) {
     for (size_t idx = 0; idx < sizeof(wifi_auth_choices) / sizeof(wifi_auth_choices[0]); idx += 1) {
         if (strcmp(wifi_auth_choices[idx].text, text) == 0) {
-            *auth = (cyw43_auth_t) wifi_auth_choices[idx].held;
+            *auth = (wireless_auth_t) wifi_auth_choices[idx].held;
             return true;
         }
     }
@@ -480,7 +480,7 @@ static void wireless_scan_result(const chip_net_heard_t *result) {
     if (result->ssid_len == 0 || result->ssid_len > 32 || !result->joinable) {
         return;
     }
-    cyw43_auth_t auth = wireless_auth_of(result->security);
+    wireless_auth_t auth = wireless_auth_of(result->security);
     rtos_critical_enter();
     uint8_t idx = 0;
     while (idx < wireless_heard_count && (strlen(wireless_heard[idx].ssid) != result->ssid_len ||
@@ -613,8 +613,8 @@ bool wireless_network_at(size_t idx, wireless_network_t *out) {
 
 
 // A join taken: asked of the Wi-Fi task, the station joining from now, so a read straight after says so
-static wireless_join_result_t wireless_join_ask(const char *ssid, const char *key, cyw43_auth_t auth, bool stored_key,
-                                                activity_by_t by) {
+static wireless_join_result_t wireless_join_ask(const char *ssid, const char *key, wireless_auth_t auth,
+                                                bool stored_key, activity_by_t by) {
     if (wireless_config.current_wireless_state != WIRELESS_STATE_AP_MODE_LISTEN) {
         return WIRELESS_JOIN_NOT_HOTSPOT;
     }
@@ -644,7 +644,7 @@ static wireless_join_result_t wireless_join_ask(const char *ssid, const char *ke
 
 
 wireless_join_result_t wireless_join(const char *ssid, const char *key, const char *auth_text, activity_by_t by) {
-    cyw43_auth_t auth;
+    wireless_auth_t auth;
     size_t ssid_len = strlen(ssid);
     if (ssid_len == 0 || ssid_len >= sizeof(wireless_join_asked.ssid) - 1) {
         return WIRELESS_JOIN_BAD_SSID;
@@ -676,7 +676,7 @@ wireless_join_result_t wireless_join_stored(activity_by_t by) {
  */
 static void wireless_join_run(void) {
     const char *ssid = wireless_join_asked.ssid;
-    cyw43_auth_t auth = wireless_join_asked.auth;
+    wireless_auth_t auth = wireless_join_asked.auth;
     wireless_station_up();
     event_t began = {.source = EVENT_SOURCE_WIFI, .kind = EVENT_JOINING, .by = (uint8_t) wireless_join_asked.by};
     events_add(&began);
