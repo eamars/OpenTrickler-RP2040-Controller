@@ -47,7 +47,11 @@ static inline void _give_mutex(BaseType_t scheduler_state) {
     }
 }
 
+// A chip that did not answer at the start is not asked again: each call would wait out the bus's time limit
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len) {
+    if (!eeprom_answers) {
+        return false;
+    }
     BaseType_t scheduler_state = xTaskGetSchedulerState();
     bool is_ok;
 
@@ -70,6 +74,9 @@ bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len) {
 
 
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len) {
+    if (!eeprom_answers) {
+        return false;
+    }
     BaseType_t scheduler_state = xTaskGetSchedulerState();
     bool is_ok;
 

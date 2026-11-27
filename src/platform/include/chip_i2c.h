@@ -9,7 +9,9 @@
  *
  * Every call returns within a time limit (ADR-017, gate 1): a byte that takes longer than CHIP_I2C_BYTE_LIMIT_US is a
  * failure, so a bus held low, or a device that stretches the clock without end, fails the call and never hangs it.
- * ESP-IDF's calls take a whole transfer's limit (`i2c_master_transmit`'s `xfer_timeout_ms`): the bytes times this.
+ * The limit is the caller's wall time, so it must outlast any wait behind other tasks: at 1 ms a save failed one time
+ * in eight under the web's load. ESP-IDF's calls take a whole transfer's limit (`i2c_master_transmit`'s
+ * `xfer_timeout_ms`): the bytes times this.
  */
 #include <stdbool.h>
 #include <stddef.h>
@@ -19,8 +21,8 @@
 extern "C" {
 #endif
 
-// The longest a byte may take, at any rate: at 400 kHz one takes 23 us, at 100 kHz 90 us
-#define CHIP_I2C_BYTE_LIMIT_US 1000u
+// The longest a byte may take, the caller's time behind other tasks included: at 400 kHz one takes 23 us
+#define CHIP_I2C_BYTE_LIMIT_US 1000000u
 
 // The bus on its pins at its rate, with the chip's own pull-ups on both pins when `pull_ups`
 void chip_i2c_open(unsigned int bus, unsigned int sda_pin, unsigned int scl_pin, uint32_t rate_hz, bool pull_ups);
