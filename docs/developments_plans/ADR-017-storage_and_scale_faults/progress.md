@@ -76,3 +76,81 @@ The slot is read once (1 KB) and every size is checked from that buffer; only on
 `tests/release_records.py --elf build_w/app.elf --elf build/app.elf`: VERDICT PASS. Tried once and not kept: a byte appended to the LEDs' v1.21 record, compiled, lands at 19, in its 20 bytes' padding, and fails ("starts at 19, in v1.21's tail padding").
 
 `tools/module_graph.py`: VERDICT PASS.
+
+## Gate 2: the scale as one reader
+
+Built 2026-11-28 by a subagent in a worktree of its own, on gate 1's tip (491ea0d); proven on the PC. The unit's proof is the main session's (below).
+
+### What was built
+
+**One reader** (`src/services/scale/scale_reader.c`): the task "Scale Task" on the scale's port, priority 9 and 1,024 bytes as before, reads every make. It waits for each byte (`chip_serial_read_within`: up to 1 s, or up to the next request where the make is asked), hands it to the make's framer, and publishes each frame found through ADR-013's door: tapped (`scale tap on` now shows every make's frames), NaN for a frame with no number, the unit where the frame carries one (the A&D's). The simulated scale is untouched; at its hand-over back, `scale_simulation_stop()` drains the port and tells the reader to start afresh (`scale_reader_restart()`).
+
+**A make is a table entry and a parser** (`scale_make_t`, `scale_make.h`), with no task and no state; the makes stay in `drivers/scale_protocols`:
+
+| Make | Its frame found | Length, its ending in it | Asked for | Zero |
+|---|---|---|---|---|
+| A&D FX-i | at LF | 17 (its CR checked by its parser, as before) | no | `Z` |
+| Steinberg | at LF | 17 | no | none |
+| Creedmoor | at LF | 14 | no | none |
+| G&G JJB | at LF | 14 | `!p` every 250 ms | `!t` |
+| US Solid | at LF | 15 | no | none |
+| Radwag PS R2 | at LF | 21 | no | `T` |
+| Sartorius | at CR or LF | any, to 32 | no | none |
+| FA-E/EN | at CR or LF | any, to 32 | no | none |
+| Generic | at LF | any, to 32 | no | none |
+| JM Science | from its header `E` | 19 | no | none |
+
+- **The framer** (`scale_framer.c`): a frame runs from one line ending to the next, or from its header for its length; a line holding only CR and LF is no frame. A line of the wrong length, one longer than 32 bytes (dropped whole), and a JM Science frame cut short by the next header are each a frame with no number. Before the first frame's start (at the start, and after a hand-over) nothing is a frame.
+- **Each parser as it was**, reading the frame's own bytes with a NUL after them: the same fields, the same `strtof`. What a parser found no number in is now NaN, so counted: the Generic's line with no number, the FA-E/EN's line not starting `E`, the Radwag's 21 bytes not starting `SUI`, each dropped unseen before.
+- **The zero commands are in the table**, and `scale_can_zero()` reads them there: the same three makes the switch it replaces named.
+- **The Steinberg's frame is 17 bytes**, the example in its file (15 characters, CR LF), not its fields' 16, which miss the space before the unit; the number lies where the fields put it. The old code read both lengths: it took the 16 bytes after a line ending and reset at the LF. The G&G's 14 is its fields' alone (its file has no example). Neither scale has been on the bench. A wrong length reads nothing wrong and shows at once: every frame tapped as `nan` and counted bad, and no weight.
+- **The makes' unused commands** (the A&D's print, sample, mode and display keys; the G&G's; the Radwag's continuous mode, keyboard, beep) had no caller and no header: gone, each make's commands kept as a line in its file.
+- **The wiring:** `scale_register_make(driver, make)` from `app.c` as before, a table entry in place of a handle. `scale_makes_set_host()` and its struct are gone: a make publishes nothing, the reader does. `drivers/scale_protocols` now requires nothing (no board, no FreeRTOS, no platform), so it is built whole on the PC (`HOST_MODULES`, seven).
+
+**The wait sleeps** (`chip_serial_rp2.c`). On the RP chips `chip_serial_read_within` spun for its whole time (the SDK's `uart_is_readable_within_us`): a reader waiting a second at a time would have held a core at priority 9. A wait of a tick (1 ms) or more, from a task with the scheduler running, now sleeps on the UART's receive interrupt (its FIFO half full, or a byte in it and 32 bits' quiet), which is masked but while a task waits; a shorter wait, or one before the scheduler starts, spins as before. ESP-IDF's `uart_read_bytes()` sleeps the same (ADR-006's table of the interface). The other caller is the motor drivers' line, 2 ms a byte: its exchanges at the start (before the scheduler) spin as before, the later ones (the once-a-second read, `tmc`, a setup) sleep until the echo and the answer are in, 32 bits after their last byte (128 us at 250 kbaud).
+
+**What a reading's timing becomes:** a frame is published about 32 bit times after its last byte (1.7 ms at 19,200 baud), where the poll took 0 to 20 ms. The rhythm's intervals lose their 20 ms steps (ADR-013 saw 41 and 62 ms). The calibration's scale lag was measured with the poll's mean 10 ms in it, so a lag stored before this gate reads some 8 ms long (reasoned, not measured).
+
+### Shown on the PC
+
+**The old reading code against the new**, both built for the PC over a fed port and fed the same 4,934 streams (`build_adr017/g2_compare/` in the subagent's worktree, scratch: `take_old.py` copies the makes from adr017, `compare.py` builds both with `zig cc`, runs and judges). The old tasks ran until their bytes were used up, a cut being a poll that found nothing; the new reader the same, a cut being a wait that timed out. VERDICT PASS: what had nothing wrong in it read the same by both, and the new never read a weight the old did not, nor lost a whole frame the old read.
+
+- **The same by both:** every make's whole frames; the reads split at every byte (each the same as whole); and the A&D's frames as the bench recorded them, 72,721 frames from the tap's `@sf` lines in 74 logs (`logs/rc`), the reads split every 37 bytes: all 80 stretches the same.
+- **Different, each a fault this gate fixes** (by make: the cases the old misread and the new did not; those in which the new counts more bad frames, or fewer):
+
+| Make | Cases | The same | Old misread, new not | More bad | Fewer bad |
+|---|---|---|---|---|---|
+| A&D | 610 | 295 | 4 | 1 | 297 |
+| Steinberg | 531 | 272 | 95 | 88 | 15 |
+| Creedmoor | 395 | 207 | 61 | 83 | 0 |
+| G&G | 395 | 207 | 23 | 83 | 1 |
+| US Solid | 438 | 230 | 77 | 88 | 2 |
+| Radwag | 738 | 394 | 85 | 116 | 36 |
+| JM Science | 628 | 438 | 57 | 19 | 12 |
+| Sartorius | 416 | 189 | 143 | 1 | 26 |
+| FA-E/EN | 531 | 237 | 146 | 37 | 30 |
+| Generic | 252 | 158 | 42 | 7 | 0 |
+
+  - *The old misread*: a frame stitched at the simulated scale's hand-over, every make (the A&D's 4 are a held start and a new tail making the right length: `2.34` read where 0.00 and 12.34 were sent); a byte added or dropped in a count make's frame, read at the count shifted (`5` added in the Creedmoor's `+0.32445 oz` read 50.3245); two frames run together; the tail of a long line (the Generic's `...  12` then `3.45 g` read 3.45, the Sartorius' and the FA-E/EN's the same); the tail of a partial first line when the port opened in a frame's middle (the Generic's and the Sartorius': `2.34`, `7.35`).
+  - *More bad frames*: what the new counts and the old dropped unseen: a frame of the wrong length, a line with no number (`OL`), a frame cut short.
+  - *Fewer bad frames*: the line under way at a hand-over or at the start is no frame now, where the A&D counted it (ADR-012's 30 hand-overs counted 12 such lines). `scale_frames` on the A&D should count fewer bad frames at its hand-overs and restarts for that alone.
+  - *Read right by the old by luck, refused by the new*: a damaged count-make frame whose number survived its damage; and the first frame after a hand-over, even when the drain ended on its boundary (the reader cannot tell, and drops the line under way): one frame, some 50 ms, at each hand-over.
+  - The A&D's line `X` then LF (2 bytes) is counted bad now; it was skipped as a blank line.
+  - The Steinberg's frames of 16 bytes, as its fields were written: the old read them, the new refuses every one (its length, above).
+- **Wrong by both, not fixed by this gate:** a frame of any length (the Sartorius, FA-E/EN, Generic), or one taken at a count from its header (the JM Science), has no length to catch a byte added or dropped in its number: `5` added at the start of the Generic's `- 0.02 gn` read 5, the `6` dropped from the Sartorius' `+   62.916 GN` read 2.916. A byte added: the Sartorius 32 cases, the Generic 23, the FA-E/EN 22, the JM Science 34; a byte dropped: the Sartorius 6, the FA-E/EN 7, the Generic 4.
+
+**The PC's test** (`tests/host/scale_framing_test.c`, run by `tests/host_test.py`): a byte added to a Creedmoor frame refused; two Steinberg frames run together refused; a hand-over in a US Solid frame (a held `+  3` and a new `08.019GN`, which stitched read 308.019) reading neither; the Radwag's non-`SUI` and short lines counted bad; the Generic's and the FA-E/EN's lines with no number counted bad; the Generic's and the Sartorius' long lines dropped whole; a JM Science frame cut short counted bad; the A&D's own frames. VERDICT PASS.
+
+### Measured
+
+- `tools/module_graph.py` VERDICT PASS; `tests/host_test.py` VERDICT PASS (gate 1's cases and gate 2's); `tests/release_records.py` with both images VERDICT PASS.
+- Both boards build with no new warning. The Pico W's image against gate 1's (`arm-none-eabi-size`): 953,340 to 953,676 bytes of flash (+336), 255,912 to 255,916 of RAM at link time (+4). By module (`size_report.py`): `scale_protocols` 3.1 to 2.3 KB, `scale` 7.4 to 7.9, `rp2` 17.8 to 18.4.
+- The reader's stack: the bench's logs show "Scale Task" with 640 to 848 of its 1,024 bytes never touched (`stats tasks`, 2026-11-19 to 26). The reader's chain to the tap's print is 192 bytes deeper than the A&D's task's was (`-fstack-usage` at `-O0`: the task 104, the framer 32 and 40 and 40, the publish 40, the tap 144; the A&D's task was 64 and the tap). Kept at 1,024, for the unit to confirm.
+
+### For the unit (the main session's)
+
+- `stats tasks` after a `scale_frames` with the tap on: "Scale Task"'s stack never touched.
+- `scale_frames --handovers 30 --reboots 2` on the A&D: every frame a number; fewer bad frames at the hand-overs and restarts (above); the times between frames no longer in 20 ms steps.
+- `charge_fault bad` and `charge_fault quiet`, as ADR-013 ran them.
+- The motor drivers' line, which now sleeps in its waits: `tmc coarse`, `tmc fine`, `tmc coarse setup 3`, `state`'s `drivers=`, `charge_cycle`.
+- A change to a driver and to timing against the chip: the Pico 2 W too, by the rule in AGENTS.md.
