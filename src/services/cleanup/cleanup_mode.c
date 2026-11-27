@@ -6,10 +6,8 @@
 #include <math.h>
 #include "activity.h"
 #include "events.h"
-#include "mini_12864_module.h"
 #include "motors.h"
 #include "scale.h"
-#include "display.h"
 #include "common.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
@@ -21,9 +19,7 @@
 
 
 // Memory from other modules
-extern QueueHandle_t encoder_event_queue;
 extern charge_mode_config_t charge_mode_config;
-extern QueueHandle_t encoder_event_queue;
 
 // Internal
 cleanup_mode_config_t cleanup_mode_config;

@@ -9,8 +9,6 @@
 #include "scale.h"
 #include "wireless.h"
 #include "eeprom.h"
-#include "mini_12864_module.h"
-#include "display.h"
 #include "neopixel_led.h"
 #include "profile.h"
 #include "cleanup_mode.h"

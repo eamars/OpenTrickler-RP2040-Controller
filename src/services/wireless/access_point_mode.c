@@ -8,8 +8,6 @@
 #include "lwip/tcp.h"
 
 #include "access_point_mode.h"
-#include "mini_12864_module.h"
-#include "display.h"
 #include "eeprom.h"
 #include "unit_id.h"
 

@@ -31,7 +31,6 @@
 
 #include "activity.h"
 #include "api_v1.h"
-#include "display.h"
 #include "common.h"
 #include "eeprom.h"
 #include "events.h"
@@ -39,7 +38,6 @@
 #include "http_server.h"
 #include "https_client.h"
 #include "jobs.h"
-#include "mini_12864_module.h"
 #include "picobin_image.h"
 #include "update_poll.h"
 #include "update_slots.h"

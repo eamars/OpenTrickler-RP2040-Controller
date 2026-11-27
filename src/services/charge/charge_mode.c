@@ -11,8 +11,6 @@
 #include "activity.h"
 #include "events.h"
 #include "float_ring.h"
-#include "mini_12864_module.h"
-#include "display.h"
 #include "scale.h"
 #include "motors.h"
 #include "charge_mode.h"
@@ -369,8 +367,7 @@ void charge_mode_get_cost(charge_cost_t * cost) {
 }
 
 
-// Menu system
-extern QueueHandle_t encoder_event_queue;
+// Memory from other modules
 extern neopixel_led_config_t neopixel_led_config;
 
 

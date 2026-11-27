@@ -6,8 +6,6 @@
 #include "eeprom.h"
 #include "unit_id.h"
 #include "access_point_mode.h"
-#include "display.h"
-#include "mini_12864_module.h"
 #include "rest_endpoints.h"
 #include "http_server.h"
 #include "common.h"
