@@ -1,26 +1,12 @@
-#include <FreeRTOS.h>
-#include <task.h>
-#include <queue.h>
-#include <pico/cyw43_arch.h>
-#include "dhcpserver.h"
-#include "dnsserver.h"
-#include "lwip/pbuf.h"
-#include "lwip/tcp.h"
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "chip_net.h"
 
 #include "access_point_mode.h"
-#include "eeprom.h"
 #include "unit_id.h"
+#include "wireless.h"
 
-
-
-static dhcp_server_t dhcp_server;
-static dns_server_t dns_server;
-static ip4_addr_t mask;
-static ip_addr_t gw;
-
-extern char ip_addr_string[16];
-// As wireless.c defines them: 35 bytes each. They were declared here as 32
-extern char host_name[18];
 
 // The access point's key, the unit's own, made from its chip at the start (ADR-008, gate 4): the screen's Wi-Fi page
 // shows it
@@ -38,39 +24,17 @@ const char *access_point_mode_key(void) {
 
 
 uint32_t access_point_mode_addresses_given(void) {
-    return dhcp_server.given;
+    return chip_net_hotspot_addresses_given();
 }
 
 
-bool access_point_mode_start() {
-    cyw43_arch_enable_ap_mode(host_name, access_point_mode_key(), CYW43_AUTH_WPA2_AES_PSK);
-
-    // Initialize IP: ACCESS_POINT_MODE_ADDRESS
-    ip4addr_aton(ACCESS_POINT_MODE_ADDRESS, ip_2_ip4(&gw));
-    IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
-
-    // The DHCP and DNS servers are lwIP's raw API: under its lock, as lwIP's own task runs on the other core (review D3)
-    cyw43_arch_lwip_begin();
-    // Start the dhcp server
-    dhcp_server_init(&dhcp_server, &gw, &mask);
-
-    // Start the dns server: the one this file keeps. A second, declared here, was handed over instead, and was
-    // gone when this function returned: every query then read memory that was no longer its own (ADR-012; audit W1)
-    dns_server_init(&dns_server, &gw);
-    cyw43_arch_lwip_end();
-
-
-    return true;
+// The hotspot, named as the unit, at ACCESS_POINT_MODE_ADDRESS, with its DHCP and DNS servers (chip_net.h)
+bool access_point_mode_start(uint8_t channel) {
+    return chip_net_hotspot_start(wireless_host_name(), access_point_mode_key(), channel, ACCESS_POINT_MODE_ADDRESS);
 }
 
 
-bool access_point_mode_stop() {
-    // Under lwIP's lock: a query may be answered on the other core while its server is removed (review D3)
-    cyw43_arch_lwip_begin();
-    dhcp_server_deinit(&dhcp_server);
-    dns_server_deinit(&dns_server);
-    cyw43_arch_lwip_end();
-
-
+bool access_point_mode_stop(void) {
+    chip_net_hotspot_stop();
     return true;
 }
