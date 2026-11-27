@@ -71,6 +71,7 @@ typedef enum {
     CALIBRATION_START_BUSY,     // a job runs, a start is asked already, or a person has a screen open at the unit
     CALIBRATION_START_DRIVER_FAULT,
     CALIBRATION_START_NO_SCALE, // no make reads the scale: the stored one is not in this build (scale_reads())
+    CALIBRATION_START_NO_STORAGE,   // the EEPROM does not answer: its records could not be kept (ADR-017, gate 1)
 } calibration_start_result_t;
 
 typedef enum {

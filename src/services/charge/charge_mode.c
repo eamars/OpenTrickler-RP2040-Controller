@@ -1068,17 +1068,10 @@ uint8_t charge_mode_menu(void) {
 
 
 bool charge_mode_config_init(void) {
-    bool is_ok = false;
-
-    // Read charge mode config from EEPROM
+    // Read charge mode config from EEPROM: whatever is found, the struct holds settings to run on (ADR-017, gate 1)
     // Its history had insertions: read through its layout (charge_mode_layout.c; ADR-009's review, B1)
-    is_ok = load_config_layout(EEPROM_CHARGE_MODE_BASE_ADDR, &charge_mode_config.eeprom_charge_mode_data,
-                               &default_charge_mode_data, sizeof(charge_mode_config.eeprom_charge_mode_data),
-                               &charge_mode_layout);
-    if (!is_ok) {
-        printf("Unable to read charge mode configuration\n");
-        return is_ok;
-    }
+    load_config_layout(EEPROM_CHARGE_MODE_BASE_ADDR, &charge_mode_config.eeprom_charge_mode_data,
+                       &default_charge_mode_data, sizeof(eeprom_charge_mode_data_t), &charge_mode_layout);
 
     charge_mode_settings_register();
 
@@ -1192,6 +1185,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     }
     if (!scale_reads()) {
         return CHARGE_START_NO_SCALE;
+    }
+    if (!eeprom_reachable()) {
+        return CHARGE_START_NO_STORAGE;
     }
     if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
         return CHARGE_START_NO_TARGET;

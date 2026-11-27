@@ -305,7 +305,7 @@ static const setting_field_t scale_fields[] = {
     {.name = "driver", .label = "Make", .short_label = "Make",
      .about = "The make of scale, whose driver reads it; its reader is made at the start",
      .type = SETTING_CHOICE, SCALE_FIELD(scale_driver), SETTING_CHOICES(scale_driver_choices),
-     .applies = "at_restart"},
+     .applies = "at_restart", .unknown_kept = true},    // a make no make has reads nothing (ADR-006, gate 9)
     {.name = "baud", .label = "Baud rate", .group = "Serial port",
      .about = "The scale's serial port speed, as the scale is set",
      .type = SETTING_CHOICE, SCALE_FIELD(scale_baudrate), SETTING_CHOICES(scale_baud_choices), .applies = "now"},
@@ -388,15 +388,17 @@ static const scale_make_host_t scale_as_host = {
 
 
 bool scale_init() {
-    bool is_ok;
+    bool is_ok = true;     // the scale starts whatever its load found (ADR-017, gate 1)
     scale_makes_set_host(&scale_as_host);
 
-    // Read config from EEPROM
-    is_ok = load_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, &default_scale_persistent_config, sizeof(scale_config.persistent_config));
-    if (!is_ok) {
-        printf("Unable to read scale configuration\n");
-        return is_ok;
-    }
+    // Read config from EEPROM: whatever is found, the struct holds settings to run on (ADR-017, gate 1)
+    load_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, &default_scale_persistent_config,
+                sizeof(eeprom_scale_data_t));
+#if RC_TEST_SCALE_MAKE_UNKNOWN
+    // A test build (ADR-017, gate 1): a make no make has, stored, as only a damaged byte or another firmware could
+    scale_config.persistent_config.scale_driver = (scale_driver_t) 55;
+    save_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
+#endif
 
     // The scale's serial port, at its stored rate and in its stored format
     chip_serial_open(SCALE_UART, SCALE_UART_TX, SCALE_UART_RX,

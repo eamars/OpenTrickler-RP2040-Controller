@@ -2,3 +2,4 @@
 pyserial
 zeroconf    # tools/ota_server.py: announces the bench host, opentrickler-update.local
 segno==1.6.1    # tools/ui_mock/setup_12864.py: the code that joins the hotspot, drawn as the unit would
+pyelftools==0.33   # tests/release_records.py: each stored record's layout read from an image's DWARF (ADR-017)

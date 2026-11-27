@@ -142,6 +142,8 @@ void menu_nav_job_ended(uint8_t exit_form);
 bool menu_nav_in_job(void);
 // Each refresh: what a job's state makes stale closes (an editor over the charge once its throw begins)
 void menu_nav_refresh(void);
+// A message over the page, as the menu's own (ADR-017, gate 1: a factory reset from the web that failed)
+void menu_nav_say(const char *title, const char *line, const char *more);
 
 // The screen as it is now, live values read now
 void menu_nav_screen(menu_screen_t *screen);

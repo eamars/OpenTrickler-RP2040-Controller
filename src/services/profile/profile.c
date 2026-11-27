@@ -97,7 +97,7 @@ const eeprom_profile_data_t default_profile_data = {
 
 
 bool profile_data_save() {
-    bool is_ok = save_config(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(profile_data));
+    bool is_ok = save_config(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(eeprom_profile_data_t));
     return is_ok;
 }
 
@@ -221,20 +221,14 @@ const char *profile_get_name(uint16_t idx) {
 
 
 bool profile_data_init() {
-    bool is_ok = true;
-
     // Read profile index table
     memset(&profile_data, 0x0, sizeof(eeprom_profile_data_t));
     // A header and eight powders: each powder of an earlier or a later version read for the fields it has
     static const config_layout_t layout = {.header = offsetof(eeprom_profile_data_t, profiles),
                                            .element = sizeof(profile_t), .count = MAX_PROFILE_CNT};
-    is_ok = load_config_layout(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data,
-                               sizeof(profile_data), &layout);
-
-    if (!is_ok) {
-        printf("Unable to read profile data\n");
-        return false;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1)
+    load_config_layout(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data,
+                       sizeof(eeprom_profile_data_t), &layout);
 
     settings_register(&profile_settings);
 

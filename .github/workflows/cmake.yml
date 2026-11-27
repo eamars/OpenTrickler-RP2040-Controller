@@ -46,11 +46,6 @@ jobs:
     - name: Host tests
       run: python3 tests/host_test.py
 
-    # The stored records and their enums against v1.21, the release a unit updates from (tests/release_records.py):
-    # each record's v1.21 fields first in today's, each stored enum value meaning what it meant. Needs the tags (above)
-    - name: Stored records against v1.21
-      run: python3 tests/release_records.py
-
     # The layers (ADR-006): no requirement upward, no loop, no SDK or radio include outside platform/ and boards/, no
     # part's switch read outside app/. The compiler holds none of these (tools/module_graph.py reads the build files)
     - name: The modules against the layers
@@ -74,6 +69,17 @@ jobs:
           tag=(--tag "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY")
         fi
         python3 scripts/build_release.py --out-dir release "${tag[@]}"
+
+    # The stored records against the latest release, the release a unit updates from (tests/release_records.py): found
+    # by use, each record's release fields first in today's, each stored enum value meaning what it meant (needs the
+    # tags, above); and from both images' DWARF, each release field where it lay, no field appended into the release's
+    # tail padding, and both compilers' layouts the same (ADR-017, gate 1). pyelftools reads the DWARF
+    - name: Stored records against the latest release
+      run: |
+        # The runner's Python may be marked as the system's own (PEP 668): then installed past the mark
+        python3 -m pip install --quiet pyelftools==0.33 ||
+          python3 -m pip install --quiet --break-system-packages pyelftools==0.33
+        python3 tests/release_records.py --elf build_release/pico_w/app.elf --elf build_release/pico2_w/app.elf
 
     # Flash by part and RAM at link time, in the job summary and in the log (ADR-001).
     # "shell: bash" runs with pipefail, so a report that fails still fails the step through tee.

@@ -430,6 +430,9 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         case CHARGE_START_NO_SCALE:
             snprintf(reply, reply_size, "@err no_scale: the stored make of scale is not in this build");
             return false;
+        case CHARGE_START_NO_STORAGE:
+            snprintf(reply, reply_size, "@err no_storage: the settings' EEPROM does not answer");
+            return false;
         default:
             snprintf(reply, reply_size, "@err charge mode is already running or asked");
             return false;

@@ -56,6 +56,9 @@ typedef struct {
     const char *applies;    // "now", "at_restart", or what the field says
     bool nullable;          // null is a value of it, held as null_held
     float null_held;
+    // A CHOICE held as a value no choice has is kept as it is, shown as unknown (null; "?" on the screen): its module
+    // refuses it itself (the scale's make reads nothing). Otherwise its first choice runs in its place, not stored
+    bool unknown_kept;
     // For a client with little room (ADR-010, gate 6: the screen; ADR-008's pages may use them too)
     const char *short_label;    // where the label and a value do not fit 128 px; NULL: label
     float edit_step;            // what a detent (or an arrow) moves a number by; 0: its step, else none offered

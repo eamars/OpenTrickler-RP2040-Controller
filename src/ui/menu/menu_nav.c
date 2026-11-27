@@ -10,6 +10,7 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <timers.h>
 
 #include "access_point_mode.h"
 #include "activity.h"
@@ -39,6 +40,7 @@
 
 // A write to the API this recent counts as the unit being controlled from elsewhere (menu_design.md, proposed)
 #define MENU_REMOTE_MS 30000
+#define MENU_ERASE_FAILED_SHOWN_MS 3000     // a failed factory reset said before the restart
 
 #define MENU_FRAMES_MAX 8
 #define MENU_EDIT_DIGITS 5
@@ -751,6 +753,9 @@ static setup_stage_t setup_stage(const frame_t *frame) {
 static const char *wifi_mode_label(void) {
     wireless_info_t info;
     wireless_get_link(&info);
+    if (info.no_radio) {
+        return "No radio";
+    }
     if (info.trouble != NULL) {
         return "Not joined";
     }
@@ -838,9 +843,35 @@ static void act_restart(const menu_row_t *row) {
 }
 
 
+// A failed factory reset's message has been drawn: the restart
+static void restart_after_message(TimerHandle_t timer) {
+    (void) timer;
+    software_reboot();
+}
+
+
+// The factory reset: refused on a trial and with no EEPROM; a failed erase said before the restart (ADR-017, gate 1)
 static void act_erase(const menu_row_t *row) {
     (void) row;
-    eeprom_erase(true);
+    eeprom_erase_t erased = eeprom_erase();
+    if (erased == EEPROM_ERASE_ON_TRIAL) {
+        push_message("Factory reset", "Not while an update", "is on trial");
+        return;
+    }
+    if (erased == EEPROM_ERASE_UNREACHABLE) {
+        push_message("Factory reset", "The settings memory", "does not answer");
+        return;
+    }
+    if (erased == EEPROM_ERASE_FAILED) {
+        // Drawn before the restart: the menu's task draws, a timer restarts. The EEPROM's lock stays held to it
+        push_message("Factory reset", "failed: settings", "may be left in part");
+        TimerHandle_t later = xTimerCreate("Restart", pdMS_TO_TICKS(MENU_ERASE_FAILED_SHOWN_MS), pdFALSE, NULL,
+                                           restart_after_message);
+        if (later != NULL && xTimerStart(later, 0) == pdPASS) {
+            return;
+        }
+    }
+    software_reboot();
 }
 
 
@@ -904,6 +935,9 @@ static void act_ack_charge(const menu_row_t *row) {
     }
     else if (result == CHARGE_START_NO_SCALE) {
         push_message("No scale", "Its make is not", "in this build");
+    }
+    else if (result == CHARGE_START_NO_STORAGE) {
+        push_message("No settings memory", "Charge", "cannot start");
     }
     else if (result != CHARGE_START_OK) {
         push_message("Busy", "A job runs", NULL);
@@ -1371,6 +1405,9 @@ static void calibration_start_row(calibration_part_t part, int profile) {
     else if (result == CALIBRATION_START_NO_SCALE) {
         push_message("No scale", "Its make is not", "in this build");
     }
+    else if (result == CALIBRATION_START_NO_STORAGE) {
+        push_message("No settings memory", "Calibration", "cannot start");
+    }
 }
 
 
@@ -1476,7 +1513,88 @@ static const char *main_title(void) {
     return fault != NULL ? fault : "OpenTrickler";
 }
 
+/*
+ * What did not start, or was not read, at the start (ADR-017, gate 1): a row at the top of the main menu while it
+ * holds, its notes saying what and what follows. Never a pop-up: the row goes once the settings are stored
+ */
+static const struct {
+    uint16_t addr;
+    const char *name;       // the screen's word for its settings (ADR-008, "The words")
+} start_records[] = {
+    {EEPROM_SCALE_CONFIG_BASE_ADDR, "Scale"},
+    {EEPROM_WIRELESS_CONFIG_BASE_ADDR, "Wi-Fi"},
+    {EEPROM_MOTOR_CONFIG_BASE_ADDR, "Motors"},
+    {EEPROM_CHARGE_MODE_BASE_ADDR, "Charge"},
+    {EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, "Lights"},
+    {EEPROM_MINI_12864_CONFIG_BASE_ADDR, "Display"},
+    {EEPROM_PROFILE_DATA_BASE_ADDR, "Powders"},
+    {EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, "Servo gate"},
+    {EEPROM_UPDATE_CONFIG_BASE_ADDR, "Updates"},
+};
+
+
+static bool shown_no_storage(void) {
+    return !eeprom_reachable();
+}
+
+
+static bool shown_settings_amiss(void) {
+    uint16_t addr;
+    config_found_t found;
+    return eeprom_reachable() && config_amiss(&addr, &found, 1) > 0;
+}
+
+
+static bool shown_no_radio(void) {
+    return wireless_radio_failed();
+}
+
+
+static bool shown_start_faults(void) {
+    return shown_no_storage() || shown_settings_amiss() || shown_no_radio();
+}
+
+
+// The settings not read, each by its name and why: "Scale: damaged. Motors: read two ways."
+static const char *settings_amiss_label(void) {
+    static char text[MENU_TEXT * 6];
+    uint16_t addrs[ROW_COUNT(start_records)];
+    config_found_t found[ROW_COUNT(start_records)];
+    size_t count = config_amiss(addrs, found, ROW_COUNT(start_records));
+    size_t len = 0;
+    text[0] = '\0';
+    for (size_t idx = 0; idx < count && len < sizeof(text); idx += 1) {
+        const char *name = "Settings";
+        for (size_t record = 0; record < ROW_COUNT(start_records); record += 1) {
+            if (start_records[record].addr == addrs[idx]) {
+                name = start_records[record].name;
+            }
+        }
+        const char *why = found[idx] == CONFIG_FOUND_DAMAGED ? "damaged" :
+                          found[idx] == CONFIG_FOUND_UNSTEADY ? "read two ways" :
+                          found[idx] == CONFIG_FOUND_NOT_WRITTEN ? "not stored by the update" : "not read";
+        len += (size_t) snprintf(text + len, sizeof(text) - len, "%s%s: %s.", idx > 0 ? " " : "", name, why);
+    }
+    return text;
+}
+
+
+static const menu_row_t rows_start_faults[] = {
+    {.label = "Settings memory", .kind = ROW_INFO, .bold = true, .shown = shown_no_storage},
+    {.label = "It does not answer. The settings run on their defaults and none can be stored. Charge and "
+              "calibration cannot start.", .kind = ROW_INFO, .shown = shown_no_storage},
+    {.label = "Settings not read", .kind = ROW_INFO, .bold = true, .shown = shown_settings_amiss},
+    {.label = "", .kind = ROW_INFO, .label_now = settings_amiss_label, .shown = shown_settings_amiss},
+    {.label = "Each runs on its defaults until you store it. Till then the unit keeps what it holds.",
+     .kind = ROW_INFO, .shown = shown_settings_amiss},
+    {.label = "No radio", .kind = ROW_INFO, .bold = true, .shown = shown_no_radio},
+    {.label = "The radio did not start: the unit runs without Wi-Fi.", .kind = ROW_INFO, .shown = shown_no_radio},
+};
+static const menu_page_t page_start_faults = {.kind = PAGE_NOTES, .id = "start_faults", .title = "At the start",
+                                              .rows = rows_start_faults, .row_count = ROW_COUNT(rows_start_faults)};
+
 static const menu_row_t rows_main[] = {
+    {.label = "Faults at the start", .kind = ROW_PAGE, .page = &page_start_faults, .shown = shown_start_faults},
     {.label = "Set up this unit", .kind = ROW_PAGE, .page = &page_setup, .shown = setup_offered},
     {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
      .shown = shown_update_found},
@@ -1495,6 +1613,7 @@ static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_calibration_powder, &page_scale, &page_charge_settings,
     &page_display, &page_gate, &page_motors, &page_firmware,
     &page_factory_reset, &page_calibration_discard, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
+    &page_start_faults,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 
@@ -2509,6 +2628,11 @@ void menu_nav_job_ended(uint8_t exit_form) {
         const char *fault = motors_get_fault();
         push_message(fault != NULL ? fault : "Motor drivers", "Charge and purge", "cannot start");
     }
+}
+
+
+void menu_nav_say(const char *title, const char *line, const char *more) {
+    push_message(title, line, more);
 }
 
 

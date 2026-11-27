@@ -26,6 +26,9 @@
                                                                // each powder's calibration and the unit's record of
                                                                // its scale there, and a bench unit may still hold
                                                                // them: a module given these slots clears them first
+#define EEPROM_SPARE_BASE_ADDR                 31 * 1024       // 31k: the spare slot, where a save writes its record
+                                                               // first (ADR-017, gate 1; common.c). No firmware
+                                                               // wrote here before
 
 // Every record starts a slot of its own and is no longer than it: another version's record, shorter or longer, is
 // looked for within its slot (common.c, load_config)
@@ -35,14 +38,26 @@
 extern "C" {
 #endif
 
+// The lock and the bus, and whether the chip answers: false when it does not
 bool eeprom_init(void);
+// Whether the chip answered at the start (ADR-017, gate 1). When not, every module runs on its defaults, nothing is
+// stored, and a charge and a calibration are refused (charge_mode.c, calibration.c)
+bool eeprom_reachable(void);
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
 
 /*
- * Fill all EEPROM with 0xFF
+ * A factory reset: every byte back to 0xFF. Refused while an image is on trial (the image it may go back to would find
+ * nothing) and when the chip does not answer. Otherwise the EEPROM's lock is held from the erase on and never given
+ * back, so no save lands between it and the restart, which the caller makes, saying first when the erase failed
  */
-bool eeprom_erase(bool reboot);
+typedef enum {
+    EEPROM_ERASED = 0,
+    EEPROM_ERASE_FAILED,        // a page not written: the settings may be left in part
+    EEPROM_ERASE_ON_TRIAL,      // refused: an image runs on trial
+    EEPROM_ERASE_UNREACHABLE,   // refused: the chip does not answer
+} eeprom_erase_t;
+eeprom_erase_t eeprom_erase(void);
 
 
 #ifdef __cplusplus

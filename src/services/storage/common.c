@@ -7,6 +7,9 @@
 #include "common.h"
 
 #include "eeprom.h"
+#if RC_TEST_SAVE_CUT
+#include "system_control.h"
+#endif
 
 
 const char * true_string = "true";
@@ -114,6 +117,14 @@ uint32_t software_crc32(void * data, size_t length) {
 
 
 /*
+    The storage's buffers come from the FreeRTOS heap (ADR-017, gate 1): the C heap is some 3.5 KB on the Pico W, and
+    the SDK's malloc panics when it runs out, which looks like a dead unit at its start
+*/
+#define config_alloc(size) pvPortMalloc(size)
+#define config_free(block) vPortFree(block)
+
+
+/*
     The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
     against it, so a write from the menu or the console counts as one from the web does. One entry an address, with
     the record's size, so a part of it can be read back as stored (config_read_part).
@@ -144,6 +155,94 @@ static void config_stored_set(uint16_t addr, uint32_t crc, size_t size) {
 }
 
 
+// Nothing at that address is known to be stored any more: its settings read as not saved
+static void config_stored_forget(uint16_t addr) {
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        if (config_stored[idx].addr == addr) {
+            config_stored[idx] = config_stored[config_stored_count - 1];
+            config_stored_count -= 1;
+            return;
+        }
+    }
+}
+
+
+// What each record's load found at this start, and what became of it since (config_found)
+static struct {
+    uint16_t addr;
+    config_found_t found;
+} config_loads[CONFIG_STORED_MAX];
+static size_t config_load_count = 0;
+
+
+static void config_found_set(uint16_t addr, config_found_t found) {
+    size_t idx = 0;
+    while (idx < config_load_count && config_loads[idx].addr != addr) {
+        idx += 1;
+    }
+    if (idx == CONFIG_STORED_MAX) {
+        return;
+    }
+    if (idx == config_load_count) {
+        config_load_count += 1;
+    }
+    config_loads[idx].addr = addr;
+    config_loads[idx].found = found;
+}
+
+
+config_found_t config_found(uint16_t addr) {
+    for (size_t idx = 0; idx < config_load_count; idx += 1) {
+        if (config_loads[idx].addr == addr) {
+            return config_loads[idx].found;
+        }
+    }
+    return CONFIG_FOUND_NONE;
+}
+
+
+bool config_settings_read(uint16_t addr) {
+    config_found_t found = config_found(addr);
+    return found == CONFIG_FOUND_READ || found == CONFIG_FOUND_MIGRATED || found == CONFIG_FOUND_FINISHED;
+}
+
+
+bool config_found_amiss(config_found_t found) {
+    return found == CONFIG_FOUND_DAMAGED || found == CONFIG_FOUND_UNSTEADY || found == CONFIG_FOUND_UNREACHABLE ||
+           found == CONFIG_FOUND_NO_ROOM || found == CONFIG_FOUND_NOT_WRITTEN;
+}
+
+
+size_t config_amiss(uint16_t *addrs, config_found_t *found, size_t room) {
+    size_t count = 0;
+    for (size_t idx = 0; idx < config_load_count && count < room; idx += 1) {
+        if (config_found_amiss(config_loads[idx].found)) {
+            addrs[count] = config_loads[idx].addr;
+            found[count] = config_loads[idx].found;
+            count += 1;
+        }
+    }
+    return count;
+}
+
+
+const char *config_found_text(config_found_t found) {
+    switch (found) {
+        case CONFIG_FOUND_NONE: return "not loaded";
+        case CONFIG_FOUND_READ: return "read";
+        case CONFIG_FOUND_MIGRATED: return "read from another version's record, stored at this version's size";
+        case CONFIG_FOUND_FINISHED: return "a save the power cut short, finished from the spare slot";
+        case CONFIG_FOUND_BLANK: return "never written: its defaults stored";
+        case CONFIG_FOUND_DAMAGED: return "damaged: no record at any size, the same on two reads";
+        case CONFIG_FOUND_UNSTEADY: return "not read the same twice: the bus at fault";
+        case CONFIG_FOUND_UNREACHABLE: return "the EEPROM does not answer";
+        case CONFIG_FOUND_NO_ROOM: return "no memory to read it";
+        case CONFIG_FOUND_NOT_WRITTEN: return "not written when the update was kept";
+        default: return "?";
+    }
+}
+
+
 // The writes a trial holds: the latest of each address
 static bool config_holding = false;
 static struct {
@@ -160,6 +259,11 @@ void config_hold_writes(bool hold) {
 }
 
 
+bool config_holding_writes(void) {
+    return config_holding;
+}
+
+
 static bool config_hold(uint16_t addr, const void * cfg, size_t size, bool defaults) {
     size_t idx = 0;
     while (idx < config_held_count && config_held[idx].addr != addr) {
@@ -170,7 +274,7 @@ static bool config_hold(uint16_t addr, const void * cfg, size_t size, bool defau
         return false;
     }
     if (idx == config_held_count) {
-        config_held[idx].data = malloc(size);
+        config_held[idx].data = config_alloc(size);
         if (config_held[idx].data == NULL) {
             printf("Config: no memory to hold the write at 0x%04x\n", addr);
             return false;
@@ -193,43 +297,85 @@ size_t config_write_held(uint16_t *reset, size_t room) {
     size_t reset_count = 0;
     for (size_t idx = 0; idx < config_held_count; idx += 1) {
         if (!save_config_now(config_held[idx].addr, config_held[idx].data, config_held[idx].size)) {
-            printf("Config: the held write at 0x%04x failed\n", config_held[idx].addr);
+            // Shown, not dropped: its settings read as not saved, and the screen's notice names them
+            printf("Config: the held write at 0x%04x failed: its settings are not stored\n", config_held[idx].addr);
+            config_stored_forget(config_held[idx].addr);
+            config_found_set(config_held[idx].addr, CONFIG_FOUND_NOT_WRITTEN);
         }
         if (config_held[idx].defaults && reset_count < room) {
             reset[reset_count++] = config_held[idx].addr;
         }
-        free(config_held[idx].data);
+        config_free(config_held[idx].data);
     }
     config_held_count = 0;
     return reset_count;
 }
 
 
-bool config_defaults_held(uint16_t addr) {
-    for (size_t idx = 0; idx < config_held_count; idx += 1) {
-        if (config_held[idx].addr == addr) {
-            return config_held[idx].defaults;
-        }
+/*
+    The spare slot (ADR-017, gate 1): a save writes its record here first, whole and checked, then into its place. A
+    place that does not read at the next start, its record whole in the spare, takes it from there: a save the power
+    cut short is finished, and the record before it was never touched until the new one was whole. Laid out as a
+    header, the record with its CRC as its place holds them, and the spare's own CRC of all before it.
+*/
+typedef struct {
+    uint16_t zero;      // 0, as every record's first two bytes
+    uint16_t addr;      // the record's place
+    uint16_t size;      // the record's bytes, its CRC after them
+    uint16_t unused;
+} config_spare_t;
+
+
+/*
+    The spare's copy of the record at `addr` into `out` (EEPROM_SLOT_SIZE bytes), as its place would hold it, the rest
+    of the slot as a blank chip's: false when the spare holds another record, or none whole
+*/
+static bool config_spare_take(uint16_t addr, uint8_t *out) {
+    if (!eeprom_read(EEPROM_SPARE_BASE_ADDR, out, EEPROM_SLOT_SIZE)) {
+        return false;
     }
-    return false;
+    config_spare_t head;
+    memcpy(&head, out, sizeof(head));
+    size_t record = (size_t) head.size + sizeof(uint32_t);
+    if (head.zero != 0 || head.addr != addr || sizeof(head) + record + sizeof(uint32_t) > EEPROM_SLOT_SIZE) {
+        return false;
+    }
+    uint32_t crc;
+    memcpy(&crc, out + sizeof(head) + record, sizeof(crc));
+    if (software_crc32(out, sizeof(head) + record) != crc) {
+        return false;
+    }
+    memmove(out, out + sizeof(head), record);
+    memset(out + record, 0xFF, EEPROM_SLOT_SIZE - record);
+    return true;
+}
+
+
+// A record of `size` bytes, whole: its first two bytes 0, its CRC after it matching
+static bool config_record_whole(const uint8_t *bytes, size_t size) {
+    uint16_t rev;
+    uint32_t held;
+    memcpy(&rev, bytes, sizeof(rev));
+    memcpy(&held, bytes + size, sizeof(held));
+    return rev == 0 && software_crc32((void *) bytes, size) == held;
 }
 
 
 bool config_read_stored(uint16_t addr, void * cfg, size_t size) {
-    uint32_t received_crc32;
-    uint8_t *buf = malloc(size + sizeof(received_crc32));
+    if (size + sizeof(uint32_t) > EEPROM_SLOT_SIZE) {
+        return false;
+    }
+    uint8_t *buf = config_alloc(EEPROM_SLOT_SIZE);
     if (buf == NULL) {
         return false;
     }
-    bool is_ok = eeprom_read(addr, buf, size + sizeof(received_crc32));
-    uint16_t received_rev;
-    memcpy(&received_rev, buf, sizeof(received_rev));
-    memcpy(&received_crc32, buf + size, sizeof(received_crc32));
-    is_ok = is_ok && received_rev == 0 && software_crc32(buf, size) == received_crc32;
+    // Its place, then a save the power cut short: the spare's copy
+    bool is_ok = (eeprom_read(addr, buf, size + sizeof(uint32_t)) && config_record_whole(buf, size)) ||
+                 (config_spare_take(addr, buf) && config_record_whole(buf, size));
     if (is_ok) {
         memcpy(cfg, buf, size);
     }
-    free(buf);
+    config_free(buf);
     return is_ok;
 }
 
@@ -249,12 +395,12 @@ bool config_read_part(uint16_t addr, void * out, size_t size) {
                 return true;
             }
         }
-        uint8_t *whole = malloc(record_size);
+        uint8_t *whole = config_alloc(record_size);
         bool is_ok = whole != NULL && config_read_stored(record, whole, record_size);
         if (is_ok) {
             memcpy(out, whole + offset, size);
         }
-        free(whole);
+        config_free(whole);
         return is_ok;
     }
     return false;
@@ -373,16 +519,95 @@ static void config_fill(void *cfg, const void *default_cfg, size_t size, const u
 }
 
 
-bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size) {
+/*
+    A slot's bytes read as the record: this version's (CONFIG_FOUND_READ, its CRC noted as stored), another version's
+    (CONFIG_FOUND_MIGRATED, filled, not yet stored), or none (CONFIG_FOUND_NONE, the struct untouched). A record's
+    first two bytes, its revision before v1.17, are 0 in every record since
+*/
+static config_found_t config_parse(uint16_t addr, void *cfg, const void *default_cfg, size_t size,
+                                   const config_layout_t *layout, const uint8_t *slot) {
+    uint16_t rev;
+    memcpy(&rev, slot, sizeof(rev));
+    if (rev != 0) {
+        return CONFIG_FOUND_NONE;
+    }
+    if (config_record_whole(slot, size)) {
+        memcpy(cfg, slot, size);
+        config_stored_set(addr, software_crc32((void *) slot, size), size);
+        return CONFIG_FOUND_READ;
+    }
+    size_t stored = config_stored_size(slot, EEPROM_SLOT_SIZE, size, layout);
+    if (stored == 0) {
+        return CONFIG_FOUND_NONE;
+    }
+    printf("Config: the record at 0x%04x was stored %u bytes long by %s version: %s\n", addr, (unsigned) stored,
+           stored < size ? "an earlier" : "a later",
+           config_past(layout, stored) != NULL ? "read field by field from its layout then" :
+           stored < size ? "kept, the appended fields at their defaults" : "its fields read, the rest discarded");
+    config_fill(cfg, default_cfg, size, slot, stored, layout);
+    return CONFIG_FOUND_MIGRATED;
+}
+
+
+/*
+    A load (ADR-017, gate 1): it never writes, and never leaves the module unusable. The struct holds the defaults
+    whatever is found; it is written only for a blank place (its defaults stored), another version's record (stored at
+    this version's size) and a save the power cut short (finished from the spare slot). Anything else stays on the
+    chip as it is until the module is saved or the unit reset, and the module runs on its defaults meanwhile.
+*/
+static config_found_t config_load(uint16_t addr, void *cfg, const void *default_cfg, size_t size,
+                                  const config_layout_t *layout) {
+    if (!eeprom_reachable()) {
+        return CONFIG_FOUND_UNREACHABLE;
+    }
+    if (size + sizeof(uint32_t) > EEPROM_SLOT_SIZE) {
+        printf("Config: the record at 0x%04x is longer than its slot\n", addr);
+        return CONFIG_FOUND_NO_ROOM;
+    }
+    uint8_t *slot = config_alloc(EEPROM_SLOT_SIZE);
+    uint8_t *other = config_alloc(EEPROM_SLOT_SIZE);
+    config_found_t found = CONFIG_FOUND_NO_ROOM;
+    if (slot != NULL && other != NULL) {
+        found = eeprom_read(addr, slot, EEPROM_SLOT_SIZE) ? config_parse(addr, cfg, default_cfg, size, layout, slot) :
+                CONFIG_FOUND_UNREACHABLE;
+        if (found == CONFIG_FOUND_MIGRATED && !save_config(addr, cfg, size)) {
+            printf("Config: the record at 0x%04x read, not stored at this version's size\n", addr);
+        }
+        else if (found == CONFIG_FOUND_NONE && config_spare_take(addr, other) &&
+                 config_parse(addr, cfg, default_cfg, size, layout, other) != CONFIG_FOUND_NONE) {
+            found = CONFIG_FOUND_FINISHED;
+            if (!save_config(addr, cfg, size)) {
+                printf("Config: the record at 0x%04x read from the spare slot, not stored in its place\n", addr);
+            }
+        }
+        else if (found == CONFIG_FOUND_NONE && slot[0] == 0xFF && slot[1] == 0xFF) {
+            // Blank: a new unit, a new record's slot, the chip after an erase. On a trial held as the defaults, and
+            // said reset when the update is kept
+            found = CONFIG_FOUND_BLANK;
+            bool stored = config_holding ? config_hold(addr, cfg, size, true) : save_config_now(addr, cfg, size);
+            if (!stored) {
+                printf("Config: the defaults at 0x%04x not stored\n", addr);
+            }
+        }
+        else if (found == CONFIG_FOUND_NONE) {
+            // A record in no shape this version reads: read again, to tell the chip's damage from the bus's
+            bool same = eeprom_read(addr, other, EEPROM_SLOT_SIZE) && memcmp(slot, other, EEPROM_SLOT_SIZE) == 0;
+            found = same ? CONFIG_FOUND_DAMAGED : CONFIG_FOUND_UNSTEADY;
+        }
+    }
+    config_free(slot);
+    config_free(other);
+    return found;
+}
+
+
+config_found_t load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size) {
     return load_config_layout(addr, cfg, default_cfg, size, NULL);
 }
 
 
-bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
-                        const config_layout_t * layout) {
-    bool is_ok;
-    uint32_t calculated_crc32;
-
+config_found_t load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
+                                  const config_layout_t * layout) {
     if (layout == NULL) {
         layout = &config_plain;
     }
@@ -391,84 +616,12 @@ bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, siz
         printf("Config: the layout at 0x%04x is not its struct's: read as a plain record\n", addr);
         layout = &config_plain;
     }
-
-
-    // Prepare rx buffer
-    size_t read_size = size + sizeof(calculated_crc32);
-    uint8_t * buf = malloc(read_size);
-
-    if (!buf) {
-        printf("Unable to allocate buffer with size: %u\n", (unsigned) read_size);
-        return false;
-    }
-
-    // Read data
-    is_ok = eeprom_read(addr, buf, read_size);
-
-    // Unable to read from eeprom, then we will quit
-    if (!is_ok) {
-        printf("Unable to read from addr: 0x%04x\n", (unsigned) addr);
-        free(buf);
-        return is_ok;
-    }
-
-    // A record's first two bytes, its revision before v1.17, are 0 in every record since
-    uint16_t received_rev;
-    memcpy(&received_rev, buf, sizeof(received_rev));
-
-    // Verify crc
-    uint32_t received_crc32 = 0;
-
-    calculated_crc32 = software_crc32(buf, size);
-    memcpy(&received_crc32, buf + size, sizeof(received_crc32));
-
-    // Another version's record, found at the size it was stored at: what it holds of each field kept, the rest at the
-    // defaults, and stored at this version's size at once (a later version's fields discarded), held on trial as any
-    // write is. Nothing is reset
-    if (received_rev == 0 && calculated_crc32 != received_crc32 && size + sizeof(received_crc32) <= EEPROM_SLOT_SIZE) {
-        uint8_t *slot = malloc(EEPROM_SLOT_SIZE);
-        size_t stored = slot != NULL && eeprom_read(addr, slot, EEPROM_SLOT_SIZE) ?
-                        config_stored_size(slot, EEPROM_SLOT_SIZE, size, layout) : 0;
-        if (stored > 0) {
-            printf("Config: the record at 0x%04x was stored %u bytes long by %s version: %s\n", addr, (unsigned) stored,
-                   stored < size ? "an earlier" : "a later",
-                   config_past(layout, stored) != NULL ? "read field by field from its layout then" :
-                   stored < size ? "kept, the appended fields at their defaults" : "its fields read, the rest discarded");
-            config_fill(cfg, default_cfg, size, slot, stored, layout);
-            free(slot);
-            free(buf);
-            return save_config(addr, cfg, size);
-        }
-        free(slot);
-    }
-
-    // We will validate if the rev (first 2 byte) is 0, AND CRC check matches. 
-    if ((received_rev != 0) || (calculated_crc32 != received_crc32)) {
-        if (received_rev != 0) {
-            printf("EEPROM is unlikely initialized, will populate with default configuration\n");
-        }
-        if (calculated_crc32 != received_crc32) {
-            printf("CRC32 mismatch at address %x, received: %08" PRIX32 ", calculated: %08" PRIX32 "\n", (unsigned) addr,
-                   received_crc32, calculated_crc32);
-        }
-        // Apply the default configuration: on trial, held as the defaults, written only once the update is kept
-        free(buf);
-        memcpy(cfg, default_cfg, size);
-        if (config_holding) {
-            return config_hold(addr, cfg, size, true);
-        }
-        return save_config(addr, cfg, size);
-    }
-    else {
-        printf("Configuration read successfully\n");
-
-        // Copy from buffer to config
-        memcpy(cfg, buf, size);
-        free(buf);
-        config_stored_set(addr, calculated_crc32, size);
-    }
-
-    return true;
+    memcpy(cfg, default_cfg, size);     // usable whatever is found
+    config_found_t found = config_load(addr, cfg, default_cfg, size, layout);
+    config_found_set(addr, found);
+    printf("Config: 0x%04x %s%s\n", addr, config_found_text(found),
+           config_found_amiss(found) ? ": its defaults run, the chip left as it is" : "");
+    return found;
 }
 
 
@@ -480,36 +633,59 @@ bool save_config(uint16_t addr, void * cfg, size_t size) {
 }
 
 
+// Bytes written, then read back and compared: a write is believed only when the chip gives it back
+static bool config_write_checked(uint16_t addr, const uint8_t *bytes, size_t len, uint8_t *back) {
+    return eeprom_write(addr, (uint8_t *) bytes, len) && eeprom_read(addr, back, len) && memcmp(bytes, back, len) == 0;
+}
+
+
 bool save_config_now(uint16_t addr, void * cfg, size_t size) {
-    bool is_ok;
-    uint32_t calculated_crc32;
-
-    // Copy data into buffer then append with crc32
-    size_t write_size = size + sizeof(calculated_crc32);
-    uint8_t * buf = malloc(write_size);
-
-    if (!buf) {
-        printf("Unable to allocate buffer with size: %u\n", (unsigned) write_size);
+    if (!eeprom_reachable()) {
+        printf("Config: the EEPROM does not answer: 0x%04x not stored\n", addr);
         return false;
     }
+    // The spare's bytes, then the same room for what is read back
+    size_t record = size + sizeof(uint32_t);
+    size_t spare = sizeof(config_spare_t) + record + sizeof(uint32_t);
+    if (spare > EEPROM_SLOT_SIZE) {
+        printf("Config: the record at 0x%04x is longer than the spare slot: not stored\n", addr);
+        return false;
+    }
+    uint8_t *buf = config_alloc(2 * spare);
+    if (buf == NULL) {
+        printf("Config: no memory to store 0x%04x\n", addr);
+        return false;
+    }
+    config_spare_t head = {.zero = 0, .addr = addr, .size = (uint16_t) size, .unused = 0};
+    uint32_t crc = software_crc32(cfg, size);
+    memcpy(buf, &head, sizeof(head));
+    memcpy(buf + sizeof(head), cfg, size);
+    memcpy(buf + sizeof(head) + size, &crc, sizeof(crc));
+    uint32_t spare_crc = software_crc32(buf, sizeof(head) + record);
+    memcpy(buf + sizeof(head) + record, &spare_crc, sizeof(spare_crc));
 
-    // Calculate CRC
-    calculated_crc32 = software_crc32(cfg, size);
-
-    // Build write buffer by copying configuration appended with crc32
-    memcpy(buf, cfg, size);
-    memcpy(buf + size, &calculated_crc32, sizeof(calculated_crc32));
-
-    // Write to EEPROM
-    is_ok = eeprom_write(addr, buf, write_size);
+    bool is_ok = config_write_checked(EEPROM_SPARE_BASE_ADDR, buf, spare, buf + spare);
     if (!is_ok) {
-        printf("Unable to write to addr: 0x%04x\n", addr);
+        printf("Config: the spare slot did not take 0x%04x: not stored, its record as it was\n", addr);
     }
-    else {
-        printf("Configuration write successfully\n");
-        config_stored_set(addr, calculated_crc32, size);
+#if RC_TEST_SAVE_CUT
+    // A test build (ADR-017, gate 1): a save of the powders cut after three pages of its place, as a power cut would
+    if (is_ok && addr == EEPROM_PROFILE_DATA_BASE_ADDR) {
+        eeprom_write(addr, buf + sizeof(head), 3 * 64);
+        printf("Config: a test build: the save of 0x%04x cut after three pages\n", addr);
+        software_reboot();
     }
-
-    free(buf);
+#endif
+    if (is_ok && !config_write_checked(addr, buf + sizeof(head), record, buf + spare)) {
+        printf("Config: 0x%04x not written whole: its record is in the spare slot until the next start\n", addr);
+        is_ok = false;
+    }
+    if (is_ok) {
+        config_stored_set(addr, crc, size);
+        if (config_found(addr) != CONFIG_FOUND_NONE) {
+            config_found_set(addr, CONFIG_FOUND_READ);      // stored since: what runs is what the chip holds
+        }
+    }
+    config_free(buf);
     return is_ok;
 }

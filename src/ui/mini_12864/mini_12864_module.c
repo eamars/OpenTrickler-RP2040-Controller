@@ -240,7 +240,7 @@ static void _isr_on_button_rst_update(unsigned int pin) {
 
 
 bool mini_12864_module_config_save() {
-    bool is_ok = save_config(EEPROM_MINI_12864_CONFIG_BASE_ADDR, &mini_12864_module_config, sizeof(mini_12864_module_config));
+    bool is_ok = save_config(EEPROM_MINI_12864_CONFIG_BASE_ADDR, &mini_12864_module_config, sizeof(mini_12864_module_config_t));
     return is_ok;
 }
 
@@ -250,11 +250,10 @@ bool mini_12864_module_init() {
 
     // Read configuration
     memset(&mini_12864_module_config, 0x0, sizeof(mini_12864_module_config));
-    is_ok = load_config(EEPROM_MINI_12864_CONFIG_BASE_ADDR, &mini_12864_module_config, &default_mini_12864_module_config, sizeof(mini_12864_module_config));
-    if (!is_ok) {
-        printf("Unable to read mini12864 configuration\n");
-        return false;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1): the panel and the buttons always start
+    load_config(EEPROM_MINI_12864_CONFIG_BASE_ADDR, &mini_12864_module_config, &default_mini_12864_module_config,
+                sizeof(mini_12864_module_config_t));
+    is_ok = true;
 
     // Rotation (ADR-010, gate 4): the panel turns itself, 180 degrees by its flip. At 90 or 270 a 128 x 64 panel is
     // 64 pixels wide and no row fits, so a rotation an older firmware stored as 90 or 270 becomes its nearest, 0 or
