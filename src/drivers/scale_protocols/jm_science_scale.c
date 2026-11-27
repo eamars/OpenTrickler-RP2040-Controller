@@ -1,14 +1,6 @@
-#include <FreeRTOS.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <semphr.h>
-#include <time.h>
 #include <math.h>
-#include <task.h>
 #include <stdlib.h>
 
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
 
 
@@ -27,35 +19,27 @@ typedef union {
 } jm_science_frame_data_format_t;
 
 
-const static char JM_SCIENCE_FRAME_HEADER = 'E';
+// A frame starts with its header, and is taken at its length
+#define JM_SCIENCE_FRAME_HEADER 'E'
 
 
-// Forward declaration
-void _jm_science_scale_listener_task(void *p);
-static void force_zero();
+static float jm_science_scale_parse(const char *frame, size_t len) {
+    (void) len;
+    const jm_science_frame_data_format_t *msg = (const jm_science_frame_data_format_t *) frame;
 
-
-// Instance of the scale handle for JM Sciense FA series
-scale_handle_t jm_science_scale_handle = {
-    .read_loop_task = _jm_science_scale_listener_task,
-    .force_zero = force_zero,
-};
-
-
-static float _decode_measurement_msg(jm_science_frame_data_format_t * frame) {
-    // decode sign 
+    // decode sign
     int sign = 1;
-    if (frame->symbol == '-') {
+    if (msg->symbol == '-') {
         sign = -1;
     }
 
     // Decode weight information
     char *endptr;
-    float weight = strtof(frame->weighing_data, &endptr);
+    float weight = strtof(msg->weighing_data, &endptr);
 
-    if( endptr == frame->weighing_data ) {
+    if( endptr == msg->weighing_data ) {
         // Conversion failed
-        return nanf(frame->weighing_data);
+        return NAN;
     }
 
     weight *= sign;
@@ -64,40 +48,9 @@ static float _decode_measurement_msg(jm_science_frame_data_format_t * frame) {
 }
 
 
-void _jm_science_scale_listener_task(void *p) {
-    jm_science_frame_data_format_t frame;
-    uint8_t byte_idx = 0;
-
-    while (true) {
-        // Read all data 
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-
-            // Determine if the frame header is received
-            // If a header is received then we should reset the decode sequence
-            if (ch == JM_SCIENCE_FRAME_HEADER) {
-                byte_idx = 0;
-            }
-
-            frame.bytes[byte_idx++] = ch;
-
-            // If we have received 17 bytes then we can decode the message
-            if (byte_idx == sizeof(jm_science_frame_data_format_t)) {
-                // Data is ready, send to decode
-                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
-
-                // Reset buffer index to avoid overflow
-                byte_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
-
-static void force_zero() {
-    // Unsupported
-}
-
+const scale_make_t jm_science_scale_make = {
+    .framing = SCALE_FRAME_AT_HEADER,
+    .length = sizeof(jm_science_frame_data_format_t),
+    .header = JM_SCIENCE_FRAME_HEADER,
+    .parse = jm_science_scale_parse,
+};

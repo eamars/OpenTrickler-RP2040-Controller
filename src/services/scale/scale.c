@@ -17,6 +17,7 @@
 #include "scale.h"
 #include "common.h"
 #include "settings.h"
+#include "scale_reader.h"
 
 extern scale_handle_t simulated_scale_handle;
 
@@ -49,29 +50,29 @@ static scale_driver_t scale_running_driver = SCALE_DRIVER_AND_FXI;
 #define SCALE_MAKES_MAX 12
 static struct {
     scale_driver_t driver;
-    scale_handle_t *handle;
+    const scale_make_t *make;
 } scale_makes[SCALE_MAKES_MAX];
 static size_t scale_make_count = 0;
 
+// The make the reader reads the port for; NULL while the simulated scale runs, and with no make for the driver
+static const scale_make_t *scale_running_make = NULL;
 
-bool scale_register_make(scale_driver_t driver, scale_handle_t *handle) {
+
+bool scale_register_make(scale_driver_t driver, const scale_make_t *make) {
     if (scale_make_count >= SCALE_MAKES_MAX) {
         return false;
     }
     scale_makes[scale_make_count].driver = driver;
-    scale_makes[scale_make_count].handle = handle;
+    scale_makes[scale_make_count].make = make;
     scale_make_count += 1;
     return true;
 }
 
 
-static scale_handle_t *scale_make_for(scale_driver_t driver) {
-    if (driver == SCALE_DRIVER_SIMULATED) {
-        return &simulated_scale_handle;
-    }
+static const scale_make_t *scale_make_for(scale_driver_t driver) {
     for (size_t idx = 0; idx < scale_make_count; idx += 1) {
         if (scale_makes[idx].driver == driver) {
-            return scale_makes[idx].handle;
+            return scale_makes[idx].make;
         }
     }
     return NULL;
@@ -82,12 +83,12 @@ static scale_handle_t *scale_make_for(scale_driver_t driver) {
 // make, has nothing read in its place (ADR-006, gate 9): no reading comes, and what needs one refuses (scale_reads())
 static void scale_use_driver(scale_driver_t scale_driver) {
     scale_running_driver = scale_driver;
-    scale_config.scale_handle = scale_make_for(scale_driver);
+    scale_running_make = scale_driver == SCALE_DRIVER_SIMULATED ? NULL : scale_make_for(scale_driver);
 }
 
 
 bool scale_reads(void) {
-    return scale_config.scale_handle != NULL;
+    return scale_running_driver == SCALE_DRIVER_SIMULATED || scale_running_make != NULL;
 }
 
 
@@ -142,8 +143,11 @@ static volatile uint32_t scale_zero_count = 0;
 
 void scale_ask_zero(void) {
     scale_zero_count += 1;
-    if (scale_config.scale_handle != NULL) {
-        scale_config.scale_handle->force_zero();
+    if (scale_running_driver == SCALE_DRIVER_SIMULATED) {
+        simulated_scale_handle.force_zero();
+    }
+    else if (scale_running_make != NULL && scale_running_make->zero != NULL) {
+        scale_write(scale_running_make->zero, strlen(scale_running_make->zero));
     }
 }
 
@@ -154,19 +158,11 @@ uint32_t scale_get_zero_count(void) {
 
 
 bool scale_can_zero(void) {
-    if (!scale_reads()) {
-        return false;
+    if (scale_running_driver == SCALE_DRIVER_SIMULATED) {
+        return true;
     }
-    // Read in the drivers: the others' force_zero does nothing (TODOs, or "Unsupported")
-    switch (scale_running_driver) {
-        case SCALE_DRIVER_AND_FXI:
-        case SCALE_DRIVER_GNG_JJB:
-        case SCALE_DRIVER_RADWAG_PS_R2:
-        case SCALE_DRIVER_SIMULATED:
-            return true;
-        default:
-            return false;
-    }
+    // The make says its zero command, where it has one (scale_make.h)
+    return scale_running_make != NULL && scale_running_make->zero != NULL;
 }
 
 void set_scale_uart_format(scale_uart_format_t format) {
@@ -378,18 +374,8 @@ const char *scale_driver_api_name(scale_driver_t driver) {
 }
 
 
-// What a make is given (scale_make.h): where its readings go, and the port's write
-static const scale_make_host_t scale_as_host = {
-    .publish_measurement = scale_publish_measurement,
-    .publish_unit = scale_publish_unit,
-    .tap_frame = scale_tap_frame,
-    .write = scale_write,
-};
-
-
 bool scale_init() {
     bool is_ok = true;     // the scale starts whatever its load found (ADR-017, gate 1)
-    scale_makes_set_host(&scale_as_host);
 
     // Read config from EEPROM: whatever is found, the struct holds settings to run on (ADR-017, gate 1)
     load_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, &default_scale_persistent_config,
@@ -419,10 +405,17 @@ bool scale_init() {
     printf("Scale driver: %x\n", scale_config.persistent_config.scale_driver);
     set_scale_driver(scale_config.persistent_config.scale_driver);
 
-    // Create the Task for the listener loop. Its handle is kept so the simulation can stand in for it. A stored make
-    // the build does not carry runs nothing in its place: said now, and a charge and a calibration refuse
-    if (scale_reads()) {
-        rtos_task_start(scale_config.scale_handle->read_loop_task, "Scale Task", 1024, NULL, 9, &scale_task_handle);
+    // The task that reads: the port's one reader for a make (ADR-017, gate 2), or the simulated scale's. Its handle
+    // is kept so the simulation can stand in for it. A stored make the build does not carry runs nothing in its
+    // place: said now, and a charge and a calibration refuse
+    if (scale_running_make != NULL) {
+        if (!rtos_task_start(scale_reader_task, "Scale Task", 1024, (void *) scale_running_make, 9,
+                             &scale_task_handle)) {
+            printf("Scale: no room for its reader's task\n");
+        }
+    }
+    else if (scale_running_driver == SCALE_DRIVER_SIMULATED) {
+        rtos_task_start(simulated_scale_handle.read_loop_task, "Scale Task", 1024, NULL, 9, &scale_task_handle);
     }
     else {
         printf("Scale: the stored make (%d) is not in this build: no scale reads, and a charge and a calibration "
@@ -477,9 +470,11 @@ void scale_simulation_stop(void) {
     scale_simulation_task_handle = NULL;
     scale_use_driver(scale_simulation_stored_driver);
 
-    // Drop what the scale sent while its task was suspended; the reading is unknown until its next frame
+    // Drop what the scale sent while its task was suspended; the reading is unknown until its next frame, which the
+    // reader finds afresh: what it held is of a frame before, and the port's next bytes are in a frame's middle
     while (chip_serial_read(SCALE_UART) != CHIP_SERIAL_NONE) {
     }
+    scale_reader_restart();
     scale_config.current_scale_measurement = NAN;
     if (scale_task_handle != NULL) {
         vTaskResume(scale_task_handle);

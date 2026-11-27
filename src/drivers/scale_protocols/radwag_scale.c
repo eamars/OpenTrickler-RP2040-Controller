@@ -1,16 +1,14 @@
-#include <string.h>
-#include <stdlib.h>
 #include <math.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <FreeRTOS.h>
-#include <task.h>
-
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
+
+/*
+    Radwag PS R2 series, in continuous transmission (CU1, set on the scale). Its other commands, each ended by CR LF:
+    CU0 continuous off, Z zero, T tare, UT <value> a tare's value, K1 and K0 the keyboard locked and unlocked,
+    BP <ms> a beep.
+*/
 
 // Radwag response frame structure for SUI command
 // Format: SUI<stability><mass(12)><unit(3)>CR LF
@@ -27,167 +25,46 @@ typedef union {
     char bytes[21];
 } radwag_sui_frame_t;
 
-// Forward declarations
-void _radwag_scale_listener_task(void *p);
-void radwag_scale_press_re_zero_key();
-
-
-// Instance of the scale handle for Radwag PS R2 series
-scale_handle_t radwag_ps_r2_scale_handle = {
-    .read_loop_task = _radwag_scale_listener_task,
-    .force_zero = radwag_scale_press_re_zero_key,
-};
 
 /**
  * @brief Decode mass measurement message from Radwag scale
- * 
- * @param msg Pointer to mass frame structure
- * @return float Decoded weight value, NaN if conversion failed
+ *
+ * @return float Decoded weight value, NaN if conversion failed or the frame is not a SUI mass frame
  */
-static float _decode_measurement_msg(radwag_sui_frame_t *msg) {
+static float radwag_scale_parse(const char *frame, size_t len) {
+    (void) len;
+    const radwag_sui_frame_t *msg = (const radwag_sui_frame_t *) frame;
+
+    // Verify this is a SUI mass frame. The stability flag is not checked: an unstable reading is a reading
+    if (msg->command[0] != 'S' || msg->command[1] != 'U' || msg->command[2] != 'I') {
+        return NAN;
+    }
+
     // Create a temporary buffer for mass conversion
     // Mass field is 12 characters with spaces padding on the left
     char mass_str[13];
     memcpy(mass_str, msg->mass, 12);
     mass_str[12] = '\0';
-    
+
     // Convert mass string to float (strtof handles leading spaces)
     char *endptr;
     float weight = strtof(mass_str, &endptr);
-    
+
     if (endptr == mass_str) {
         // Conversion failed
-        return nanf(mass_str);
+        return NAN;
     }
-    
+
     // Note: The mass field in SUI doesn't have a separate sign character
     // Negative values would include '-' in the mass field itself
-    
+
     return weight;
 }
 
-/**
- * @brief Main listener task for Radwag scale communication
- * Continuously reads data from continuous transmission mode
- * 
- * @param p Task parameter (unused)
- */
-void _radwag_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;
-    radwag_sui_frame_t frame;
-    
-    while (true) {
-        // Read all available data
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-            frame.bytes[string_buf_idx++] = ch;
-            
-            // Radwag SUI frame is 21 bytes
-            if (string_buf_idx == sizeof(radwag_sui_frame_t)) {
-                // Verify this is a SUI mass frame
-                if (frame.command[0] == 'S' && 
-                    frame.command[1] == 'U' && 
-                    frame.command[2] == 'I') {
-                    
-                    // Optional: Check stability flag
-                    // ' ' = stable, '?' = unstable
-                    // You can decide whether to accept unstable readings
-                    // bool is_stable = (frame.stability == ' ');
-                    
-                    // Data is ready, decode and update
-                    scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
-                }
-                
-                // Reset buffer
-                string_buf_idx = 0;
-            }
-            
-            // Reset on line terminator to resynchronize if out of sync
-            if (ch == '\n') {
-                string_buf_idx = 0;
-            }
-        }
-        
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
 
-/**
- * @brief Zero the scale (send Z command)
- * Command: Z\r\n
- */
-void radwag_scale_press_re_zero_key() {
-    char cmd[] = "T\r\n";  // Tare command (not Zero)
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Tare the scale (send T command)
- * Command: T\r\n
- */
-void radwag_scale_press_tare_key() {
-    char cmd[] = "T\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Enable continuous transmission in current unit
- * Command: CU1\r\n
- * Call this once during initialization if not already enabled on scale
- */
-void radwag_scale_enable_continuous_transmission() {
-    char cmd[] = "CU1\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Disable continuous transmission in current unit
- * Command: CU0\r\n
- */
-void radwag_scale_disable_continuous_transmission() {
-    char cmd[] = "CU0\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Set tare value
- * Command: UT <value>\r\n
- * 
- * @param tare_value Tare value to set (use dot as decimal separator)
- */
-void radwag_scale_set_tare(float tare_value) {
-    char cmd[32];
-    snprintf(cmd, sizeof(cmd), "UT %.3f\r\n", tare_value);
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Lock scale keyboard
- * Command: K1\r\n
- */
-void radwag_scale_lock_keyboard() {
-    char cmd[] = "K1\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Unlock scale keyboard
- * Command: K0\r\n
- */
-void radwag_scale_unlock_keyboard() {
-    char cmd[] = "K0\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-/**
- * @brief Activate beep signal
- * Command: BP <time_ms>\r\n
- * 
- * @param duration_ms Duration in milliseconds (recommended 50-5000)
- */
-void radwag_scale_beep(uint16_t duration_ms) {
-    char cmd[32];
-    snprintf(cmd, sizeof(cmd), "BP %u\r\n", duration_ms);
-    scale_make_host->write(cmd, strlen(cmd));
-}
+const scale_make_t radwag_ps_r2_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .length = sizeof(radwag_sui_frame_t),
+    .parse = radwag_scale_parse,
+    .zero = "T\r\n",        // a tare, not Z
+};

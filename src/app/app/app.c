@@ -102,17 +102,17 @@ int main()
 
     // The scale's makes this build carries, each by its stored number, then the scale (ADR-006, gate 6)
 #if !RC_TEST_NO_AND_FXI
-    scale_register_make(SCALE_DRIVER_AND_FXI, &and_fxi_scale_handle);   // a test build leaves it out (gate 9)
+    scale_register_make(SCALE_DRIVER_AND_FXI, &and_fxi_scale_make);   // a test build leaves it out (gate 9)
 #endif
-    scale_register_make(SCALE_DRIVER_STEINBERG_SBS, &steinberg_scale_handle);
-    scale_register_make(SCALE_DRIVER_GNG_JJB, &gng_scale_handle);
-    scale_register_make(SCALE_DRIVER_USSOLID_JFDBS, &ussolid_scale_handle);
-    scale_register_make(SCALE_DRIVER_JM_SCIENCE, &jm_science_scale_handle);
-    scale_register_make(SCALE_DRIVER_CREEDMOOR, &creedmoor_scale_handle);
-    scale_register_make(SCALE_DRIVER_RADWAG_PS_R2, &radwag_ps_r2_scale_handle);
-    scale_register_make(SCALE_DRIVER_SARTORIUS, &sartorius_scale_handle);
-    scale_register_make(SCALE_DRIVER_GENERIC_DRV, &generic_scale_drv_handle);
-    scale_register_make(SCALE_DRIVER_FA_EN, &fa_en_scale_handle);
+    scale_register_make(SCALE_DRIVER_STEINBERG_SBS, &steinberg_scale_make);
+    scale_register_make(SCALE_DRIVER_GNG_JJB, &gng_scale_make);
+    scale_register_make(SCALE_DRIVER_USSOLID_JFDBS, &ussolid_scale_make);
+    scale_register_make(SCALE_DRIVER_JM_SCIENCE, &jm_science_scale_make);
+    scale_register_make(SCALE_DRIVER_CREEDMOOR, &creedmoor_scale_make);
+    scale_register_make(SCALE_DRIVER_RADWAG_PS_R2, &radwag_ps_r2_scale_make);
+    scale_register_make(SCALE_DRIVER_SARTORIUS, &sartorius_scale_make);
+    scale_register_make(SCALE_DRIVER_GENERIC_DRV, &generic_scale_make);
+    scale_register_make(SCALE_DRIVER_FA_EN, &fa_en_scale_make);
     scale_init();
 
     // Initialize charge mode settings; the simulated scale is told where a throw's target is read

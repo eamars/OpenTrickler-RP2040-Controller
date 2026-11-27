@@ -26,7 +26,7 @@ OUT = REPO / "build_host"
 VERSIONS = dict(re.findall(r"^([A-Z_]+)=(\S+)", (REPO / "toolchain.env").read_text(encoding="utf-8"), re.M))
 
 # The tests that are programs: each a target of tests/host/CMakeLists.txt, run with no argument
-TESTS = ("config_migration_test",)
+TESTS = ("config_migration_test", "scale_framing_test")
 
 
 def compiler() -> list:

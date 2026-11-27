@@ -1,24 +1,16 @@
-#include <FreeRTOS.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <semphr.h>
-#include <time.h>
 #include <math.h>
-#include <task.h>
 #include <stdlib.h>
 
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
 
-/* 
+/*
 Example data
 -0000.00 GN \r\n
 +0000.00 GN \r\n
 +0142.02 GN \r\n
 +0.32445 oz \r\n
 +045.991 ct \r\n
-+0.02027 lb \r\n 
++0.02027 lb \r\n
 +009.198 g  \r\n
 */
 
@@ -28,23 +20,17 @@ typedef union {
         char data[7];           // Unsigned integer with leading zeros
         char _space;            // Space
         char unit[2];           // Unit GN (or something else)
-        char _space2;           // Space   
+        char _space2;           // Space
         char terminator[2];     // \r\n (carriage return)
     };
     char bytes[14];
 } creedmoor_data_format_t ;
 
-// Forward declaration
-void _creedmoor_scale_listener_task(void *p);
-static void force_zero();
 
-// Instance of the scale handle for Creedmoor scale
-scale_handle_t creedmoor_scale_handle = {
-    .read_loop_task = _creedmoor_scale_listener_task,
-    .force_zero = force_zero,
-};
+static float creedmoor_scale_parse(const char *frame, size_t len) {
+    (void) len;
+    const creedmoor_data_format_t *msg = (const creedmoor_data_format_t *) frame;
 
-static float _decode_measurement_msg(creedmoor_data_format_t * msg) {
     // Determine sign
     int sign = 1;
 
@@ -58,7 +44,7 @@ static float _decode_measurement_msg(creedmoor_data_format_t * msg) {
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return nanf(msg->data);
+        return NAN;
     }
 
     // Apply the sign
@@ -67,37 +53,9 @@ static float _decode_measurement_msg(creedmoor_data_format_t * msg) {
     return weight;
 }
 
-void _creedmoor_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;
-    creedmoor_data_format_t frame;
 
-    while (true) {
-        // Read all data 
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-
-            frame.bytes[string_buf_idx++] = ch;
-
-            // If we have received 14 bytes then we can decode the message
-            if (string_buf_idx == sizeof(creedmoor_data_format_t)) {
-                // Data is ready, send to decode
-                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
-
-                // Reset
-                string_buf_idx = 0;
-            }
-
-            // \n is the terminator. We shall reset the receive of message on receiving any of those character.
-            if (ch =='\n') {
-                string_buf_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
-static void force_zero() {
-    // TODO: Not implemented
-}
+const scale_make_t creedmoor_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .length = sizeof(creedmoor_data_format_t),
+    .parse = creedmoor_scale_parse,
+};

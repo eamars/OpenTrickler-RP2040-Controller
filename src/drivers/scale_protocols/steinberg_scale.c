@@ -1,90 +1,51 @@
-#include <FreeRTOS.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <semphr.h>
-#include <time.h>
 #include <math.h>
-#include <task.h>
 #include <stdlib.h>
 
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
 
-/* 
+/*
   Example data
     S       0.00 GN
     S       0.00 GN
     SD     -1.14 GN
     SD   -143.02 GN
     SD   -467.16 GN
+
+  A frame is the example's 17 bytes, 15 characters and CR LF (ADR-017, gate 2). The fields below miss the space
+  before the unit; the number lies where they put it.
 */
 typedef union {
     struct __attribute__((__packed__)) {
         char header[2];         // S or SD
         char data[10];          // Signed integer
-        char unit[2];           // GN (or something else)   
+        char unit[2];           // GN (or something else)
         char terminator[2];     // \r\n (carriage return)
     };
     char bytes[16];
 } steinberg_sbs_data_format_t ;
 
-// Forward declaration
-void _steinberg_scale_listener_task(void *p);
-static void force_zero();
-
-// Instance of the scale handle for A&D FXi series
-scale_handle_t steinberg_scale_handle = {
-    .read_loop_task = _steinberg_scale_listener_task,
-    .force_zero = force_zero,
-};
+#define STEINBERG_FRAME_LENGTH 17
 
 
-static float _decode_measurement_msg(steinberg_sbs_data_format_t * msg) {
+static float steinberg_scale_parse(const char *frame, size_t len) {
+    (void) len;
+    const steinberg_sbs_data_format_t *msg = (const steinberg_sbs_data_format_t *) frame;
+
     // Decode weight information
     char *endptr;
     float weight = strtof(msg->data, &endptr);
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return nanf(msg->data);
+        return NAN;
     }
 
     return weight;
 }
 
 
-void _steinberg_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;
-    steinberg_sbs_data_format_t frame;
-
-    while (true) {
-        // Read all data 
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-
-            frame.bytes[string_buf_idx++] = ch;
-
-            // If we have received 16 bytes then we can decode the message
-            if (string_buf_idx == sizeof(steinberg_sbs_data_format_t)) {
-                // Data is ready, send to decode
-                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
-
-                // Reset
-                string_buf_idx = 0;
-            }
-
-            // \n is the terminator. We shall reset the receive of message on receiving any of those character.
-            if (ch =='\n') {
-                string_buf_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
-static void force_zero() {
-    // TODO: Not implemented
-}
+const scale_make_t steinberg_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .length = STEINBERG_FRAME_LENGTH,
+    .parse = steinberg_scale_parse,
+};
