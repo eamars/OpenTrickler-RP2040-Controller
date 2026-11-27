@@ -15,6 +15,8 @@ extern "C" {
 
 bool api_v1_init(void);
 bool api_v1_commands_init(void);
+// The settings' routes, for every table registered (api_v1_settings.c). After every module's start
+void api_v1_settings_init(void);
 
 // The commands' share of GET /api/v1/schema (gate 4): JSON texts the schema's stream writes one at a time. Actions
 // and events are objects; states are members ("charge":[...]). NULL past the last

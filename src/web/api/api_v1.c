@@ -654,7 +654,7 @@ bool api_v1_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings/motors", api_v1_get_motor_settings);
     // Every module's settings' table, registered at its start (gate 3)
-    settings_add_routes();
+    api_v1_settings_init();
     // The commands, the event log and the unit's reads (gate 4)
     ok = ok && api_v1_commands_init();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);

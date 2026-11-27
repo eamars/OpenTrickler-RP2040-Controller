@@ -1,4 +1,4 @@
-ot_module(SRCS api_v1.c api_v1_commands.c rest_endpoints.c
+ot_module(SRCS api_v1.c api_v1_commands.c api_v1_settings.c rest_endpoints.c
           INCLUDE_DIRS include
           PRIV_REQUIRES activity calibration charge cleanup events freertos http_json http_server leds lwip motors
                         profile rp2_sdk scale servo_gate settings storage system update update_fetch version

@@ -104,11 +104,58 @@ typedef struct {
 extern "C" {
 #endif
 
-// A module's table, registered at its start, before settings_add_routes()
+// A module's table, registered at its start, before the API adds its routes
 bool settings_register(const settings_resource_t *resource);
 
-// The API's routes for every table registered, and the settings' own: the export, a save of all, the schema
-void settings_add_routes(void);
+/*
+ * The settings' answers to the API (ADR-006, gate 6). The API has the routes and the web server; the settings make
+ * each answer as JSON in a buffer of the API's, and name no web. A request is its path and its body as they came.
+ */
+typedef struct {
+    const char *path;
+    const char *body;               // NULL when there is none
+    size_t body_len;
+} settings_request_t;
+typedef struct {
+    char *out;                      // in: where the JSON goes, and its room
+    size_t room;
+    const char *job_state;          // in: the running job's state by the API's name, which a busy answer carries
+    int status;                     // out: the HTTP status
+    size_t len;                     // out: the JSON's length
+    const char *error_code;         // out: not NULL for a plain error in place of JSON (the status, this code and
+    char error_message[112];        //      this message), worded by the API as its other errors
+} settings_answer_t;
+// GET and PATCH of a resource's path; POST of a save's or a revert's path; POST /api/v1/settings/save
+void settings_api_get(const settings_request_t *request, settings_answer_t *answer);
+void settings_api_patch(const settings_request_t *request, settings_answer_t *answer);
+void settings_api_save(const settings_request_t *request, settings_answer_t *answer);
+void settings_api_save_all(const settings_request_t *request, settings_answer_t *answer);
+void settings_api_revert(const settings_request_t *request, settings_answer_t *answer);
+
+/*
+ * The export (GET /api/v1/settings: every resource in one document) and the schema (GET /api/v1/schema: every
+ * resource's fields), each made a chunk at a time: its context begun, then `more` called until it returns false
+ * with the last chunk (`more` has the shape of a web server's stream).
+ */
+typedef struct {
+    uint8_t phase;                  // 0 its head, 1 the resources, 2 its end
+    uint8_t resource;
+    int16_t id;
+    char unit_id[16];               // the unit's id, which the export's head carries
+} settings_export_t;
+void settings_export_begin(settings_export_t *export_context, const char *unit_id);
+bool settings_export_more(void *export_context, char *buf, size_t room, size_t *len);
+// The API's own share of the schema, an item at a time: part 0 the commands' actions, 1 the states, 2 the events;
+// each a JSON text, NULL past a part's last
+typedef const char *(*settings_schema_extra_fn)(unsigned part, size_t idx);
+typedef struct {
+    uint8_t phase;                  // 0 its head, 1 the resources, 2 the saves, 3 to 5 the API's parts, 6 the errors
+    uint8_t resource;
+    uint8_t field;                  // 0: the resource's head next
+    settings_schema_extra_fn extra;
+} settings_schema_t;
+void settings_schema_begin(settings_schema_t *schema, settings_schema_extra_fn extra);
+bool settings_schema_more(void *schema, char *buf, size_t room, size_t *len);
 
 // Each registered table in turn, for the index (api_v1.c): NULL past the last
 const settings_resource_t *settings_resource_at(size_t idx);
