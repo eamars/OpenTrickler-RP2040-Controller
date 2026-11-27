@@ -11,8 +11,6 @@
 #include "activity.h"
 #include "events.h"
 #include "float_ring.h"
-#include "mini_12864_module.h"
-#include "display.h"
 #include "scale.h"
 #include "motors.h"
 #include "charge_mode.h"
@@ -21,7 +19,6 @@
 #include "profile.h"
 #include "common.h"
 #include "servo_gate.h"
-#include "menu.h"
 #include "jobs.h"
 #include "settings.h"
 #include "charge_controller.h"
@@ -34,7 +31,6 @@ uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
 charge_mode_config_t charge_mode_config;
 
 // Scale related
-extern scale_config_t scale_config;
 
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
@@ -244,7 +240,7 @@ static void charge_step2_configure(profile_t * profile) {
     config->backoff_turns = data->coarse_stop_backoff_turns;
     config->backoff_rps = data->coarse_stop_backoff_speed_rps;
     // Step 1's records, slowest flow first, those never measured left out; none, the defaults
-    const eeprom_scale_data_t * scale = &scale_config.persistent_config;
+    const eeprom_scale_data_t * scale = scale_get_stored();
     config->settle_s = scale->settle_ms > 0.0f ? scale->settle_ms / 1000.0f : CHARGE_DEFAULT_SETTLE_S;
     config->lag_count = 0;
     for (int i = 0; i < SCALE_LAG_POINTS && config->lag_count < CHARGE_LAG_POINTS; i++) {
@@ -370,9 +366,6 @@ void charge_mode_get_cost(charge_cost_t * cost) {
 }
 
 
-// Menu system
-extern QueueHandle_t encoder_event_queue;
-extern neopixel_led_config_t neopixel_led_config;
 
 
 // Definitions
@@ -389,7 +382,7 @@ static bool charge_mode_end_on_motor_fault(void);
 void charge_mode_wait_for_zero() {
     // Set colour to not ready
     neopixel_led_set_colour(
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+        neopixel_led_default_colours()->mini12864_backlight_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         true
@@ -564,7 +557,7 @@ static void charge_mode_scale_fault(const char * reason, event_reason_t throw_re
     }
 
     neopixel_led_set_colour(
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+        neopixel_led_default_colours()->mini12864_backlight_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
         true
@@ -612,7 +605,7 @@ void charge_mode_wait_for_complete() {
 
     // Set colour to under charge
     neopixel_led_set_colour(
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+        neopixel_led_default_colours()->mini12864_backlight_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
         true
@@ -826,7 +819,7 @@ void charge_mode_wait_for_cup_removal() {
     // Over charged
     if (error <= -charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
         neopixel_led_set_colour(
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+            neopixel_led_default_colours()->mini12864_backlight_colour,
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
             true
@@ -838,7 +831,7 @@ void charge_mode_wait_for_cup_removal() {
     // Under charged
     else if (error >= charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
         neopixel_led_set_colour(
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
+            neopixel_led_default_colours()->mini12864_backlight_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
             true
@@ -851,7 +844,7 @@ void charge_mode_wait_for_cup_removal() {
     // Normal
     else {
         neopixel_led_set_colour(
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
+            neopixel_led_default_colours()->mini12864_backlight_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
             true
@@ -913,9 +906,9 @@ void charge_mode_wait_for_cup_removal() {
     }
 
     // Reset LED to default colour
-    neopixel_led_set_colour(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
-                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
-                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
+    neopixel_led_set_colour(neopixel_led_default_colours()->mini12864_backlight_colour,
+                            neopixel_led_default_colours()->led1_colour,
+                            neopixel_led_default_colours()->led2_colour,
                             true);
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_RETURN;
@@ -924,7 +917,7 @@ void charge_mode_wait_for_cup_removal() {
 void charge_mode_wait_for_cup_return() { 
     // Set colour to not ready
     neopixel_led_set_colour(
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
+        neopixel_led_default_colours()->mini12864_backlight_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         true
@@ -1052,9 +1045,9 @@ uint8_t charge_mode_menu(void) {
     }
 
     // Reset LED to default colour
-    neopixel_led_set_colour(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
-                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
-                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
+    neopixel_led_set_colour(neopixel_led_default_colours()->mini12864_backlight_colour,
+                            neopixel_led_default_colours()->led1_colour,
+                            neopixel_led_default_colours()->led2_colour,
                             true);
 
     // Diable motors on exiting the mode
@@ -1121,6 +1114,21 @@ float charge_mode_target_at(decimal_places_t places) {
 }
 
 
+float charge_mode_get_throw_target(void) {
+    return charge_mode_config.target_charge_weight;
+}
+
+
+charge_mode_state_t charge_mode_get_state(void) {
+    return charge_mode_config.charge_mode_state;
+}
+
+
+const eeprom_charge_mode_data_t *charge_mode_get_stored(void) {
+    return &charge_mode_config.eeprom_charge_mode_data;
+}
+
+
 float charge_mode_get_target(void) {
     return charge_mode_target_at(charge_mode_config.eeprom_charge_mode_data.decimal_places);
 }
@@ -1175,7 +1183,8 @@ void charge_mode_keep_target(decimal_places_t before) {
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile) {
     // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over
     activity_t asked_before;
-    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
+        !activity_screen_takes_starts()) {
         return CHARGE_START_BUSY;
     }
     // The drivers looked at afresh, as a start at the unit does: a fault is remembered until a mode asks, so the
@@ -1201,7 +1210,7 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     if (!asked) {
         return CHARGE_START_BUSY;
     }
-    menu_wake();
+    activity_wake_screen();
     return CHARGE_START_OK;
 }
 

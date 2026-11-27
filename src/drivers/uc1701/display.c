@@ -11,7 +11,6 @@
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 
-#include "common.h"
 #include "configuration.h"
 #include "display.h"
 
@@ -48,6 +47,17 @@ static const uint8_t display_flipped[] = {0xa1, 0xc0};
 
 
 // Commands, with A0 low; the chip is selected around them
+// A wait of the RTOS's when it runs, a busy one before it does (the panel is set up before the scheduler starts)
+static void display_delay_ms(uint32_t ms, BaseType_t scheduler_state) {
+    if (scheduler_state == taskSCHEDULER_RUNNING) {
+        vTaskDelay(pdMS_TO_TICKS(ms));
+    }
+    else {
+        busy_wait_us(ms * 1000ULL);
+    }
+}
+
+
 static void display_commands(const uint8_t *commands, size_t len) {
     gpio_put(DISPLAY0_CS_PIN, 0);
     gpio_put(DISPLAY0_A0_PIN, 0);
@@ -90,11 +100,11 @@ void display_init(bool flipped) {
     // The reset pulse, then 6 ms for the controller to come up
     BaseType_t scheduler_state = xTaskGetSchedulerState();
     gpio_put(DISPLAY0_RESET_PIN, 1);
-    delay_ms(1, scheduler_state);
+    display_delay_ms(1, scheduler_state);
     gpio_put(DISPLAY0_RESET_PIN, 0);
-    delay_ms(1, scheduler_state);
+    display_delay_ms(1, scheduler_state);
     gpio_put(DISPLAY0_RESET_PIN, 1);
-    delay_ms(6, scheduler_state);
+    display_delay_ms(6, scheduler_state);
 
     display_commands(display_setup, sizeof(display_setup));
     display_commands(display_on, sizeof(display_on));

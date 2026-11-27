@@ -16,16 +16,6 @@
 #include "common.h"
 #include "settings.h"
 
-extern scale_handle_t generic_scale_drv_handle;
-extern scale_handle_t and_fxi_scale_handle;
-extern scale_handle_t steinberg_scale_handle;
-extern scale_handle_t ussolid_scale_handle;
-extern scale_handle_t gng_scale_handle;
-extern scale_handle_t jm_science_scale_handle;
-extern scale_handle_t creedmoor_scale_handle;
-extern scale_handle_t radwag_ps_r2_scale_handle;
-extern scale_handle_t sartorius_scale_handle;
-extern scale_handle_t fa_en_scale_handle;
 extern scale_handle_t simulated_scale_handle;
 
 scale_config_t scale_config;
@@ -53,69 +43,53 @@ const eeprom_scale_data_t default_scale_persistent_config = {
 static scale_driver_t scale_running_driver = SCALE_DRIVER_AND_FXI;
 
 
+// The makes the build carries, handed over by the start-up's wiring (scale_register_make())
+#define SCALE_MAKES_MAX 12
+static struct {
+    scale_driver_t driver;
+    scale_handle_t *handle;
+} scale_makes[SCALE_MAKES_MAX];
+static size_t scale_make_count = 0;
+
+
+bool scale_register_make(scale_driver_t driver, scale_handle_t *handle) {
+    if (scale_make_count >= SCALE_MAKES_MAX) {
+        return false;
+    }
+    scale_makes[scale_make_count].driver = driver;
+    scale_makes[scale_make_count].handle = handle;
+    scale_make_count += 1;
+    return true;
+}
+
+
+static scale_handle_t *scale_make_for(scale_driver_t driver) {
+    if (driver == SCALE_DRIVER_SIMULATED) {
+        return &simulated_scale_handle;
+    }
+    for (size_t idx = 0; idx < scale_make_count; idx += 1) {
+        if (scale_makes[idx].driver == driver) {
+            return scale_makes[idx].handle;
+        }
+    }
+    return NULL;
+}
+
+
+// The make that reads the scale: the one asked for; one the build does not carry, or a number that is no make, is
+// read as the A&D FX-i's, as an unknown number always was; and with no A&D either, by the simulated scale
 static void scale_use_driver(scale_driver_t scale_driver) {
     scale_running_driver = scale_driver;
 
-    switch (scale_driver) {
-        case SCALE_DRIVER_AND_FXI:
-        {
-            scale_config.scale_handle = &and_fxi_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_STEINBERG_SBS:
-        {
-            scale_config.scale_handle = &steinberg_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_GNG_JJB:
-        {
-            scale_config.scale_handle = &gng_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_USSOLID_JFDBS:
-        {
-            scale_config.scale_handle = &ussolid_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_JM_SCIENCE:
-        {
-            scale_config.scale_handle = &jm_science_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_CREEDMOOR:
-        {
-            scale_config.scale_handle = &creedmoor_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_RADWAG_PS_R2:
-        {
-            scale_config.scale_handle = &radwag_ps_r2_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_SARTORIUS:
-        {
-            scale_config.scale_handle = &sartorius_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_GENERIC_DRV:
-        {
-            scale_config.scale_handle = &generic_scale_drv_handle;
-            break;
-        }
-        case SCALE_DRIVER_FA_EN:
-        {
-            scale_config.scale_handle = &fa_en_scale_handle;
-            break;
-        }
-        case SCALE_DRIVER_SIMULATED:
-        {
-            scale_config.scale_handle = &simulated_scale_handle;
-            break;
-        }
-        default:
-            scale_config.scale_handle = &and_fxi_scale_handle;
-            break;
+    scale_handle_t *handle = scale_make_for(scale_driver);
+    if (handle == NULL) {
+        handle = scale_make_for(SCALE_DRIVER_AND_FXI);
     }
+    if (handle == NULL) {
+        printf("Scale: this build carries no make numbered %d; the simulated scale stands in\n", (int) scale_driver);
+        handle = &simulated_scale_handle;
+    }
+    scale_config.scale_handle = handle;
 }
 
 
@@ -398,8 +372,18 @@ const char *scale_driver_api_name(scale_driver_t driver) {
 }
 
 
+// What a make is given (scale_make.h): where its readings go, and the port's write
+static const scale_make_host_t scale_as_host = {
+    .publish_measurement = scale_publish_measurement,
+    .publish_unit = scale_publish_unit,
+    .tap_frame = scale_tap_frame,
+    .write = scale_write,
+};
+
+
 bool scale_init() {
     bool is_ok;
+    scale_makes_set_host(&scale_as_host);
 
     // Read config from EEPROM
     is_ok = load_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, &default_scale_persistent_config, sizeof(scale_config.persistent_config), EEPROM_SCALE_DATA_REV);
@@ -520,6 +504,11 @@ void scale_tap_frame(const uint8_t * bytes, size_t len, float value) {
 
 bool scale_simulation_is_on(void) {
     return scale_simulation_task_handle != NULL;
+}
+
+
+const eeprom_scale_data_t *scale_get_stored(void) {
+    return &scale_config.persistent_config;
 }
 
 

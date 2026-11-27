@@ -8,13 +8,10 @@
 #include <string.h>
 
 #include "activity.h"
-#include "api_v1.h"
 #include "common.h"
 #include "eeprom.h"
-#include "unit_id.h"
 #include "events.h"
 #include "http_json.h"
-#include "http_server.h"
 #include "settings.h"
 #include "version.h"
 
@@ -25,7 +22,6 @@
 
 static const settings_resource_t *resources[SETTINGS_RESOURCES_MAX];
 static size_t resource_count = 0;
-static char settings_etag[48];
 
 
 /*
@@ -719,7 +715,28 @@ done:
 }
 
 
-// --- The API's replies
+// --- The API's replies: each made as JSON in the caller's buffer (settings.h), so the settings name no web server
+
+static char *answer_buffer(settings_answer_t *answer, size_t *room) {
+    *room = answer->room;
+    return answer->out;
+}
+
+
+// A plain error in place of JSON: the caller words it as its other errors
+static void answer_error(settings_answer_t *answer, int status, const char *code, const char *message) {
+    answer->status = status;
+    answer->error_code = code;
+    snprintf(answer->error_message, sizeof(answer->error_message), "%s", message);
+}
+
+
+static void answer_send(settings_answer_t *answer, int status, size_t len) {
+    answer->status = status;
+    answer->len = len;
+    answer->error_code = NULL;
+}
+
 
 // A field with limits: a number, or an integer
 static bool field_is_number(const setting_field_t *field) {
@@ -727,9 +744,9 @@ static bool field_is_number(const setting_field_t *field) {
 }
 
 
-static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) {
+static void reply_outcome(settings_answer_t *reply, const outcome_t *outcome) {
     size_t room;
-    char *out = http_server_reply_buffer(reply, &room);
+    char *out = answer_buffer(reply, &room);
     size_t len = 0;
     http_json_raw(out, room, &len, "{\"error\":{\"code\":");
     http_json_string(out, room, &len, outcome->code);
@@ -766,14 +783,14 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
         http_json_raw(out, room, &len, ",\"activity\":");
         http_json_string(out, room, &len, activity_name(activity_get()));
         http_json_raw(out, room, &len, ",\"state\":");
-        http_json_string(out, room, &len, api_v1_job_state());
+        http_json_string(out, room, &len, reply->job_state);
     }
     http_json_raw(out, room, &len, ",\"see\":\"/api/v1/schema\"}}");
     if (!http_json_fits(room, len)) {
-        http_server_reply_error(reply, outcome->status, outcome->code, "the error did not fit");
+        answer_error(reply, outcome->status, outcome->code, "the error did not fit");
         return;
     }
-    http_server_reply_send(reply, outcome->status, "application/json", len);
+    answer_send(reply, outcome->status, len);
 }
 
 
@@ -798,46 +815,46 @@ static void write_ignored(const outcome_t *outcome, char *out, size_t room, size
 
 
 // The resource as a GET gives it; after a write, with the names it ignored (outcome NULL: none)
-static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id,
+static void reply_resource(settings_answer_t *reply, const settings_resource_t *resource, int32_t id,
                            const outcome_t *outcome) {
     size_t room;
-    char *out = http_server_reply_buffer(reply, &room);
+    char *out = answer_buffer(reply, &room);
     size_t len = 0;
     write_resource(resource, id, out, room, &len);
     if (outcome != NULL && (outcome->ignored_count > 0 || outcome->ignored_more)) {
         write_ignored(outcome, out, room, &len);
     }
     if (!http_json_fits(room, len)) {
-        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        answer_error(reply, 500, "failed", "the reply did not fit");
         return;
     }
-    http_server_reply_send(reply, 200, "application/json", len);
+    answer_send(reply, 200, len);
 }
 
 
-static void settings_get_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+void settings_api_get(const settings_request_t *request, settings_answer_t *reply) {
     int32_t id;
     const settings_resource_t *resource = resource_for_path(request->path, &id);
     if (resource == NULL) {
-        http_server_reply_error(reply, 404, "not_found", "no such id");
+        answer_error(reply, 404, "not_found", "no such id");
         return;
     }
     reply_resource(reply, resource, id, NULL);
 }
 
 
-static void settings_patch_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+void settings_api_patch(const settings_request_t *request, settings_answer_t *reply) {
     int32_t id;
     const settings_resource_t *resource = resource_for_path(request->path, &id);
     if (resource == NULL) {
-        http_server_reply_error(reply, 404, "not_found", "no such id");
+        answer_error(reply, 404, "not_found", "no such id");
         return;
     }
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
     const char *why;
     if (!http_json_parse_object(request->body, request->body_len, members, HTTP_JSON_MEMBERS_MAX, &count, &why)) {
-        http_server_reply_error(reply, 400, "bad_json", why);
+        answer_error(reply, 400, "bad_json", why);
         return;
     }
     outcome_t outcome;
@@ -851,50 +868,50 @@ static void settings_patch_handler(const http_server_request_t *request, http_se
 
 
 // An action's body: {}, and nothing in it (api_v1.md: unknown fields are refused)
-static bool empty_body(const http_server_request_t *request, http_server_reply_t *reply) {
+static bool empty_body(const settings_request_t *request, settings_answer_t *reply) {
     http_json_member_t member;
     size_t count;
     const char *why;
     if (!http_json_parse_object(request->body, request->body_len, &member, 1, &count, &why)) {
-        http_server_reply_error(reply, 400, "bad_json", why);
+        answer_error(reply, 400, "bad_json", why);
         return false;
     }
     if (count > 0) {
-        http_server_reply_error(reply, 400, "unknown_field", "this action takes {}");
+        answer_error(reply, 400, "unknown_field", "this action takes {}");
         return false;
     }
     return true;
 }
 
 
-static void reply_saved(http_server_reply_t *reply) {
+static void reply_saved(settings_answer_t *reply) {
     size_t room;
-    char *out = http_server_reply_buffer(reply, &room);
+    char *out = answer_buffer(reply, &room);
     size_t len = 0;
     http_json_raw(out, room, &len, "{\"saved\":true}");
-    http_server_reply_send(reply, 200, "application/json", len);
+    answer_send(reply, 200, len);
 }
 
 
-static void settings_save_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+void settings_api_save(const settings_request_t *request, settings_answer_t *reply) {
     if (!empty_body(request, reply)) {
         return;
     }
     for (size_t idx = 0; idx < resource_count; idx += 1) {
         if (strcmp(resources[idx]->save_path, request->path) == 0) {
             if (!store(resources[idx], ACTIVITY_BY_API)) {
-                http_server_reply_error(reply, 500, "failed", "the EEPROM did not take it");
+                answer_error(reply, 500, "failed", "the EEPROM did not take it");
                 return;
             }
             reply_saved(reply);
             return;
         }
     }
-    http_server_reply_error(reply, 404, "not_found", "nothing is stored there");
+    answer_error(reply, 404, "not_found", "nothing is stored there");
 }
 
 
-static void settings_save_all_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+void settings_api_save_all(const settings_request_t *request, settings_answer_t *reply) {
     if (!empty_body(request, reply)) {
         return;
     }
@@ -907,7 +924,7 @@ static void settings_save_all_handler(const http_server_request_t *request, http
         if (!done_before && !store(resources[idx], ACTIVITY_BY_API)) {
             char message[96];
             snprintf(message, sizeof(message), "%s: the EEPROM did not take it", resources[idx]->save_path);
-            http_server_reply_error(reply, 500, "failed", message);
+            answer_error(reply, 500, "failed", message);
             return;
         }
     }
@@ -981,7 +998,7 @@ done:
 }
 
 
-static void settings_revert_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+void settings_api_revert(const settings_request_t *request, settings_answer_t *reply) {
     if (!empty_body(request, reply)) {
         return;
     }
@@ -992,10 +1009,10 @@ static void settings_revert_handler(const http_server_request_t *request, http_s
         return;
     }
     size_t room;
-    char *out = http_server_reply_buffer(reply, &room);
+    char *out = answer_buffer(reply, &room);
     size_t len = 0;
     http_json_raw(out, room, &len, "{\"reverted\":true}");
-    http_server_reply_send(reply, 200, "application/json", len);
+    answer_send(reply, 200, len);
 }
 
 
@@ -1028,13 +1045,6 @@ bool settings_action_usage(const char *path, char *out, size_t room, size_t *len
 
 
 // --- The export, GET /api/v1/settings: every resource in one document, made a resource at a time
-
-typedef struct {
-    uint8_t phase;      // 0 its head, 1 the resources, 2 its end
-    uint8_t resource;
-    int16_t id;
-} export_context_t;
-
 
 // Write an item at the end of buf; false, and buf as it was, when it does not fit
 static bool stream_item_fits(char *buf, size_t room, size_t *len, size_t mark) {
@@ -1069,16 +1079,20 @@ static void resource_path(const settings_resource_t *resource, int32_t id, char 
 }
 
 
-static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len) {
-    export_context_t *export = ctx;
+void settings_export_begin(settings_export_t *export, const char *unit_id) {
+    memset(export, 0, sizeof(*export));
+    snprintf(export->unit_id, sizeof(export->unit_id), "%s", unit_id);
+}
+
+
+bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len) {
+    settings_export_t *export = ctx;
     *len = 0;
     if (export->phase == 0) {
-        char unit_id[UNIT_ID_LENGTH + 1];
-        unit_id_get(unit_id, sizeof(unit_id));
         http_json_raw(buf, room, len, "{\"api\":\"1\",");
         write_firmware(buf, room, len);
         http_json_raw(buf, room, len, ",\"unit_id\":");
-        http_json_string(buf, room, len, unit_id);
+        http_json_string(buf, room, len, export->unit_id);
         http_json_raw(buf, room, len, ",\"resources\":{");
         export->phase = 1;
         export->resource = 0;
@@ -1114,14 +1128,6 @@ static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len)
     }
     http_json_raw(buf, room, len, "}}");
     return false;
-}
-
-
-static void settings_export_handler(const http_server_request_t *request, http_server_reply_t *reply) {
-    (void) request;
-    export_context_t *export = http_server_reply_context(reply, sizeof(export_context_t));
-    memset(export, 0, sizeof(*export));
-    http_server_reply_stream(reply, 200, "application/json", settings_export_more, export);
 }
 
 
@@ -1265,16 +1271,14 @@ static const char *const settings_error_codes[] = {
 };
 
 
-typedef struct {
-    uint8_t phase;      // 0 its head, 1 the resources, 2 the saves, 3 to 5 the commands, the states, the events
-                        // (api_v1_commands.c), 6 the errors
-    uint8_t resource;
-    uint8_t field;      // 0: the resource's head next
-} schema_context_t;
+void settings_schema_begin(settings_schema_t *schema, settings_schema_extra_fn extra) {
+    memset(schema, 0, sizeof(*schema));
+    schema->extra = extra;
+}
 
 
-static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len) {
-    schema_context_t *schema = ctx;
+bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len) {
+    settings_schema_t *schema = ctx;
     *len = 0;
     if (schema->phase == 0) {
         http_json_raw(buf, room, len, "{\"api\":\"1\",");
@@ -1395,13 +1399,12 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
         return true;
     }
     if (schema->phase <= 5) {
-        // The commands' actions, the states, the events (api_v1_commands.c), as many items as fit a chunk
+        // The commands' actions, the states, the events (the API's, handed in at the begin), as many items as fit a
+        // chunk
         static const char *const heads[] = {"", "],\"states\":{", "},\"events\":["};
-        static const api_v1_schema_part_t parts[] = {API_V1_SCHEMA_ACTIONS, API_V1_SCHEMA_STATES,
-                                                     API_V1_SCHEMA_EVENTS};
         while (schema->phase <= 5) {
             size_t part = schema->phase - 3;
-            const char *item = api_v1_schema_item(parts[part], schema->resource);
+            const char *item = schema->extra != NULL ? schema->extra((unsigned) part, schema->resource) : NULL;
             size_t mark = *len;
             if (schema->resource == 0) {
                 http_json_raw(buf, room, len, heads[part]);
@@ -1433,36 +1436,6 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
     }
     http_json_raw(buf, room, len, "]}");
     return false;
-}
-
-
-static void settings_schema_handler(const http_server_request_t *request, http_server_reply_t *reply) {
-    (void) request;
-    schema_context_t *schema = http_server_reply_context(reply, sizeof(schema_context_t));
-    memset(schema, 0, sizeof(*schema));
-    http_server_reply_stream(reply, 200, "application/json", settings_schema_more, schema);
-    http_server_reply_etag(reply, settings_etag);
-}
-
-
-void settings_add_routes(void) {
-    snprintf(settings_etag, sizeof(settings_etag), "%s-%s", version_string, vcs_hash);
-    for (size_t idx = 0; idx < resource_count; idx += 1) {
-        const settings_resource_t *resource = resources[idx];
-        http_server_add_route(HTTP_SERVER_GET, resource->path, settings_get_handler);
-        http_server_add_route(HTTP_SERVER_PATCH, resource->path, settings_patch_handler);
-        bool save_before = false;
-        for (size_t earlier = 0; earlier < idx; earlier += 1) {
-            save_before = save_before || strcmp(resources[earlier]->save_path, resource->save_path) == 0;
-        }
-        if (!save_before) {
-            http_server_add_route(HTTP_SERVER_POST, resource->save_path, settings_save_handler);
-            http_server_add_route(HTTP_SERVER_POST, resource->revert_path, settings_revert_handler);
-        }
-    }
-    http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings", settings_export_handler);
-    http_server_add_route(HTTP_SERVER_POST, "/api/v1/settings/save", settings_save_all_handler);
-    http_server_add_route(HTTP_SERVER_GET, "/api/v1/schema", settings_schema_handler);
 }
 
 

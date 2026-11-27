@@ -9,7 +9,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 const static char CMD_REQUEST_DATA_TRANSFER[] = "!p\r\n";
 const static char CMD_CALIBRATE_FUNC[] = "!q\r\n";
@@ -36,7 +36,6 @@ void _gng_scale_listener_task(void *p);
 void scalegng_press_print_key();
 void scalegng_press_tare_key();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for G&G JJB series
 scale_handle_t gng_scale_handle = {
@@ -86,7 +85,7 @@ void _gng_scale_listener_task(void *p) {
             // If we have received 14 bytes then we can decode the message
             if (string_buf_idx == sizeof(gngscale_standard_data_format_t)) {
                 // Data is ready, send to decode
-                scale_publish_measurement(_decode_measurement_msg(&frame));
+                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
 
                 // Reset
                 string_buf_idx = 0;
@@ -111,31 +110,31 @@ void _gng_scale_listener_task(void *p) {
 //ESC p -> 0x1b 0x70 0x0D 0x0A standard setting
 // ! p -> 0x21 0x70 0x0D 0x0A
 void scalegng_press_print_key() {
-    scale_write(CMD_REQUEST_DATA_TRANSFER, strlen(CMD_REQUEST_DATA_TRANSFER));
+    scale_make_host->write(CMD_REQUEST_DATA_TRANSFER, strlen(CMD_REQUEST_DATA_TRANSFER));
 }
 
 //ESC t -> 0x1B 0x74 0x0D 0x0A standard setting
 // ! t -> 0x21 0x74 0x0D 0x0A
 void scalegng_press_tare_key() {
-    scale_write(CMD_TARE_FUNC, strlen(CMD_TARE_FUNC));
+    scale_make_host->write(CMD_TARE_FUNC, strlen(CMD_TARE_FUNC));
 }
 
 //ESC s -> 0x1B 0x73 0x0D 0x0A standard setting
 // ! s -> 0x21 0x73 0x0D 0x0A
 void scalegng_press_weight_key() {
-    scale_write(CMD_CHANGE_WEIGHT_UNIT, strlen(CMD_CHANGE_WEIGHT_UNIT));
+    scale_make_host->write(CMD_CHANGE_WEIGHT_UNIT, strlen(CMD_CHANGE_WEIGHT_UNIT));
 }
 
 //ESC q -> 0x1B 0x71 0x0D 0x0A standard setting
 // ! q -> 0x21 0x71 0x0D 0x0A
 void scalegng_press_cal_key() {
-    scale_write(CMD_CALIBRATE_FUNC, strlen(CMD_CALIBRATE_FUNC));
+    scale_make_host->write(CMD_CALIBRATE_FUNC, strlen(CMD_CALIBRATE_FUNC));
 }
 
 // ESC u -> 0x1B 0x75 0x0D 0x0A standard setting
 // ! u -> 0x21 0x75 0x0D 0x0A
 void scalegng_display_light() {
-    scale_write(CMD_BACKLIGHT, strlen(CMD_BACKLIGHT));
+    scale_make_host->write(CMD_BACKLIGHT, strlen(CMD_BACKLIGHT));
 }
 
 // AppState_t scale_enable_fast_report(AppState_t prev_state) {

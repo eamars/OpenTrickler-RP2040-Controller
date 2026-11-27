@@ -1,3 +1,3 @@
-ot_module(SRCS http_server.c
+ot_module(SRCS http_server_console.c http_server.c
           INCLUDE_DIRS include
-          PRIV_REQUIRES freertos lwip rp2_sdk)
+          PRIV_REQUIRES freertos lwip remote_control rp2_sdk)

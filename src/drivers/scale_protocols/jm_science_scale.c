@@ -9,7 +9,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 
 typedef union {
@@ -34,7 +34,6 @@ const static char JM_SCIENCE_FRAME_HEADER = 'E';
 void _jm_science_scale_listener_task(void *p);
 static void force_zero();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for JM Sciense FA series
 scale_handle_t jm_science_scale_handle = {
@@ -85,7 +84,7 @@ void _jm_science_scale_listener_task(void *p) {
             // If we have received 17 bytes then we can decode the message
             if (byte_idx == sizeof(jm_science_frame_data_format_t)) {
                 // Data is ready, send to decode
-                scale_publish_measurement(_decode_measurement_msg(&frame));
+                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
 
                 // Reset buffer index to avoid overflow
                 byte_idx = 0;

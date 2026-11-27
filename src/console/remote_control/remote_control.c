@@ -15,26 +15,21 @@
 
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
-#include "lwip/stats.h"
-#include "lwip/memp.h"
 
 #include "remote_control.h"
+#include "system_control.h"
 #include "charge_mode.h"
 #include "scale.h"
 #include "profile.h"
 #include "eeprom.h"
 #include "unit_id.h"
 #include "version.h"
-#include "menu.h"
-#include "display.h"
-#include "mini_12864_module.h"
 #include "motors.h"
 #include "settings.h"
 #include "activity.h"
 #include "update.h"
 #include "calibration.h"
 #include "wireless.h"
-#include "http_server.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -43,39 +38,21 @@
 // `reboot` restarts this long after its reply is out, so the host has read it
 #define REMOTE_CONTROL_REBOOT_DELAY_MS 500
 
-// `press`: at most this many events per command, this far apart so the menu draws between them
-#define REMOTE_CONTROL_PRESS_MAX 50
-#define REMOTE_CONTROL_PRESS_GAP_MS 50
-
-// `snap`: the screen's frame, sent in lines of this many bytes before base64
-#define REMOTE_CONTROL_SNAP_CHUNK 256
-
-#if PICO_RP2350
-#define REMOTE_CONTROL_BOARD "pico2_w"
-#else
-#define REMOTE_CONTROL_BOARD "pico_w"
-#endif
-
-
-typedef bool (*remote_control_command_fn)(const char *args, char *reply, size_t reply_size,
-                                          remote_control_write_fn write, void *write_ctx);
-
 typedef struct {
     const char *name;
     remote_control_command_fn fn;
 } remote_control_command_t;
 
+// Other modules' commands, handed over at start-up (remote_control_register())
+#define REMOTE_CONTROL_HANDED_MAX 12
+static remote_control_command_t remote_control_handed[REMOTE_CONTROL_HANDED_MAX];
+static size_t remote_control_handed_count = 0;
 
-extern charge_mode_config_t charge_mode_config;
-extern scale_config_t scale_config;
-extern QueueHandle_t encoder_event_queue;
-extern mini_12864_module_config_t mini_12864_module_config;
+
 
 static bool remote_control_reboot_pending = false;
 static char remote_control_tmc_line[256];
 static TaskStatus_t remote_control_task_status[REMOTE_CONTROL_MAX_TASKS];
-static uint8_t remote_control_snap_buffer[DISPLAY_FRAME_BYTES];
-static char remote_control_snap_line[8 + (REMOTE_CONTROL_SNAP_CHUNK + 2) / 3 * 4 + 1];
 
 
 static bool remote_control_help(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
@@ -93,16 +70,16 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
     snprintf(reply, reply_size,
              "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%s "
              "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f drivers=%s,%s",
-             (int) charge_mode_config.charge_mode_state,
-             scale_config.current_scale_measurement,
-             charge_mode_config.target_charge_weight,
+             (int) charge_mode_get_state(),
+             scale_get_current_measurement(),
+             charge_mode_get_throw_target(),
              get_scale_driver_string(),
              version_string, vcs_hash, build_type,
-             REMOTE_CONTROL_BOARD,
+             system_board_name(),
              unit_id,
              (unsigned long) up_s,
              (int) sizeof(profile->name), profile->name,
-             menu_get_current_form_id(),
+             activity_screen_takes_starts() ? 0 : -1,
              scale_simulation_is_on() ? 1 : 0,
              motor_get_velocity(SELECT_COARSE_TRICKLER_MOTOR),
              motor_get_velocity(SELECT_FINE_TRICKLER_MOTOR),
@@ -163,271 +140,10 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
 }
 
 
-// The pools `net` reports: those every web connection takes from
-static const struct {
-    const char *name;
-    memp_t pool;
-} remote_control_net_pools[] = {
-    {"tcp_pcb", MEMP_TCP_PCB},
-    {"tcp_seg", MEMP_TCP_SEG},
-    {"pbuf", MEMP_PBUF},
-    {"pbuf_pool", MEMP_PBUF_POOL},
-};
-
-
-static bool remote_control_net(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                               void *write_ctx) {
-    // `net log on|off`: each connection and request on the console, never stored
-    if (args != NULL && strncmp(args, "log", 3) == 0) {
-        const char *what = args + 3;
-        while (*what == ' ') {
-            what += 1;
-        }
-        bool on = strcmp(what, "on") == 0;
-        if (!on && strcmp(what, "off") != 0) {
-            snprintf(reply, reply_size, "@err usage net [log on|off]");
-            return false;
-        }
-        http_server_log_requests(on);
-        snprintf(reply, reply_size, "@ok net log %s", on ? "on" : "off");
-        return true;
-    }
-    // lwIP's heap and pools (ADR-003, gate 1): in use now, the most ever in use, the size, and the allocations
-    // that failed. Read without lwIP's lock: counters, only read here
-    size_t len = snprintf(reply, reply_size, "@ok net heap_used=%u heap_max=%u heap_size=%u heap_err=%lu",
-                          (unsigned) lwip_stats.mem.used,
-                          (unsigned) lwip_stats.mem.max,
-                          (unsigned) lwip_stats.mem.avail,
-                          (unsigned long) lwip_stats.mem.err);
-    for (size_t idx = 0; idx < sizeof(remote_control_net_pools) / sizeof(remote_control_net_pools[0]); idx += 1) {
-        const struct stats_mem *pool = lwip_stats.memp[remote_control_net_pools[idx].pool];
-        const char *name = remote_control_net_pools[idx].name;
-        if (len >= reply_size) {
-            break;
-        }
-        len += snprintf(reply + len, reply_size - len, " %s_used=%u %s_max=%u %s_size=%u %s_err=%lu",
-                        name, (unsigned) pool->used,
-                        name, (unsigned) pool->max,
-                        name, (unsigned) pool->avail,
-                        name, (unsigned long) pool->err);
-    }
-    // The event streams (ADR-008, gate 2): open now, opened and refused since the start
-    http_server_stats_t server;
-    http_server_get_stats(&server);
-    if (len < reply_size) {
-        snprintf(reply + len, reply_size - len, " live=%u live_opened=%lu live_refused=%lu", server.slots_live,
-                 (unsigned long) server.live_opened, (unsigned long) server.live_refused);
-    }
-    return true;
-}
-
-
 static bool remote_control_reboot(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                   void *write_ctx) {
     remote_control_reboot_pending = true;
     snprintf(reply, reply_size, "@ok reboot");
-    return true;
-}
-
-
-// `press <cw|ccw|enc|rst> [n]`: the encoder and the buttons, as if turned or pressed at the unit
-static bool remote_control_press(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                                 void *write_ctx) {
-    // No sscanf: it pulls about 39 KB of newlib's scanf into the image
-    size_t name_len = strcspn(args, " ");
-    long count = 1;
-    if (args[name_len] != '\0') {
-        char *end;
-        count = strtol(args + name_len, &end, 10);
-        if (*end != '\0') {
-            count = 0;
-        }
-    }
-    if (name_len == 0 || count < 1 || count > REMOTE_CONTROL_PRESS_MAX) {
-        snprintf(reply, reply_size, "@err usage: press <cw|ccw|enc|rst> [1..%d]", REMOTE_CONTROL_PRESS_MAX);
-        return false;
-    }
-
-    ButtonEncoderEvent_t button_encoder_event;
-    if (name_len == 2 && strncmp(args, "cw", 2) == 0) {
-        button_encoder_event = BUTTON_ENCODER_ROTATE_CW;
-    }
-    else if (name_len == 3 && strncmp(args, "ccw", 3) == 0) {
-        button_encoder_event = BUTTON_ENCODER_ROTATE_CCW;
-    }
-    else if (name_len == 3 && strncmp(args, "enc", 3) == 0) {
-        button_encoder_event = BUTTON_ENCODER_PRESSED;
-    }
-    else if (name_len == 3 && strncmp(args, "rst", 3) == 0) {
-        button_encoder_event = BUTTON_RST_PRESSED;
-    }
-    else {
-        snprintf(reply, reply_size, "@err no such button \"%.*s\"", (int) name_len, args);
-        return false;
-    }
-
-    for (int idx = 0; idx < count; idx += 1) {
-        if (xQueueSend(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(500)) != pdTRUE) {
-            snprintf(reply, reply_size, "@err input queue full after %d", idx);
-            return false;
-        }
-        vTaskDelay(pdMS_TO_TICKS(REMOTE_CONTROL_PRESS_GAP_MS));
-    }
-
-    snprintf(reply, reply_size, "@ok press");
-    return true;
-}
-
-
-/*
- * The screen in words (ADR-010): a `@screen` line; then a list's `@row` lines, a card's or notes' `@line` lines
- * (each "first" marks the first shown) and their `@button`, a dialog's `@line` lines, the code's `@code` text and its
- * `@line` lines, or the editor's and a job's `@figure` line; then `@softkeys` where there are any
- */
-static void remote_control_screen_lines(const menu_screen_t *screen, remote_control_write_fn write, void *write_ctx) {
-    static const char *const kinds[] = {"list", "dialog", "notes", "edit", "job", "control", "code"};
-    char line[160];
-    snprintf(line, sizeof(line), "@screen id=%s kind=%s title=\"%s\"%s%s%s focus=%d marks=%s%s%s%s%s", screen->id,
-             kinds[screen->kind], screen->title, screen->title_note[0] != '\0' ? " note=\"" : "", screen->title_note,
-             screen->title_note[0] != '\0' ? "\"" : "", (int) screen->focus, screen->mark_station ? "W" : "",
-             screen->mark_access_point ? "AP" : "", screen->mark_remote ? "R" : "", screen->mark_simulated ? "S" : "",
-             screen->title_back ? " back" : "");
-    write(line, write_ctx);
-    switch (screen->kind) {
-        case MENU_SCREEN_LIST:
-        case MENU_SCREEN_CONTROL:
-            for (int idx = 0; idx < screen->row_count; idx += 1) {
-                snprintf(line, sizeof(line), "@row %d label=\"%s\" value=\"%s\"%s%s%s%s", idx,
-                         screen->row_label[idx], screen->row_value[idx], screen->row_opens[idx] ? " opens" : "",
-                         screen->editing && idx == screen->focus ? " editing" : "",
-                         screen->row_chosen[idx] ? " chosen" : "", screen->row_info[idx] ? " info" : "");
-                write(line, write_ctx);
-            }
-            break;
-        case MENU_SCREEN_CODE:
-            // The code's text, then the lines beside it as a dialog's
-            snprintf(line, sizeof(line), "@code \"%s\"", screen->code);
-            write(line, write_ctx);
-            // fall through
-        case MENU_SCREEN_NOTES:
-        case MENU_SCREEN_DIALOG:
-            for (int idx = 0; idx < screen->row_count; idx += 1) {
-                // A key's value, at the line's right, when it has one
-                char value[MENU_TEXT + 10] = "";
-                if (screen->row_value[idx][0] != '\0') {
-                    snprintf(value, sizeof(value), " value=\"%s\"", screen->row_value[idx]);
-                }
-                snprintf(line, sizeof(line), "@line %d \"%s\"%s%s%s", idx, screen->row_label[idx], value,
-                         screen->row_bold[idx] ? " bold" : "", idx == screen->first ? " first" : "");
-                write(line, write_ctx);
-            }
-            if (screen->button[0] != '\0') {
-                snprintf(line, sizeof(line), "@button \"%s\"%s", screen->button,
-                         screen->button_reached ? " reached" : "");
-                write(line, write_ctx);
-            }
-            break;
-        case MENU_SCREEN_EDIT:
-        case MENU_SCREEN_JOB:
-            snprintf(line, sizeof(line), "@figure \"%s\" unit=\"%s\" at=%d%s line=\"%s\"%s", screen->figure,
-                     screen->unit, (int) screen->edit_at, screen->editing ? " editing" : "", screen->context,
-                     screen->context_bold ? " bold" : "");
-            write(line, write_ctx);
-            break;
-    }
-    if (screen->softkey_left[0] != '\0' || screen->softkey_right[0] != '\0') {
-        const char *focused = screen->softkey_focus == 0 ? " focus=left" :
-                              (screen->softkey_focus == 1 ? " focus=right" : "");
-        snprintf(line, sizeof(line), "@softkeys left=\"%s\" right=\"%s\"%s", screen->softkey_left,
-                 screen->softkey_right, focused);
-        write(line, write_ctx);
-    }
-}
-
-
-// `screen`: what is on screen, in words; `screen list`: every page's id; `screen <id>`: open that page, pressing
-// nothing (ADR-010, gate 4, in place of MUI's `form`)
-static bool remote_control_screen(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                                  void *write_ctx) {
-    if (strcmp(args, "list") == 0) {
-        char line[48];
-        for (size_t idx = 0; idx < menu_nav_page_count(); idx += 1) {
-            snprintf(line, sizeof(line), "@page %s", menu_nav_page_id(idx));
-            write(line, write_ctx);
-        }
-        snprintf(reply, reply_size, "@ok screen pages=%u", (unsigned) menu_nav_page_count());
-        return true;
-    }
-    if (*args != '\0') {
-        bool found = false;
-        if (!menu_goto_screen(args, &found)) {
-            snprintf(reply, reply_size, "@err the menu did not answer");
-            return false;
-        }
-        if (!found) {
-            snprintf(reply, reply_size, "@err no such page, or a job has the screen");
-            return false;
-        }
-    }
-
-    static menu_screen_t screen;
-    uint32_t heap_max;
-    menu_screen_copy(&screen, &heap_max);
-    remote_control_screen_lines(&screen, write, write_ctx);
-    // The frame's times (ADR-010, gate 4): the last draw and send, the longest of each, in microseconds
-    menu_frame_times_t times;
-    menu_frame_times(&times);
-    snprintf(reply, reply_size,
-             "@ok screen id=%s lvgl_heap_max=%lu lvgl_biggest_free_min=%lu frames=%lu draw_us=%lu draw_max_us=%lu "
-             "send_us=%lu send_max_us=%lu", screen.id, (unsigned long) heap_max,
-             (unsigned long) menu_lvgl_biggest_free(), (unsigned long) times.frames, (unsigned long) times.draw_us,
-             (unsigned long) times.draw_max_us, (unsigned long) times.send_us, (unsigned long) times.send_max_us);
-    return true;
-}
-
-
-static void remote_control_base64(const uint8_t *data, size_t len, char *out) {
-    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    size_t out_len = 0;
-    for (size_t idx = 0; idx < len; idx += 3) {
-        uint32_t triple = (uint32_t) data[idx] << 16;
-        if (idx + 1 < len) {
-            triple |= (uint32_t) data[idx + 1] << 8;
-        }
-        if (idx + 2 < len) {
-            triple |= data[idx + 2];
-        }
-        out[out_len++] = alphabet[(triple >> 18) & 0x3f];
-        out[out_len++] = alphabet[(triple >> 12) & 0x3f];
-        out[out_len++] = idx + 1 < len ? alphabet[(triple >> 6) & 0x3f] : '=';
-        out[out_len++] = idx + 2 < len ? alphabet[triple & 0x3f] : '=';
-    }
-    out[out_len] = '\0';
-}
-
-
-// `snap`: the screen's frame as the web's mirror has it (MENU_FRAME_FORMAT): as a person sees it, since the panel
-// turns itself (ADR-010, gate 4)
-static bool remote_control_snap(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                                void *write_ctx) {
-    // One copy, under the frame's lock: a whole frame
-    menu_frame_copy(remote_control_snap_buffer);
-
-    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap %u %u %s", (unsigned) DISPLAY_WIDTH,
-             (unsigned) DISPLAY_HEIGHT, MENU_FRAME_FORMAT);
-    if (write) {
-        write(remote_control_snap_line, write_ctx);
-    }
-    for (size_t offset = 0; offset < DISPLAY_FRAME_BYTES; offset += REMOTE_CONTROL_SNAP_CHUNK) {
-        strcpy(remote_control_snap_line, "@sd ");
-        remote_control_base64(remote_control_snap_buffer + offset, REMOTE_CONTROL_SNAP_CHUNK,
-                              remote_control_snap_line + 4);
-        if (write) {
-            write(remote_control_snap_line, write_ctx);
-        }
-    }
-
-    snprintf(reply, reply_size, "@ok snap");
     return true;
 }
 
@@ -442,7 +158,7 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
         }
     }
     else if (strcmp(args, "off") == 0) {
-        if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+        if (charge_mode_get_state() != CHARGE_MODE_EXIT) {
             snprintf(reply, reply_size, "@err charge mode is running");
             return false;
         }
@@ -520,25 +236,6 @@ static bool remote_control_scale(const char *args, char *reply, size_t reply_siz
 }
 
 
-// `knob`: the knob's tap (mini_12864_module.h), an `@kt <at_us> <kind>` line an entry, then cleared
-static bool remote_control_knob(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                                void *write_ctx) {
-    (void) args;
-    static knob_tap_entry_t entries[128];
-    uint32_t lost;
-    size_t count = mini_12864_knob_tap(entries, 128, &lost);
-    char line[32];
-    for (size_t idx = 0; idx < count; idx += 1) {
-        snprintf(line, sizeof(line), "@kt %lu %c", (unsigned long) entries[idx].at_us, entries[idx].kind);
-        if (write) {
-            write(line, write_ctx);
-        }
-    }
-    snprintf(reply, reply_size, "@ok knob entries=%u lost=%lu", (unsigned) count, (unsigned long) lost);
-    return true;
-}
-
-
 // `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver.
 // `motor`: the steps made so far
 static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
@@ -584,7 +281,7 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
     }
 
     // The modes drive the motors themselves
-    if (menu_get_current_form_id() < 0) {
+    if (!activity_screen_takes_starts()) {
         snprintf(reply, reply_size, "@err a mode is running");
         return false;
     }
@@ -648,7 +345,7 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
     int setups_failed = 0;
     if (strncmp(rest, "setup ", 6) == 0) {
         // The motors are still: a driver is not written while a mode turns it
-        if (menu_get_current_form_id() < 0) {
+        if (!activity_screen_takes_starts()) {
             snprintf(reply, reply_size, "@err a mode is running");
             return false;
         }
@@ -717,7 +414,7 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         snprintf(reply, reply_size, "@err usage: charge <0..1000> | charge stop");
         return false;
     }
-    if (activity_get() != ACTIVITY_NONE || menu_get_current_form_id() < 0) {
+    if (activity_get() != ACTIVITY_NONE || !activity_screen_takes_starts()) {
         snprintf(reply, reply_size, "@err a mode is running");
         return false;
     }
@@ -822,15 +519,10 @@ static const remote_control_command_t remote_control_commands[] = {
     {"help", remote_control_help},
     {"state", remote_control_state},
     {"stats", remote_control_stats},
-    {"net", remote_control_net},
     {"reboot", remote_control_reboot},
-    {"press", remote_control_press},
-    {"screen", remote_control_screen},
-    {"snap", remote_control_snap},
     {"sim", remote_control_sim},
     {"scale", remote_control_scale},
     {"motor", remote_control_motor},
-    {"knob", remote_control_knob},
     {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
     {"setting", remote_control_setting},
@@ -848,6 +540,21 @@ static bool remote_control_help(const char *args, char *reply, size_t reply_size
     for (size_t idx = 0; idx < REMOTE_CONTROL_COMMAND_COUNT && len < reply_size; idx += 1) {
         len += snprintf(reply + len, reply_size - len, " %s", remote_control_commands[idx].name);
     }
+    for (size_t idx = 0; idx < remote_control_handed_count && len < reply_size; idx += 1) {
+        len += snprintf(reply + len, reply_size - len, " %s", remote_control_handed[idx].name);
+    }
+    return true;
+}
+
+
+bool remote_control_register(const char *name, remote_control_command_fn fn) {
+    if (remote_control_handed_count >= REMOTE_CONTROL_HANDED_MAX) {
+        printf("Console: no room for the command %s\n", name);
+        return false;
+    }
+    remote_control_handed[remote_control_handed_count].name = name;
+    remote_control_handed[remote_control_handed_count].fn = fn;
+    remote_control_handed_count += 1;
     return true;
 }
 
@@ -868,6 +575,12 @@ bool remote_control_execute(const char *line, char *reply, size_t reply_size, re
         const char *name = remote_control_commands[idx].name;
         if (strlen(name) == name_len && strncmp(name, line, name_len) == 0) {
             return remote_control_commands[idx].fn(args, reply, reply_size, write, write_ctx);
+        }
+    }
+    for (size_t idx = 0; idx < remote_control_handed_count; idx += 1) {
+        const char *name = remote_control_handed[idx].name;
+        if (strlen(name) == name_len && strncmp(name, line, name_len) == 0) {
+            return remote_control_handed[idx].fn(args, reply, reply_size, write, write_ctx);
         }
     }
 

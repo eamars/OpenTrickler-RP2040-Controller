@@ -94,6 +94,8 @@ extern "C" {
 
 bool neopixel_led_init(void);
 bool neopixel_led_config_save();
+// The stored colours the LEDs show when nothing else is said, to read
+const neopixel_led_colours_t *neopixel_led_default_colours(void);
 void neopixel_led_set_colour(rgbw_u32_t mini12864_backlight_colour, rgbw_u32_t led1_colour, rgbw_u32_t led2_colour, bool block_wait);
 
 

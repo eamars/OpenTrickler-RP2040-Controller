@@ -9,13 +9,24 @@
  * PIO.
  */
 #include <stdbool.h>
+#include <stddef.h>
 
-#include "motors.h"
+#include "fault_handler.h"
+
+// The stop handed over (fault_handler.h); NULL until then, when nothing of ours turns yet
+static void (*fault_stop)(void) = NULL;
+
+
+void fault_handler_set_stop(void (*stop)(void)) {
+    fault_stop = stop;
+}
 
 
 // The SDK's start-up code declares this weak, as a breakpoint
 void isr_hardfault(void) {
-    motors_fault_stop();
+    if (fault_stop != NULL) {
+        fault_stop();
+    }
 
     __asm volatile ("bkpt #0");
     while (true) {

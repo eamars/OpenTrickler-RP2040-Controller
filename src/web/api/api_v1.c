@@ -16,26 +16,24 @@
 #include "lwip/memp.h"
 
 #include "api_v1.h"
+#include "system_control.h"
 #include "http_server.h"
 #include "http_json.h"
 #include "charge_mode.h"
 #include "common.h"
 #include "profile.h"
 #include "scale.h"
-#include "display.h"
-#include "menu.h"
 #include "eeprom.h"
 #include "unit_id.h"
 #include "servo_gate.h"
 #include "settings.h"
 #include "version.h"
+#include "wireless.h"
 
 #include "pico/rand.h"
 #include "pico/time.h"
 
 
-extern charge_mode_config_t charge_mode_config;
-extern char host_name[18];
 
 // /debug/load's bounds: well past a throw's 650 rows of 16 columns
 #define API_V1_LOAD_ROWS_MAX 2000
@@ -52,35 +50,50 @@ static uint32_t api_v1_now_ms(void) {
 }
 
 
-const char *api_v1_board_name(void) {
-#if PICO_RP2350
-    return "pico2_w";
-#else
-    return "pico_w";
-#endif
+// The screen the UI handed over (api_v1.h); NULL until then
+static const api_v1_screen_t *api_v1_screen_handed = NULL;
+
+
+void api_v1_set_screen(const api_v1_screen_t *screen) {
+    api_v1_screen_handed = screen;
+}
+
+
+const api_v1_screen_t *api_v1_screen(void) {
+    return api_v1_screen_handed;
 }
 
 
 // GET /api/v1/display
 static void api_v1_get_display(const http_server_request_t *request, http_server_reply_t *reply) {
+    const api_v1_screen_t *screen = api_v1_screen();
+    if (screen == NULL) {
+        http_server_reply_error(reply, 404, "not_found", "this build has no screen");
+        return;
+    }
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
-    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"%s\"}", (unsigned) DISPLAY_WIDTH,
-                       (unsigned) DISPLAY_HEIGHT, MENU_FRAME_FORMAT);
+    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"%s\"}", (unsigned) screen->width,
+                       (unsigned) screen->height, screen->format);
     http_server_reply_send(reply, 200, "application/json", (size_t) len);
 }
 
 
-// GET /api/v1/display/frame: the screen's frame, copied whole, so the reply is one frame (MENU_FRAME_FORMAT)
+// GET /api/v1/display/frame: the screen's frame, copied whole, so the reply is one frame (the display's `format`)
 static void api_v1_get_display_frame(const http_server_request_t *request, http_server_reply_t *reply) {
+    const api_v1_screen_t *screen = api_v1_screen();
+    if (screen == NULL) {
+        http_server_reply_error(reply, 404, "not_found", "this build has no screen");
+        return;
+    }
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
-    if (DISPLAY_FRAME_BYTES > room) {
+    if (screen->frame_bytes > room) {
         http_server_reply_error(reply, 500, "failed", "the frame is larger than a reply");
         return;
     }
-    menu_frame_copy((uint8_t *) out);
-    http_server_reply_send(reply, 200, "application/octet-stream", DISPLAY_FRAME_BYTES);
+    screen->frame_copy((uint8_t *) out);
+    http_server_reply_send(reply, 200, "application/octet-stream", screen->frame_bytes);
 }
 
 
@@ -452,11 +465,11 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         http_json_raw(buf, room, len, ",\"build\":");
         http_json_string(buf, room, len, build_type);
         http_json_raw(buf, room, len, "},\"board\":");
-        http_json_string(buf, room, len, api_v1_board_name());
+        http_json_string(buf, room, len, system_board_name());
         http_json_raw(buf, room, len, ",\"unit_id\":");
         http_json_string(buf, room, len, unit_id);
         http_json_raw(buf, room, len, ",\"hostname\":");
-        http_json_string(buf, room, len, host_name);
+        http_json_string(buf, room, len, wireless_host_name());
         http_json_raw(buf, room, len, ",\"boot\":");
         http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");
@@ -640,7 +653,7 @@ bool api_v1_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings/motors", api_v1_get_motor_settings);
     // Every module's settings' table, registered at its start (gate 3)
-    settings_add_routes();
+    api_v1_settings_init();
     // The commands, the event log and the unit's reads (gate 4)
     ok = ok && api_v1_commands_init();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);

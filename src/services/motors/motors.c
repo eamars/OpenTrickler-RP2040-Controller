@@ -12,6 +12,7 @@
 #include "configuration.h"
 #include "hardware/gpio.h"
 #include "step_pulses.h"
+#include "fault_handler.h"
 
 #include "motors.h"
 #include "eeprom.h"
@@ -879,6 +880,8 @@ bool motor_driver_inject_fault(motor_select_t selected_motor, const char * fault
 
 
 void motors_init(void) {
+    // A hard fault stops the motors first (fault_handler.h): handed over before anything here can turn one
+    fault_handler_set_stop(motors_fault_stop);
     // The stored settings. If they cannot be read the defaults stand in, so the pins and tasks below are still
     // set up, and motors_get_fault() says so: the modes do not start
     motor_config_loaded = motor_config_init();

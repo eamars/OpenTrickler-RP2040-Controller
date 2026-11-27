@@ -12,12 +12,18 @@
 #include "activity.h"
 #include "events.h"
 #include "http_json.h"
-#include "update.h"
 #include "version.h"
 
 static event_t events_ring[EVENTS_KEPT];
 static uint32_t events_latest = 0;     // the newest's number; the ring holds latest - EVENTS_KEPT + 1 to latest
 static SemaphoreHandle_t events_mutex = NULL;
+// What only the update knows of its events, handed over at its start (events.h); NULL until then
+static const events_update_texts_t *events_update_texts = NULL;
+
+
+void events_set_update_texts(const events_update_texts_t *texts) {
+    events_update_texts = texts;
+}
 
 
 void events_init(void) {
@@ -232,8 +238,8 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 }
             } else if (event->kind != EVENT_STARTED) {
                 char version[16] = "";
-                if (event->version != 0) {
-                    update_version_text(event->version, version, sizeof(version));
+                if (event->version != 0 && events_update_texts != NULL) {
+                    events_update_texts->version_text(event->version, version, sizeof(version));
                 }
                 write_member(out, room, len, "version");
                 http_json_string(out, room, len, version);
@@ -244,7 +250,12 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 if (event->kind == EVENT_CONFIRMED) {
                     // The settings the update reset, by name (ADR-008, gate 2): a stored layout that changed
                     write_member(out, room, len, "reset");
-                    update_write_reset(event->throw_number, out, room, len);
+                    if (events_update_texts != NULL) {
+                        events_update_texts->write_reset(event->throw_number, out, room, len);
+                    }
+                    else {
+                        http_json_raw(out, room, len, "[]");
+                    }
                 }
             }
             break;

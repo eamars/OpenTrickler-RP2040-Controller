@@ -5,9 +5,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <FreeRTOS.h>
+#include <task.h>
+
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 // Radwag response frame structure for SUI command
 // Format: SUI<stability><mass(12)><unit(3)>CR LF
@@ -28,7 +31,6 @@ typedef union {
 void _radwag_scale_listener_task(void *p);
 void radwag_scale_press_re_zero_key();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for Radwag PS R2 series
 scale_handle_t radwag_ps_r2_scale_handle = {
@@ -93,7 +95,7 @@ void _radwag_scale_listener_task(void *p) {
                     // bool is_stable = (frame.stability == ' ');
                     
                     // Data is ready, decode and update
-                    scale_publish_measurement(_decode_measurement_msg(&frame));
+                    scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
                 }
                 
                 // Reset buffer
@@ -116,7 +118,7 @@ void _radwag_scale_listener_task(void *p) {
  */
 void radwag_scale_press_re_zero_key() {
     char cmd[] = "T\r\n";  // Tare command (not Zero)
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -125,7 +127,7 @@ void radwag_scale_press_re_zero_key() {
  */
 void radwag_scale_press_tare_key() {
     char cmd[] = "T\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -135,7 +137,7 @@ void radwag_scale_press_tare_key() {
  */
 void radwag_scale_enable_continuous_transmission() {
     char cmd[] = "CU1\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -144,7 +146,7 @@ void radwag_scale_enable_continuous_transmission() {
  */
 void radwag_scale_disable_continuous_transmission() {
     char cmd[] = "CU0\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -156,7 +158,7 @@ void radwag_scale_disable_continuous_transmission() {
 void radwag_scale_set_tare(float tare_value) {
     char cmd[32];
     snprintf(cmd, sizeof(cmd), "UT %.3f\r\n", tare_value);
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -165,7 +167,7 @@ void radwag_scale_set_tare(float tare_value) {
  */
 void radwag_scale_lock_keyboard() {
     char cmd[] = "K1\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -174,7 +176,7 @@ void radwag_scale_lock_keyboard() {
  */
 void radwag_scale_unlock_keyboard() {
     char cmd[] = "K0\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 /**
@@ -186,5 +188,5 @@ void radwag_scale_unlock_keyboard() {
 void radwag_scale_beep(uint16_t duration_ms) {
     char cmd[32];
     snprintf(cmd, sizeof(cmd), "BP %u\r\n", duration_ms);
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }

@@ -114,6 +114,41 @@ void update_write_reset(uint16_t reset, char *out, size_t room, size_t *len);
 
 // A block version as the firmware's version string has it: (512, 256) is 2.0.1, (276, 218) is 1.20.0-218
 void update_version_text(uint32_t version, char *out, size_t size);
+
+/*
+ * The update's own fetch (ADR-006, gate 6): the release a poll found, and its image got by the unit itself. The
+ * module that has one (update_fetch: the poll and the HTTPS client) hands it over at its start, so the update names
+ * none and a build may leave the fetch out (ADR-005's fallback: updates by file only). With none handed over a
+ * download finds nothing.
+ */
+// The image found: where it is, its length and its SHA-256, as its release's manifest gives them
+typedef struct {
+    char url[256];
+    uint32_t size;
+    uint8_t sha256[32];
+    uint32_t block;
+} update_found_image_t;
+// Where a fetched body goes. Either function returning false stops the fetch
+typedef struct {
+    // Once its headers are in: its HTTP status, and its length (-1 when not given)
+    bool (*begin)(void *ctx, int status, long length);
+    bool (*piece)(void *ctx, const uint8_t *data, size_t len);
+    void *ctx;
+} update_fetch_sink_t;
+typedef struct {
+    // The image a poll found; false when none is found
+    bool (*found_image)(update_found_image_t *image);
+    // A poll runs now: a download asked meanwhile is busy, not "nothing found"
+    bool (*checking)(void);
+    // GET the URL, its body to the sink, in the caller's task. True when the body was taken whole; then `took` says
+    // what it took, for the log. False otherwise, with why in `error` unless the sink stopped it
+    bool (*get)(const char *url, const update_fetch_sink_t *sink, char *error, size_t error_size, char *took,
+                size_t took_size);
+    // The console's `update check` and `update poll`: the reply written, true for an `@ok`
+    bool (*console)(const char *args, char *reply, size_t reply_size);
+} update_fetcher_t;
+// The struct is kept by its address
+void update_set_fetcher(const update_fetcher_t *fetcher);
 // And back: "2.0.1" or "1.20.0-218" as a block version; false when it is not one
 bool update_version_parse(const char *text, uint32_t *version);
 // The block version of the image running

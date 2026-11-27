@@ -13,7 +13,6 @@
 
 #include "access_point_mode.h"
 #include "activity.h"
-#include "api_v1.h"
 #include "charge_mode.h"
 #include "calibration.h"
 #include "cleanup_mode.h"
@@ -37,8 +36,6 @@
 #include "wireless.h"
 
 // The calibration's records, where they are kept (ADR-009 step 1): read by its page and its offer
-extern charge_mode_config_t charge_mode_config;
-extern scale_config_t scale_config;
 
 // A write to the API this recent counts as the unit being controlled from elsewhere (menu_design.md, proposed)
 #define MENU_REMOTE_MS 30000
@@ -585,7 +582,7 @@ static void act_check_update(const menu_row_t *row) {
 
 static void value_board(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    snprintf(out, room, "%s", api_v1_board_name());
+    snprintf(out, room, "%s", system_board_name());
 }
 
 
@@ -1408,7 +1405,7 @@ static const menu_page_t page_calibration_powder = {.id = "settings/calibration/
 
 static void value_cup_capacity(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    float capacity = charge_mode_config.eeprom_charge_mode_data.cup_capacity;
+    float capacity = charge_mode_get_stored()->cup_capacity;
     if (capacity < 0.0f) {
         snprintf(out, room, "Not done");
         return;
@@ -1421,14 +1418,14 @@ static void value_cup_capacity(const menu_row_t *row, char *out, size_t room) {
 
 static void value_scale_calibrated(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    snprintf(out, room, "%s", scale_config.persistent_config.settle_ms < 0.0f ? "Not done" : "Done");
+    snprintf(out, room, "%s", scale_get_stored()->settle_ms < 0.0f ? "Not done" : "Done");
 }
 
 
 // Offered on the main menu until the cup and the scale are calibrated
 static bool calibration_offered(void) {
-    return charge_mode_config.eeprom_charge_mode_data.cup_capacity < 0.0f ||
-           scale_config.persistent_config.settle_ms < 0.0f;
+    return charge_mode_get_stored()->cup_capacity < 0.0f ||
+           scale_get_stored()->settle_ms < 0.0f;
 }
 
 

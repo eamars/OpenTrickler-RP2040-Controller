@@ -23,6 +23,10 @@ extern "C" {
 // Creates the job task. Before the menu's task
 bool jobs_init(void);
 
+// The start-up's wiring, before the job task runs: what runs for a job, which returns what the screen shows after
+// it (JOBS_EXIT_*). The job task names no job itself (ADR-006, gate 6)
+void jobs_register(activity_t job, uint8_t (*run)(void));
+
 // The screen's task: begin a job in the job task. False when one runs already
 bool jobs_begin(activity_t job);
 

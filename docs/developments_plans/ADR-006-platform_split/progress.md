@@ -430,3 +430,163 @@ The Pico 2 W waits, by the owner's word; its image builds, and compares as the P
 
 - Our code is C but for the display's module, so every module but `mini_12864` can be built by a C compiler alone.
 - A file moved from C++ to C is judged by what each function calls, not by its size: `build_adr006/refs_compare.py` is the scratch script that did it here.
+
+## Gate 6: the loops cut
+
+2026-11-27, approved by the owner ("Approve gate 6"), after PR #142 merged gate 5. On the branch `adr006_gate6`, a commit a cut, b12c808 to 8afa8cb.
+
+**The verdict: no module requires a module of a layer above it, and no modules require each other.** `tools/module_graph.py` counted 25 upward requirements and 21 modules in 2 loops at gate 3; it counts none of either now, and the compiler refuses their return. On the Pico W every path a cut touched runs as before, an update over the air among them.
+
+### The gate was larger than its text
+
+The gate named seven cuts. Read off the built libraries (which names each module takes from each other), the graph held more, and the end condition needs them all:
+- **the console drove the menu** (`press`, `screen`, `snap`, `knob`: 8 of the menu's functions and the knob's queue), and read the web server for `net`;
+- **the web's API copied the menu's frame** and asked it for the hello;
+- **three drivers reached up into services:** the scale's ten makes published into the scale; the EEPROM's driver was declared by the storage it serves, the wrong way round; the display's driver took a delay from the storage's helpers;
+- **the hard fault's handler**, in the platform, called the motors;
+- **loops among the services:** the event log and the update; the job task and the four jobs; the settings and the Wi-Fi; the Wi-Fi and the update; the update and its fetch; the scale and the charge; storage and the restart.
+
+### The owner's decision: the UI hands its parts down
+
+The ADR put `ui/` above `web/` and `console/`, and also had the web's mirror and the console's `snap` "ask the view". One had to give. Asked (2026-11-27): **`ui/` stays on top, and hands its parts to what is below it.** The console's four screen commands are the UI's, registered with the console at start-up; the API is handed the frame and the hello. Neither the web nor the console names a screen, so another UI, or none, needs no edit in them.
+
+### How a cut is made: handed over at start-up
+
+Every cut is the same move. Where a lower module called a higher one, the higher now hands the lower what it needs, once, at start-up, and the lower calls what it was handed:
+
+| The lower module | What it is handed | By |
+|---|---|---|
+| `activity` | the screen's wake, and whether it takes a start | the menu |
+| `jobs` | each job's run | `app` |
+| the console | a command of another module's | the menu (`press`, `screen`, `snap`, `knob`), the web server (`net`) |
+| the API | the screen's frame and its hello | the menu |
+| the menu | its view | `app` (the 12864's) |
+| the event log | the update's two texts for its own events | the update |
+| the update | its fetch: the poll's find, a GET, the console's `check` and `poll` | `update_fetch` |
+| the Wi-Fi | what follows the network: the web started, the update told, the poll told | `app` |
+| the restart | what ends before it | the web (its clients closed) |
+| the settings' schema and export | the commands' share, the unit's id | the API |
+| the scale | its makes, by their stored numbers; where a throw's target is read | `app` |
+| a make | where its readings go | the scale |
+| the hard fault's handler | the stop it makes first | the motors |
+
+Where nothing is handed over, the lower module does nothing and says so in its reply: a build without a screen answers the display's routes 404; one without a fetch says "this build updates by file only".
+
+### The cuts
+
+1. **The jobs and the menu** (b12c808). A job asked `menu_get_current_form_id() < 0` before a start and called `menu_wake()` after. Both go through `activity` now, which already held the start's request. The job task's `switch` over the four jobs is a table `app` fills.
+2. **The screen named from below**, in four commits:
+   - the display's two headers out of the charge, the cleanup, the update, the Wi-Fi's two files and the pages' file. None used anything of them; the two modes also declared the knob's queue and never touched it;
+   - the console's screen commands to `ui/menu/menu_console.c`, `net` to `web/http_server/http_server_console.c`, by `remote_control_register()`;
+   - the API's frame and hello by `api_v1_set_screen()`;
+   - **the 12864's frame to its view.** LVGL, the one frame, its lock and the pages sent to the panel were in the menu's task; they are `view_12864`'s. The menu draws through `menu_view_t` (`menu_view.h`), handed by `app`, and names no view, no panel and no LVGL.
+3. **The update** (f43bb27). The event log wrote an update's version and reset by calling the update: the update hands it those two texts. And the update named its fetch while its fetch named it: the update now owns a small interface (`update_fetcher_t`) that `update_fetch` fills, so `update` builds without it, as ADR-005's fallback wants.
+4. **The web started by the Wi-Fi** (03ae8b4): `app` hands the Wi-Fi a listener, and starts the pages and the server from it.
+5. **The restart** (b875396): `system_before_restart()` is the list; the web joins with the closing of its clients. The board's name, which the update took from the API, is `system_board_name()`.
+6. **The settings and the web** (8b75ab7). The settings keep their tables, checks, stores and JSON, and answer the API in a buffer it gives (`settings_answer_t`); the routes and the server's calls are `web/api/api_v1_settings.c`. 745 lines did not have to move: each handler lost its two HTTP types and kept its body.
+7. **State by `extern`**, in two commits:
+   - `scale_config`, `charge_mode_config` and `neopixel_led_config` behind five read-only calls. The ADR counted 16 files naming the scale's state; ten of them, the makes, declared it and used none of it;
+   - **the makes handed to the scale** (`scale_make.h`): a make gives its readings to a host it is handed, and `app` hands each make to the scale by its stored number. A stored make the build does not carry is read as the A&D's, as an unknown number always was.
+8. **The drivers and the platform** (a16cc45): the EEPROM's driver has a header of its own, and storage requires it; the display's reset pulse waits by itself; the hard fault's handler stops what the motors handed it.
+
+### Found on the way
+
+- **A build's block version stops counting at 255 commits past its tag.** 2.0.3-317 and 2.0.3-318 both carry block 2.0.3-255, so the poll never finds a later bench build newer. A release is a tag, so no user meets it. The over-the-air test used a test block version (`-DRC_TEST_BLOCK_VERSION`). Not changed.
+- **Storage's `eeprom.h` had the driver's include guard** (`CAT24C256_EEPROM_H_`), from when it was the driver's header. The driver's new header took the name, and storage's vanished from its own source until its guard was its own.
+- **The delay helper in storage had one user, the display.** With it gone the loader's file loses three includes, and the PC build two of its three SDK stand-ins.
+- **The Pico W's RAM at link time is the number to watch.** The first build of cut 3 kept the download's three buffers static: 584 bytes, 252.1 KB to 253.0 KB of 256. They are on the stack again (8afa8cb), as they were.
+- **`rc_run.py` finds the console by the ELF it is given.** An ELF rebuilt since the flash put the first over-the-air test's console commands nowhere; the test now goes by the API.
+- **Two variables are still reached by `extern`, both inside `ui/`:** the knob's queue and the display's settings, between the menu and `mini_12864`. They go with gate 7's inputs.
+
+### The modules now
+
+`python tools/module_graph.py --modules --markdown`:
+
+34 modules:
+- app/app: requires storage; its sources also activity api board calibration charge cleanup events freertos http_server jobs leds menu mini_12864 motors profile remote_control rp2_sdk scale servo_gate uc1701 update update_fetch view_12864 wireless
+- ui/menu: requires activity; its sources also api calibration charge cleanup events freertos http_server jobs mini_12864 motors profile remote_control rp2_sdk scale servo_gate settings storage system update update_fetch version wireless
+- ui/mini_12864: requires nothing; its sources also board freertos rp2 rp2_sdk settings storage uc1701
+- ui/view_12864: requires menu; its sources also freertos lvgl rp2_sdk uc1701
+- web/api: requires nothing; its sources also activity calibration charge cleanup events freertos http_json http_server leds lwip motors profile rp2_sdk scale servo_gate settings storage system update update_fetch version wireless
+- web/http_server: requires nothing; its sources also freertos lwip remote_control rp2_sdk
+- console/remote_control: requires nothing; its sources also activity calibration charge freertos motors profile rp2_sdk scale settings storage system update version wireless
+- services/activity: requires nothing; its sources also freertos
+- services/calibration: requires activity calibration_method; its sources also charge events freertos jobs motors profile rp2_sdk scale settings
+- services/calibration_method: requires nothing
+- services/charge: requires activity events leds storage; its sources also charge_control freertos jobs motors profile ring rp2_sdk scale servo_gate settings
+- services/charge_control: requires nothing
+- services/cleanup: requires activity motors; its sources also charge events freertos jobs scale servo_gate storage
+- services/events: requires nothing; its sources also activity freertos http_json rp2_sdk version
+- services/jobs: requires activity; its sources also freertos
+- services/leds: requires freertos storage; its sources also activity board rp2 settings
+- services/motors: requires freertos rp2 storage; its sources also board events rp2_sdk settings tmc2209
+- services/profile: requires nothing; its sources also activity settings storage
+- services/scale: requires freertos scale_protocols; its sources also board motors rp2_sdk settings storage
+- services/servo_gate: requires freertos; its sources also board rp2_sdk settings storage
+- services/settings: requires activity; its sources also events http_json storage version
+- services/storage: requires freertos rp2_sdk; its sources also cat24c256 system
+- services/system: requires nothing; its sources also freertos rp2_sdk
+- services/update: requires activity; its sources also events freertos http_json jobs mbedtls platform rp2 rp2_sdk storage system version wireless
+- services/update_fetch: requires update; its sources also activity events freertos lwip mbedtls rp2_sdk settings storage version wireless
+- services/wireless: requires activity; its sources also events freertos lwip mbedtls rp2 rp2_sdk settings storage version
+- drivers/cat24c256: requires nothing; its sources also board freertos rp2_sdk
+- drivers/scale_protocols: requires nothing; its sources also board freertos rp2_sdk
+- drivers/tmc2209: requires nothing
+- drivers/uc1701: requires nothing; its sources also board freertos rp2_sdk
+- common/http_json: requires nothing
+- common/ring: requires nothing
+- platform/platform: requires nothing
+- platform/rp2: requires lwip rp2_sdk; its sources also board freertos platform
+0 requirements go up, against the layers:
+0 loops:
+21 modules besides platform/rp2 require the Pico SDK itself:
+- app/app console/remote_control drivers/cat24c256 drivers/scale_protocols drivers/uc1701 services/calibration services/charge services/events services/motors services/scale services/servo_gate services/storage services/system services/update services/update_fetch services/wireless ui/menu ui/mini_12864 ui/view_12864 web/api web/http_server
+VERDICT FAIL 0 requirements go up, 0 modules in 0 loops, 21 modules on the Pico SDK
+
+It ends `VERDICT FAIL 0 requirements go up, 0 modules in 0 loops, 21 modules on the Pico SDK`: the last count is gate 7's. It was 20 at gate 3: the view now asks the time itself, which the menu did for it.
+
+### The meter of the PC build
+
+| | Gate 4 | Now |
+|---|---|---|
+| Stand-in headers, FreeRTOS's | 3 | 3 |
+| Stand-in headers, the Pico SDK's | 3 | 1 (`hardware/pio.h`, for a type `common.h` names) |
+| Modules built whole | 4 | 5 |
+| Modules taken in part | 6 | 6 |
+
+### The proofs, on the PC
+
+- Both boards build at every commit. `app.bin`: the Pico W 937,964 to 941,916 bytes (3,952 more), the Pico 2 W 923,268 to 926,892 (3,624 more): the tables and the calls through them.
+- `tools/size_report.py`, the Pico W: flash 914.7 KB to 918.5 KB of its 1,016 KB slot; **RAM at link time 252.1 KB to 252.4 KB of 256 KB**.
+- A build without the servo gate (`-DFEATURE_SERVO_GATE=OFF`), the two fault test images, and a whole release (its five builds, at cut 6) build.
+- `tests/host_test.py`, `release_records.py`, `features_check.py`: `VERDICT PASS`.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner, asked before gate 5's runs the same afternoon). Each cut was flashed and its path run before the next; every run below ended `VERDICT PASS`.
+
+| After | Image | Run |
+|---|---|---|
+| cut 1 | 2.0.3-310 | `charge_cycle` (13.0 s), `reach`, `api_check`, `menu_tour`, the settings the same |
+| cuts 2b, 2c | 2.0.3-313 | `reach`, `menu_tour`, `api_check`; `help` lists the handed commands; `net` and `knob` answer |
+| cut 2d | 2.0.3-314 | `menu_tour`, `reach`, `charge_cycle` (12.9 s), `api_check` |
+| cuts 3 to 5 | 2.0.3-317 | `api_check`, `charge_cycle` (13.0 s), `menu_tour`, the settings the same; `update` and `update poll` |
+| cut 6 | 2.0.3-318 | installed over the air (below); `api_check`, `settings_roundtrip`, the settings the same, `charge_cycle` (13.1 s), `menu_tour` |
+| all | 2.0.3-321 | `menu_tour`, `charge_cycle` (12.9 s), `api_check`, `settings_roundtrip`, `reach`, `pulses`, `scale_frames`, the settings the same |
+| all | 2.0.3-322 | over the air again; then `menu_tour`, `charge_cycle` (13.1 s), the settings the same |
+
+- **An update over the air, twice** (the local OTA server, without its name; the test release taken out of the served folder after). The unit polled, found the release, fetched its 941,068 bytes itself through the handed-over fetch, installed it, restarted into the other slot and confirmed once on its network. The second time, on the last image, the start's own poll had found the release before it was asked: the Wi-Fi's listener at work.
+- **`pulses`:** the step pulses stopped on a reset through the probe, on an assert and on a hard fault. The last is the handler stopping what the motors handed it.
+- **`scale_frames`** (5 s idle, two hand-overs to the simulated scale and back, a restart; no motor turned): 105, 168 and 116 frames from the A&D, every one read as a number, through the make the wiring handed the scale. Its default run reckons 5,460 gr for its motors' part and the cup check refuses it.
+- **The menu's frame times** across cut 2d, after a tour: drawn in 41 ms before and 33 ms after (65 and 57 at most), sent in 5.1 and 4.9 ms. LVGL's heap the same (12,424 bytes at most, 2,416 free in one piece at the least).
+- **Stacks never touched:** the job task's 2,968 bytes at gate 5 and 2,968 at the end; the scale's 736 and 736; the menu's 1,392 before the frame's move and 1,352 after it, each after a tour (one call deeper to draw). The heap's low mark 39,816 at gate 5 and 40,624 at the end.
+
+The unit is left on 2.0.3-322 (`8afa8cb`), slot A, its settings as before gate 1. The Pico 2 W waits, by the owner's word; its image builds at every commit.
+
+**Gate 6 is built.**
+
+### For gate 7
+
+- The 21 modules on the Pico SDK are its list. `ui/menu` is on it for the time alone.
+- A hand-over at start-up is how a platform interface reaches a module too: the hard fault's stop is the first one made.
+- The makes read the serial port by the SDK's own calls: they are the first drivers to move to the platform's serial port.

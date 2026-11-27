@@ -16,7 +16,8 @@ Usage:
     python tools/module_graph.py --markdown   the lists as Markdown, for an ADR's progress
 
 Ends with VERDICT PASS when nothing goes up, nothing loops and only platform/rp2 requires rp2_sdk, else VERDICT FAIL
-with the counts, and exits 0 or 1. Until ADR-006's gates 6 and 7 are built it fails, and its counts are their meter.
+with the counts, and exits 0 or 1. Since ADR-006's gate 6 nothing goes up and nothing loops; until its gate 7 is
+built it still fails, on the modules that require the Pico SDK: that count is gate 7's meter.
 """
 
 import argparse

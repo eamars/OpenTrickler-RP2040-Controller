@@ -17,7 +17,6 @@
 #include "charge_mode.h"
 #include "events.h"
 #include "jobs.h"
-#include "menu.h"
 #include "motors.h"
 #include "profile.h"
 #include "scale.h"
@@ -37,8 +36,6 @@
 #define CALIBRATION_MARGIN_MOST 1.0f    // the most the steady and zero margins hold (their settings' max)
 #define CALIBRATION_PER_TURN_MOST 100.0f    // the most a powder's weight a turn holds (its setting's max)
 
-extern charge_mode_config_t charge_mode_config;
-extern scale_config_t scale_config;
 
 // The job's state, read by the API, the console and the screen under the activity's lock
 static volatile calibration_part_t asked_part = CALIBRATION_PART_NONE;
@@ -102,7 +99,7 @@ static void set_step(calibration_step_t step, const char *line) {
         snprintf(status.line, sizeof(status.line), "%s", line);
     }
     activity_unlock();
-    menu_wake();
+    activity_wake_screen();
 }
 
 
@@ -287,7 +284,7 @@ static bool bench_cup_full(void *ctx, float held, float most) {
     (void) ctx;
     // Said against the cup's capacity, as a person knows it (the next run's most, held + most, read as a capacity)
     (void) most;
-    float capacity = charge_mode_config.eeprom_charge_mode_data.cup_capacity;
+    float capacity = charge_mode_get_stored()->cup_capacity;
     capacity = capacity > 0.0f ? capacity : CALIBRATION_DEFAULT_CAPACITY;
     char line[40];
     snprintf(line, sizeof(line), "It holds %.0f of %.0f", (double) held, (double) capacity);
@@ -347,7 +344,7 @@ static bool cup_on_and_zero(void) {
 // What the scale's settings hold, as the method takes it
 static void scale_records(calibration_scale_record_t *record) {
     memset(record, 0, sizeof(*record));
-    const eeprom_scale_data_t *stored = &scale_config.persistent_config;
+    const eeprom_scale_data_t *stored = scale_get_stored();
     record->settle_s = stored->settle_ms >= 0.0f ? stored->settle_ms / 1000.0f : NAN;
     for (int idx = 0; idx < SCALE_LAG_POINTS && idx < CALIBRATION_LAG_POINTS; idx += 1) {
         if (stored->lag[idx].flow_per_s >= 0.0f && stored->lag[idx].lag_ms >= 0.0f) {
@@ -463,7 +460,7 @@ static void run_cup(void) {
 
 // The cup's capacity as stored, and the powder in it now, for the method's pauses
 static void cup_for_method(void) {
-    float capacity = charge_mode_config.eeprom_charge_mode_data.cup_capacity;
+    float capacity = charge_mode_get_stored()->cup_capacity;
     calibration_cup(capacity > 0.0f ? capacity : NAN, scale_get_current_measurement());
 }
 
@@ -624,7 +621,7 @@ uint8_t calibration_job_run(void) {
 calibration_start_result_t calibration_request_start(calibration_part_t part, int profile, activity_by_t by) {
     activity_t asked_before;
     if (part == CALIBRATION_PART_NONE || activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
-        menu_get_current_form_id() < 0) {
+        !activity_screen_takes_starts()) {
         return CALIBRATION_START_BUSY;
     }
     if (!motors_ready()) {
@@ -635,7 +632,7 @@ calibration_start_result_t calibration_request_start(calibration_part_t part, in
     if (!activity_request_start(ACTIVITY_CALIBRATION, by)) {
         return CALIBRATION_START_BUSY;
     }
-    menu_wake();
+    activity_wake_screen();
     return CALIBRATION_START_OK;
 }
 

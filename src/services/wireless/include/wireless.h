@@ -35,9 +35,36 @@ typedef struct {
 
 
 
+/*
+ * What follows the network (ADR-006, gate 6): handed over by the start-up's wiring, so the Wi-Fi names neither the
+ * web nor the update. Each is called in the Wi-Fi's task but `reachable` at a server's first listen, which is in
+ * that server's. Any may be NULL.
+ */
+typedef struct {
+    // Once, when the unit's network is up, as a station or as its own access point: start what serves on it
+    void (*network_up)(void);
+    // The unit can be reached: a server listens (wireless_server_listening()), or the station joined later. True
+    // when it is on the network it is set up for; false for a unit set up for Wi-Fi that fell back to its hotspot
+    void (*reachable)(bool on_its_network);
+    // The station is on its network: at the start, after a rejoin, at the set-up's end. The internet may be there
+    void (*station_joined)(void);
+} wireless_listener_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// The start-up's wiring, before wireless_init(). The struct is kept by its address
+void wireless_set_listener(const wireless_listener_t *listener);
+
+// The unit's own names, for a server on its network: whether a request's Host is the unit's own (its address, or its
+// host name with or without ".local", any port), and the unit's address, for a redirect
+bool wireless_host_is_own(const char *host);
+bool wireless_own_address(char *buf, size_t len);
+// The unit's name on the network: "opentrickler-4A82"
+const char *wireless_host_name(void);
+// A server on the network says it listens, once: the listener's `reachable`, and its `station_joined` as a station
+void wireless_server_listening(void);
 
 
 void wireless_task(void *);

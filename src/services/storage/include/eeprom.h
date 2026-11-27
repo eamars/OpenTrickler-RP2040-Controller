@@ -1,5 +1,5 @@
-#ifndef CAT24C256_EEPROM_H_
-#define CAT24C256_EEPROM_H_
+#ifndef EEPROM_H_
+#define EEPROM_H_
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -55,4 +55,4 @@ void eeprom_register_handler(eeprom_save_handler_t handler);
 }
 #endif
 
-#endif  // CAT24C256_EEPROM_H_
+#endif  // EEPROM_H_

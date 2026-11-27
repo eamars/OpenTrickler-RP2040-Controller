@@ -9,12 +9,8 @@
 #define EEPROM_SCALE_DATA_REV                     3              // 16 byte 
 
 
-// Abstracted base class
-typedef struct {
-    // Basic functions
-    void (*read_loop_task)(void *self);
-    void (*force_zero)(void);
-} scale_handle_t;
+// A make of scale, and what it is given by the scale (drivers/scale_protocols)
+#include "scale_make.h"
 
 
 typedef enum {
@@ -166,6 +162,18 @@ uint32_t scale_get_zero_count(void);
 const char *scale_driver_api_name(scale_driver_t driver);
 
 bool scale_config_save(void);
+
+// The start-up's wiring, before scale_init(): a make the build carries, by its stored number. The scale names no
+// make but its own simulated one (ADR-006, gate 6). False when there is no room for it
+bool scale_register_make(scale_driver_t driver, scale_handle_t *handle);
+
+// The scale's stored settings, to read: its make and serial format, and what the calibration measured of it
+// (ADR-009 step 1). They are written through the settings' table only
+const eeprom_scale_data_t *scale_get_stored(void);
+
+// The simulated scale snaps to a target as a charge nears it. Who knows the target hands the simulation where to
+// read it (the start-up's wiring: the charge's throw); with none handed over there is no target (ADR-006, gate 6)
+void scale_simulation_set_target_source(float (*target)(void));
 
 // Low lever handler for writing data to the scale
 void scale_write(const char * command, size_t len);

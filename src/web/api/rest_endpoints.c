@@ -9,8 +9,6 @@
 #include "scale.h"
 #include "wireless.h"
 #include "eeprom.h"
-#include "mini_12864_module.h"
-#include "display.h"
 #include "neopixel_led.h"
 #include "profile.h"
 #include "cleanup_mode.h"
@@ -45,7 +43,14 @@ static void rest_get_wizard(const http_server_request_t *request, http_server_re
 }
 
 
+// Before a restart: each client told the unit has gone, not left with a request that hangs
+static void rest_endpoints_before_restart(void) {
+    http_server_close_all(1000);
+}
+
+
 bool rest_endpoints_init(void) {
+    system_before_restart(rest_endpoints_before_restart);
     snprintf(rest_page_etag, sizeof(rest_page_etag), "%s-%s", version_string, vcs_hash);
 
     // The pages

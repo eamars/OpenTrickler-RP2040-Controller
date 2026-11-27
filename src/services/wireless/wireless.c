@@ -6,15 +6,9 @@
 #include "eeprom.h"
 #include "unit_id.h"
 #include "access_point_mode.h"
-#include "display.h"
-#include "mini_12864_module.h"
-#include "rest_endpoints.h"
-#include "http_server.h"
 #include "common.h"
 #include "settings.h"
 #include "version.h"
-#include "update.h"
-#include "update_poll.h"
 #include "lwip/apps/mdns.h"
 #include "events.h"
 #include "setup.h"
@@ -281,7 +275,35 @@ void led_interface_task(void *p) {
 
 
 // The unit's address on the network it is on: its station's, or its own access point's
-static bool wireless_own_address(char *buf, size_t len) {
+// What follows the network, handed over by the start-up's wiring (wireless.h); NULL until then
+static const wireless_listener_t *wireless_listener = NULL;
+
+
+const char *wireless_host_name(void) {
+    return host_name;
+}
+
+
+void wireless_set_listener(const wireless_listener_t *listener) {
+    wireless_listener = listener;
+}
+
+
+static void wireless_tell_reachable(bool on_its_network) {
+    if (wireless_listener != NULL && wireless_listener->reachable != NULL) {
+        wireless_listener->reachable(on_its_network);
+    }
+}
+
+
+static void wireless_tell_station_joined(void) {
+    if (wireless_listener != NULL && wireless_listener->station_joined != NULL) {
+        wireless_listener->station_joined();
+    }
+}
+
+
+bool wireless_own_address(char *buf, size_t len) {
     int itf = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN ? CYW43_ITF_AP : CYW43_ITF_STA;
     const ip4_addr_t *addr = netif_ip4_addr(&cyw43_state.netif[itf]);
     if (addr == NULL || ip4_addr_isany(addr)) {
@@ -797,7 +819,7 @@ static void wireless_setup_end(void) {
     }
     wireless_hotspot_stop();
     printf("Wi-Fi: set up; the hotspot stopped, on %s alone\n", wireless_started_with.ssid);
-    update_poll_station_joined();
+    wireless_tell_station_joined();
 }
 
 
@@ -822,8 +844,8 @@ static void wireless_rejoin(void) {
     wireless_station_mdns();
     printf("Wi-Fi: joined %s\n", wireless_started_with.ssid);
     // An image on trial is on its network now; the start's poll, if it has not run (ADR-010, gate 5)
-    update_network_ready(true);
-    update_poll_station_joined();
+    wireless_tell_reachable(true);
+    wireless_tell_station_joined();
 }
 
 
@@ -839,21 +861,21 @@ bool wireless_station_leave(void) {
 // The server listens (ADR-004): an image on trial confirms itself once the unit is on the network it is set up
 // for, a station when Wi-Fi is set up, its own access point when it is not. A unit set up for Wi-Fi that could not
 // join, and fell back to its own access point, leaves its trial, and goes back
-static void wireless_server_listening(void) {
+void wireless_server_listening(void) {
     bool on_its_network = wireless_started_with.enable
                               ? wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN
                               : wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
-    update_network_ready(on_its_network);
+    wireless_tell_reachable(on_its_network);
     // The update's poll, once each start, as a station only: its own access point has no internet (ADR-010, gate 5)
     if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
-        update_poll_station_joined();
+        wireless_tell_station_joined();
     }
 }
 
 
 // Whether a request's Host is the unit's own: its address, or its host name with or without ".local", any port
 // (ADR-003: a page that has pointed its own name at the unit is refused)
-static bool wireless_host_is_own(const char *host) {
+bool wireless_host_is_own(const char *host) {
     char name[64];
     size_t len = strcspn(host, ":");
     if (len >= sizeof(name)) {
@@ -1028,16 +1050,10 @@ void wireless_task(void *p) {
         wireless_station_mdns();
     }
 
-    // The pages and the API: the portal at / on any network, which opens the set-up by itself on a unit never set up
-    rest_endpoints_init();
-
-    // Start our own HTTP server (ADR-003, gate 2), in its own task, on lwIP's sockets
-    static const http_server_network_t http_network = {
-        .host_is_own = wireless_host_is_own,
-        .own_address = wireless_own_address,
-        .listening = wireless_server_listening,
-    };
-    http_server_start(&http_network);
+    // The network is up: what serves on it is started by whoever was handed over (the web, from app's wiring)
+    if (wireless_listener != NULL && wireless_listener->network_up != NULL) {
+        wireless_listener->network_up();
+    }
 
     // A station set up and not joined tries again every WIRELESS_REJOIN_MS (ADR-004), by its own clock: as its own
     // access point the unit blinks its LED through this queue, which is then never quiet for that long

@@ -9,7 +9,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 
 typedef union {
@@ -28,7 +28,6 @@ typedef union {
 void _and_scale_listener_task(void *p);
 void scale_press_re_zero_key();
 
-extern scale_config_t scale_config;
 
 // Instance of the scale handle for A&D FXi series
 scale_handle_t and_fxi_scale_handle = {
@@ -79,16 +78,16 @@ void _and_scale_listener_task(void *p) {
             if (ch == '\n') {
                 if (string_buf_idx == sizeof(frame.bytes) && frame.terminator[0] == '\r') {
                     float weight = _decode_measurement_msg(&frame);
-                    scale_tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes), weight);
-                    scale_publish_measurement(weight);
+                    scale_make_host->tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes), weight);
+                    scale_make_host->publish_measurement(weight);
                     if (isfinite(weight)) {
-                        scale_publish_unit(frame.unit, sizeof(frame.unit));    // the frame carries it (gate 4)
+                        scale_make_host->publish_unit(frame.unit, sizeof(frame.unit));    // the frame carries it (gate 4)
                     }
                 }
                 else if (string_buf_idx > sizeof(frame.terminator)) {
                     size_t len = string_buf_idx < sizeof(frame.bytes) ? string_buf_idx : sizeof(frame.bytes);
-                    scale_tap_frame((const uint8_t *) frame.bytes, len, NAN);
-                    scale_publish_measurement(NAN);
+                    scale_make_host->tap_frame((const uint8_t *) frame.bytes, len, NAN);
+                    scale_make_host->publish_measurement(NAN);
                 }
 
                 string_buf_idx = 0;
@@ -102,37 +101,37 @@ void _and_scale_listener_task(void *p) {
 
 void scale_press_re_zero_key() {
     char cmd[] = "Z\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 void scale_press_print_key() {
     char cmd[] = "PRT\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 void scale_press_sample_key() {
     char cmd[] = "SMP\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 void scale_press_mode_key() {
     char cmd[] = "U\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 void scale_press_on_off_key() {
     char cmd[] = "P\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 void scale_display_off() {
     char cmd[] = "OFF\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 void scale_display_on() {
     char cmd[] = "ON\r\n";
-    scale_write(cmd, strlen(cmd));
+    scale_make_host->write(cmd, strlen(cmd));
 }
 
 

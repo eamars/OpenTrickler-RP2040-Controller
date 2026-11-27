@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. The gates after 5 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged by #139, gate 3 by #140. Gate 4, the PC build, approved and built the same day: the host tests are built from the modules' own build files, with no unit needed; merged by #141. Gate 5, our own code in C, approved and built the same day and proven on the Pico W: the two modes and the ring buffer are C; merged by #142. Gate 6, the loops cut, approved and built the same day and proven on the Pico W: no module requires one of a layer above it, and none require each other. The gates after 6 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -73,6 +73,10 @@ Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and prove
 **2026-11-27, gate 5**
 - Approved: "Approve gate 5."
 - PR #142 reviewed and merged by the owner: "I reviewed and merged."
+
+**2026-11-27, gate 6**
+- Approved: "Approve gate 6."
+- **The UI hands its parts down** (asked before cut 2, since the ADR had `ui/` above `web/` and `console/` and also had the web's mirror and the console's `snap` ask the view): `ui/` stays on top; the console's screen commands are the UI's and are registered with the console at start-up; the API is handed the frame and the hello. The other reading, `ui/` put below the web and the console so that they may name the menu, was not taken.
 
 ## Why here
 
@@ -443,6 +447,15 @@ In this order, the cheapest first, and those that free the screen and the tubes 
 
 Proof, each cut: both boards build; the path it touched run on the unit, by the command that has it (a restart and its clients: `api_check`; the update: `slot_trial` and `update` from the local OTA server; a job's start refused and taken: `charge_cycle`, a purge, `reach`).
 At the gate's end: `tools/module_graph.py` with no loop and no requirement upward (25 and 2 at gate 3); `menu_tour --compare`, `charge_cycle`, `api_check`, `settings_roundtrip`. The unit on the probe, and the Pico W for the network's cuts.
+
+**Built 2026-11-27** ([progress](progress.md)): `tools/module_graph.py` counts no upward requirement and no loop (25, and 21 modules in 2 loops, at gate 3). On the Pico W each cut's path was run before the next, and at the end the menu tour, a charge cycle, the API's check, the settings' round trip, every screen reached, the three fault stops, the scale's frames, and an update over the air, twice. What differs from the steps above:
+- **the gate was larger than its seven cuts.** The built libraries showed more: the console driving the menu and reading the web server; the API copying the menu's frame; three drivers reaching into services (the scale's makes, the EEPROM's, the display's); the hard fault's handler calling the motors; and loops among the services the text had not named (the job task and its jobs, the update and its fetch, the settings and the Wi-Fi, the scale and the charge). All are cut;
+- **every cut is one move:** what a lower module needs of a higher one is handed to it at start-up, by the higher module or by `app`'s wiring, and it calls what it was handed. Thirteen such hand-overs, listed in progress.md;
+- **the settings' HTTP side did not move as code** (cut 6): the settings answer the API in a buffer and name no web; the routes and the server's calls are the API's. The same end, with 745 lines left where they were;
+- **the makes are handed to the scale by `app`**, not by themselves: a make that registered itself would name the scale, upward;
+- two variables are still reached by `extern`, inside `ui/` (the knob's queue and the display's settings): gate 7's inputs;
+- the update's own proof was an update over the air from the local OTA server, in place of `slot_trial`: it runs the same install and trial, and the fetch besides;
+- the Pico W's RAM at link time went from 252.1 KB to 252.4 KB of 256 KB, for the hand-overs' tables.
 
 ### Gate 7: the platform's interfaces
 

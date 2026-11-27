@@ -20,6 +20,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "update.h"
+
 #define UPDATE_SOURCE_MAX 128
 #define UPDATE_NOTE_MAX 96
 #define EEPROM_UPDATE_CONFIG_REV 1                  // never stored: a new slot validates by its CRC (common.c)
@@ -62,19 +64,15 @@ typedef enum {
     UPDATE_POLL_NO_NETWORK,                         // not joined to a network as a station: no internet
 } update_poll_ask_t;
 
-// The image the poll found: where it is, its length and its SHA-256, as the manifest gives them
-typedef struct {
-    char url[256];
-    uint32_t size;
-    uint8_t sha256[32];
-    uint32_t block;
-} update_poll_image_t;
+// The image the poll found: where it is, its length and its SHA-256, as the manifest gives them (update.h)
+typedef update_found_image_t update_poll_image_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// At start-up, after the EEPROM: the stored channel and source, the settings' table, the HTTPS client
+// At start-up, after the EEPROM: the stored channel and source, the settings' table, the HTTPS client; and the
+// update is handed its fetch (update_set_fetcher())
 bool update_poll_init(void);
 bool update_poll_config_save(void);
 

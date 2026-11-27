@@ -9,7 +9,7 @@
 
 #include "hardware/uart.h"
 #include "configuration.h"
-#include "scale.h"
+#include "scale_make.h"
 
 /* 
   Example data
@@ -31,7 +31,6 @@ typedef union {
 
 // Forward declaration
 void _steinberg_scale_listener_task(void *p);
-extern scale_config_t scale_config;
 static void force_zero();
 
 // Instance of the scale handle for A&D FXi series
@@ -69,7 +68,7 @@ void _steinberg_scale_listener_task(void *p) {
             // If we have received 16 bytes then we can decode the message
             if (string_buf_idx == sizeof(steinberg_sbs_data_format_t)) {
                 // Data is ready, send to decode
-                scale_publish_measurement(_decode_measurement_msg(&frame));
+                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
 
                 // Reset
                 string_buf_idx = 0;

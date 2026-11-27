@@ -6,25 +6,17 @@
 #include <math.h>
 #include "activity.h"
 #include "events.h"
-#include "mini_12864_module.h"
 #include "motors.h"
 #include "scale.h"
-#include "display.h"
 #include "common.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "servo_gate.h"
-#include "menu.h"
 #include "jobs.h"
 
 // How often a running cleanup looks at the motor drivers when no button is pressed (ADR-012, step 6)
 #define CLEANUP_MODE_FAULT_CHECK_MS 100
 
-
-// Memory from other modules
-extern QueueHandle_t encoder_event_queue;
-extern charge_mode_config_t charge_mode_config;
-extern QueueHandle_t encoder_event_queue;
 
 // Internal
 cleanup_mode_config_t cleanup_mode_config;
@@ -192,7 +184,8 @@ cleanup_start_result_t cleanup_mode_request_start(activity_by_t by) {
     // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over. In
     // the charge's order: busy, then a driver's fault
     activity_t asked_before;
-    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
+        !activity_screen_takes_starts()) {
         return CLEANUP_START_BUSY;
     }
     // Looked at afresh, as at the unit (charge_mode_request_start)
@@ -202,7 +195,7 @@ cleanup_start_result_t cleanup_mode_request_start(activity_by_t by) {
     if (!activity_request_start(ACTIVITY_CLEANUP, by)) {
         return CLEANUP_START_BUSY;
     }
-    menu_wake();
+    activity_wake_screen();
     return CLEANUP_START_OK;
 }
 
