@@ -1,6 +1,6 @@
 /*
  * Charge mode's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/charge). In C beside
- * charge_mode.cpp: the table is written with C's designated initializers.
+ * charge_mode.c: the table is written with C's designated initializers.
  */
 #include <math.h>
 #include <stddef.h>
@@ -120,7 +120,7 @@ static bool charge_settings_is_saved(void) {
 
 
 /*
-    The decimals are the target's view (charge_mode.cpp): a change of them keeps the target's weight, and is refused
+    The decimals are the target's view (charge_mode.c): a change of them keeps the target's weight, and is refused
     when that weight cannot be shown at the new decimals (review D2, 2026-11-16). Before, 9.875 at three decimals
     read 98.75 at two, and a start threw that
 */

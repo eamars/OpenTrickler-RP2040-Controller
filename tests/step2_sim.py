@@ -317,7 +317,7 @@ def tuner_case(job: tuple) -> dict:
         controller.profile = profile
         result = step2.throw_one(session, controller, TARGET, profile.fine_stop_threshold)
         if controller.starved:
-            # As the unit: a starved throw ends the charge on a fault, before the tuner is fed (charge_mode.cpp)
+            # As the unit: a starved throw ends the charge on a fault, before the tuner is fed (charge_mode.c)
             continue
         errors.append(result.true_error)
         # The tuner times the fine tube's part of the throw, as the charge mode gives it (the PR's review, T1)

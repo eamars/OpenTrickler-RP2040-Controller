@@ -10,7 +10,7 @@
 
 #include "activity.h"
 #include "events.h"
-#include "FloatRingBuffer.h"
+#include "float_ring.h"
 #include "mini_12864_module.h"
 #include "display.h"
 #include "scale.h"
@@ -395,8 +395,10 @@ void charge_mode_wait_for_zero() {
         true
     );
     
-    // Wait for 5 measurements and wait for stable
-    FloatRingBuffer data_buffer(10);
+    // Wait for 10 measurements and wait for stable
+    float readings[10];
+    float_ring_t data_buffer;
+    float_ring_init(&data_buffer, readings, 10);
 
     // Update current status
     snprintf(title_string, sizeof(title_string), "Waiting for Zero");
@@ -423,7 +425,7 @@ void charge_mode_wait_for_zero() {
         // Perform measurement (waited for up to 300 ms)
         float current_measurement;
         if (scale_block_wait_for_next_measurement(300, &current_measurement)){
-            data_buffer.enqueue(current_measurement);
+            float_ring_add(&data_buffer, current_measurement);
             if (readings_since_zero < UINT8_MAX) {
                 readings_since_zero += 1;
             }
@@ -434,9 +436,9 @@ void charge_mode_wait_for_zero() {
         }
 
         // Generate stop condition
-        if (data_buffer.getCounter() >= 10 && readings_since_zero >= 10) {
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
-                abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
+        if (float_ring_count(&data_buffer) >= 10 && readings_since_zero >= 10) {
+            if (float_ring_sd(&data_buffer) < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
+                fabsf(float_ring_mean(&data_buffer)) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
                 // Into pouring under the lock the API's zero takes, and only with no zero asked since: a zero
                 // asked over the API is refused from here on (charging)
                 activity_lock();
@@ -500,7 +502,9 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
                       .number = pause_count};
     events_add(&paused);
 
-    FloatRingBuffer steady_buffer(CHARGE_STEADY_READINGS);
+    float readings[CHARGE_STEADY_READINGS];
+    float_ring_t steady_buffer;
+    float_ring_init(&steady_buffer, readings, CHARGE_STEADY_READINGS);
     bool readings_back = false;
     TickType_t back_tick = 0;
 
@@ -518,10 +522,10 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
                 readings_back = true;
                 back_tick = *last_reading_tick;
             }
-            steady_buffer.enqueue(weight);
-            if (steady_buffer.getCounter() >= CHARGE_STEADY_READINGS &&
-                steady_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
-                *settled_weight = steady_buffer.getMean();
+            float_ring_add(&steady_buffer, weight);
+            if (float_ring_count(&steady_buffer) >= CHARGE_STEADY_READINGS &&
+                float_ring_sd(&steady_buffer) < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
+                *settled_weight = float_ring_mean(&steady_buffer);
                 printf("Charge: resumed from a settled %.3f\n", *settled_weight);
                 charge_paused = false;
                 event_t resumed = {.source = EVENT_SOURCE_THROW, .kind = EVENT_RESUMED,
@@ -806,7 +810,9 @@ void charge_mode_wait_for_cup_removal() {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Remove Cup");
 
-    FloatRingBuffer data_buffer(5);
+    float readings[5];
+    float_ring_t data_buffer;
+    float_ring_init(&data_buffer, readings, 5);
 
     // The verdict, read once the slowest lag and the settle time have passed after the stop (ADR-009 step 2): what
     // was poured has landed and shows
@@ -892,12 +898,12 @@ void charge_mode_wait_for_cup_removal() {
             // If no measurement within 200ms then poll the button and retry
             continue;
         }
-        data_buffer.enqueue(current_weight);
+        float_ring_add(&data_buffer, current_weight);
 
         // Generate stop condition
-        if (data_buffer.getCounter() >= 5) {
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
-                data_buffer.getMean() < -charge_mode_cup_lift()){
+        if (float_ring_count(&data_buffer) >= 5) {
+            if (float_ring_sd(&data_buffer) < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
+                float_ring_mean(&data_buffer) < -charge_mode_cup_lift()){
                 break;
             }
         }
@@ -925,9 +931,6 @@ void charge_mode_wait_for_cup_return() {
     );
 
     snprintf(title_string, sizeof(title_string), "Return Cup");
-
-
-    FloatRingBuffer data_buffer(5);
 
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();

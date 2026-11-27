@@ -42,7 +42,7 @@ PRECONDITION_RPS = 1.0
 # `motor fine 0` switches the driver off, which a charge never does between its start and its end.
 HOLD_RPS = 0.0005
 DIGIT_GR = 0.02
-# The charge's reverse turn of the coarse tube when it stops, at its default settings (charge_mode.cpp)
+# The charge's reverse turn of the coarse tube when it stops, at its default settings (charge_mode.c)
 BACKOFF_RPS = 1.0
 BACKOFF_TURNS = 0.25
 # The charge's states as the console's `state` gives them (charge_mode.h), and its default stop threshold

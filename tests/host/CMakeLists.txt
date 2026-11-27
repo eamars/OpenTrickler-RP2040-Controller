@@ -66,9 +66,10 @@ endforeach()
 
 # ---- The modules ----
 # Whole: every module that requires nothing of the chip or the RTOS. One that comes to include an SDK header no
-# longer builds here. (common/ring joins when it is C: gate 5.)
+# longer builds here.
 set(HOST_MODULES
     common/http_json
+    common/ring
     drivers/tmc2209
     services/calibration_method
     services/charge_control

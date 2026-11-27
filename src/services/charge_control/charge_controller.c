@@ -204,7 +204,7 @@ static double forecast(const charge_controller_t *controller) {
 }
 
 
-// The throw's end, main's rule: the reading less than the fine threshold under the target (charge_mode.cpp's loop
+// The throw's end, main's rule: the reading less than the fine threshold under the target (charge_mode.c's loop
 // before ADR-009). The PID still aims at the target itself
 static bool reached(const charge_controller_t *controller) {
     return controller->target - controller->reading < controller->config.fine_threshold;
