@@ -8,11 +8,9 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "pico/stdlib.h"
-#include "hardware/spi.h"
-
 #include "chip.h"
 #include "chip_gpio.h"
+#include "chip_spi.h"
 
 #include "configuration.h"
 #include "display.h"
@@ -64,12 +62,12 @@ static void display_delay_ms(uint32_t ms, BaseType_t scheduler_state) {
 static void display_commands(const uint8_t *commands, size_t len) {
     chip_gpio_put(DISPLAY0_CS_PIN, 0);
     chip_gpio_put(DISPLAY0_A0_PIN, 0);
-    spi_write_blocking(DISPLAY0_SPI, commands, len);
+    chip_spi_write(DISPLAY0_SPI, commands, len);
     chip_gpio_put(DISPLAY0_CS_PIN, 1);
 }
 
 
-// One page of 128 columns at the panel's first column. spi_write_blocking returns once the last bit is out, so A0
+// One page of 128 columns at the panel's first column. chip_spi_write returns once the last bit is out, so A0
 // changes between bytes, never during one
 static void display_write_page(int page, const uint8_t *columns) {
     uint8_t address[] = {
@@ -79,17 +77,15 @@ static void display_write_page(int page, const uint8_t *columns) {
     };
     chip_gpio_put(DISPLAY0_CS_PIN, 0);
     chip_gpio_put(DISPLAY0_A0_PIN, 0);
-    spi_write_blocking(DISPLAY0_SPI, address, sizeof(address));
+    chip_spi_write(DISPLAY0_SPI, address, sizeof(address));
     chip_gpio_put(DISPLAY0_A0_PIN, 1);
-    spi_write_blocking(DISPLAY0_SPI, columns, DISPLAY_WIDTH);
+    chip_spi_write(DISPLAY0_SPI, columns, DISPLAY_WIDTH);
     chip_gpio_put(DISPLAY0_CS_PIN, 1);
 }
 
 
 void display_init(bool flipped) {
-    spi_init(DISPLAY0_SPI, DISPLAY_SPI_HZ);
-    gpio_set_function(DISPLAY0_SCK_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(DISPLAY0_TX_PIN, GPIO_FUNC_SPI);
+    chip_spi_open(DISPLAY0_SPI, DISPLAY0_SCK_PIN, DISPLAY0_TX_PIN, DISPLAY_SPI_HZ);
 
     chip_gpio_output(DISPLAY0_CS_PIN, 1);
     chip_gpio_output(DISPLAY0_A0_PIN, 0);
