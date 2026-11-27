@@ -22,8 +22,6 @@
 #include "common.h"
 #include "profile.h"
 #include "scale.h"
-#include "display.h"
-#include "menu.h"
 #include "eeprom.h"
 #include "unit_id.h"
 #include "servo_gate.h"
@@ -61,26 +59,50 @@ const char *api_v1_board_name(void) {
 }
 
 
+// The screen the UI handed over (api_v1.h); NULL until then
+static const api_v1_screen_t *api_v1_screen_handed = NULL;
+
+
+void api_v1_set_screen(const api_v1_screen_t *screen) {
+    api_v1_screen_handed = screen;
+}
+
+
+const api_v1_screen_t *api_v1_screen(void) {
+    return api_v1_screen_handed;
+}
+
+
 // GET /api/v1/display
 static void api_v1_get_display(const http_server_request_t *request, http_server_reply_t *reply) {
+    const api_v1_screen_t *screen = api_v1_screen();
+    if (screen == NULL) {
+        http_server_reply_error(reply, 404, "not_found", "this build has no screen");
+        return;
+    }
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
-    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"%s\"}", (unsigned) DISPLAY_WIDTH,
-                       (unsigned) DISPLAY_HEIGHT, MENU_FRAME_FORMAT);
+    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"%s\"}", (unsigned) screen->width,
+                       (unsigned) screen->height, screen->format);
     http_server_reply_send(reply, 200, "application/json", (size_t) len);
 }
 
 
-// GET /api/v1/display/frame: the screen's frame, copied whole, so the reply is one frame (MENU_FRAME_FORMAT)
+// GET /api/v1/display/frame: the screen's frame, copied whole, so the reply is one frame (the display's `format`)
 static void api_v1_get_display_frame(const http_server_request_t *request, http_server_reply_t *reply) {
+    const api_v1_screen_t *screen = api_v1_screen();
+    if (screen == NULL) {
+        http_server_reply_error(reply, 404, "not_found", "this build has no screen");
+        return;
+    }
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
-    if (DISPLAY_FRAME_BYTES > room) {
+    if (screen->frame_bytes > room) {
         http_server_reply_error(reply, 500, "failed", "the frame is larger than a reply");
         return;
     }
-    menu_frame_copy((uint8_t *) out);
-    http_server_reply_send(reply, 200, "application/octet-stream", DISPLAY_FRAME_BYTES);
+    screen->frame_copy((uint8_t *) out);
+    http_server_reply_send(reply, 200, "application/octet-stream", screen->frame_bytes);
 }
 
 

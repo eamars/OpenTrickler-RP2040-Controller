@@ -27,7 +27,6 @@
 #include "events.h"
 #include "http_json.h"
 #include "http_server.h"
-#include "menu.h"
 #include "motors.h"
 #include "profile.h"
 #include "scale.h"
@@ -1609,7 +1608,7 @@ static bool api_v1_restart_later(bool erase) {
 
 
 // POST /api/v1/agent/hello {"name": "..."}: an agent says it is here, and the screen shows who for about 2 s, flashing
-// first after a quiet spell (menu_visit()). The owner's mode for fun (2026-11-17), listed in the index and the
+// first after a quiet spell (the screen's hello, api_v1.h). The owner's mode for fun (2026-11-17), listed in the index and the
 // schema since ADR-008's gate 2 as the kind agent. It changes nothing but the screen, and never over a charge
 static void api_v1_agent_hello(const http_server_request_t *request, http_server_reply_t *reply) {
     static const char *const allowed[] = {"name"};
@@ -1618,7 +1617,7 @@ static void api_v1_agent_hello(const http_server_request_t *request, http_server
     if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
         return;
     }
-    char name[MENU_VISIT_NAME_MAX + 1] = "Claude-chan";
+    char name[API_V1_HELLO_NAME_MAX + 1] = "Claude-chan";
     const http_json_member_t *member = api_member(members, count, "name");
     if (member != NULL) {
         bool fits = http_json_string_value(member, name, sizeof(name)) && name[0] != '\0';
@@ -1631,8 +1630,9 @@ static void api_v1_agent_hello(const http_server_request_t *request, http_server
         }
     }
     bool flash = false;
-    if (!menu_visit(name, &flash)) {
-        api_busy(reply, "a charge has the screen");
+    const api_v1_screen_t *screen = api_v1_screen();
+    if (screen == NULL || !screen->hello(name, &flash)) {
+        api_busy(reply, screen == NULL ? "this build has no screen" : "a charge has the screen");
         return;
     }
     size_t room;

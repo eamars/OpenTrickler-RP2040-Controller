@@ -20,6 +20,7 @@
 #include "pico/time.h"
 
 #include "activity.h"
+#include "api_v1.h"
 #include "display.h"
 #include "jobs.h"
 #include "menu.h"
@@ -371,9 +372,21 @@ static bool menu_takes_starts(void) {
 
 static const activity_screen_t menu_as_screen = {.wake = menu_wake, .takes_starts = menu_takes_starts};
 
+// And as the API gives it (api_v1.h): the frame for the page's mirror, and the hello
+_Static_assert(MENU_VISIT_NAME_MAX == API_V1_HELLO_NAME_MAX, "the hello's name: the API's length is the menu's");
+static const api_v1_screen_t menu_as_api_screen = {
+    .width = DISPLAY_WIDTH,
+    .height = DISPLAY_HEIGHT,
+    .frame_bytes = DISPLAY_FRAME_BYTES,
+    .format = MENU_FRAME_FORMAT,
+    .frame_copy = menu_frame_copy,
+    .hello = menu_visit,
+};
+
 
 void menu_init(void) {
     activity_set_screen(&menu_as_screen);
+    api_v1_set_screen(&menu_as_api_screen);
     menu_screen_lock = xSemaphoreCreateMutex();
     menu_goto_drawn = xSemaphoreCreateBinary();
     menu_frame_lock = xSemaphoreCreateMutex();

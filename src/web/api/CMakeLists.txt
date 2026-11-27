@@ -1,8 +1,8 @@
 ot_module(SRCS api_v1.c api_v1_commands.c rest_endpoints.c
           INCLUDE_DIRS include
-          PRIV_REQUIRES activity calibration charge cleanup events freertos http_json http_server leds lwip menu
-                        motors profile rp2_sdk scale servo_gate settings storage system uc1701 update update_fetch
-                        version wireless)
+          PRIV_REQUIRES activity calibration charge cleanup events freertos http_json http_server leds lwip motors
+                        profile rp2_sdk scale servo_gate settings storage system update update_fetch version
+                        wireless)
 
 # The portal (ADR-008, gate 3): portal/ joined, trimmed and gzipped by web_build.py into a header this module serves
 file(GLOB WEB_SOURCES ${CMAKE_CURRENT_LIST_DIR}/portal/*)
