@@ -1,52 +1,38 @@
-#include <FreeRTOS.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <semphr.h>
-#include <time.h>
 #include <math.h>
-#include <task.h>
 #include <stdlib.h>
 
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
 
-/* 
+/*
   Example data
-    +   20.758g  
-    +   20.758g  
-    +   20.758g  
-    +  320.344GN 
-    +  320.344GN 
-    +  320.344GN 
-    +  320.344GN 
-    +  889.629GN 
-    + 1116.438GN 
-    + 1320.253GN 
-    + 1508.019GN 
-    + ~~~~~~~~GN 
+    +   20.758g
+    +   20.758g
+    +   20.758g
+    +  320.344GN
+    +  320.344GN
+    +  320.344GN
+    +  320.344GN
+    +  889.629GN
+    + 1116.438GN
+    + 1320.253GN
+    + 1508.019GN
+    + ~~~~~~~~GN
 */
 typedef union {
     struct __attribute__((__packed__)) {
         char header[2];         // + or -
         char data[8];           // Float integer
-        char unit[3];           // GN (or something else)   
+        char unit[3];           // GN (or something else)
         char terminator[2];     // \r\n (carriage return and newline)
     };
     char bytes[15];
 } ussolid_jfdbs_data_format_t ;
 
-// Forward declaration
-void _ussolid_scale_listener_task(void *p);
-static void force_zero();
 
-// Instance of the scale handle for US Solid series
-scale_handle_t ussolid_scale_handle = {
-    .read_loop_task = _ussolid_scale_listener_task,
-    .force_zero = force_zero,
-};
+static float ussolid_scale_parse(const char *frame, size_t len) {
+    (void) len;
+    const ussolid_jfdbs_data_format_t *msg = (const ussolid_jfdbs_data_format_t *) frame;
 
-static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
     // Determine sign
     int sign = 1;
 
@@ -60,7 +46,7 @@ static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return nanf(msg->data);
+        return NAN;
     }
 
     // Apply the sign
@@ -69,41 +55,9 @@ static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
     return weight;
 }
 
-void _ussolid_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;
-    ussolid_jfdbs_data_format_t frame;
 
-    while (true) {
-        // Read all data 
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-
-            frame.bytes[string_buf_idx++] = ch;
-
-            // If we have received 15 bytes then we can decode the message
-            if (string_buf_idx == sizeof(ussolid_jfdbs_data_format_t)) {
-                
-                // Data is ready, send to decode
-                float weight = _decode_measurement_msg(&frame);
-
-                scale_make_host->publish_measurement(weight);
-
-                // Reset
-                string_buf_idx = 0;
-            }
-
-            // \n is the terminator. We shall reset the receive of message on receiving any of those character.
-            if (ch =='\n') {
-                string_buf_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
-static void force_zero() {
-    // Unsupported
-}
-
+const scale_make_t ussolid_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .length = sizeof(ussolid_jfdbs_data_format_t),
+    .parse = ussolid_scale_parse,
+};

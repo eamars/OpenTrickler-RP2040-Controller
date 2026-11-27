@@ -1,33 +1,15 @@
 #include <ctype.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include "generic_scale.h"
 #include "scale_make.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
-#include "configuration.h"
-#include "chip_serial.h"
-
-
-
-void _generic_scale_listener_task(void *p);
-void _generic_scale_init(void *self);
 
 
 /*
-    The Generic driver knows no zero command for its scale: asked to zero, it does nothing. It had no function at
-    all, and its three callers call it unchecked: a zero press jumped to address 0 (ADR-012; audit S1).
+    The Generic make: a line ended by LF, its first number its weight. It knows no zero command for its scale: asked
+    to zero, it does nothing (ADR-012; audit S1).
 */
-static void _generic_scale_force_zero(void) {
-}
-
-
-scale_handle_t generic_scale_drv_handle = {
-    .read_loop_task = _generic_scale_listener_task,
-    .force_zero = _generic_scale_force_zero,
-};
 
 
 /*
@@ -55,43 +37,14 @@ static bool _generic_scale_parse(const char *frame, float *weight) {
 }
 
 
-/**
- * @brief Generic scale listener task
- */
-void _generic_scale_listener_task(void *p) {
-    char rx_buffer[32];
-    uint8_t rx_buffer_idx = 0;
-
-    while (true) {
-        // Read all available data
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-
-            // Prevent buffer overflow
-            if (rx_buffer_idx >= sizeof(rx_buffer) - 1) {
-                // Reset buffer index
-                rx_buffer_idx = 0;
-            }
-
-            // Accept the buffer
-            rx_buffer[rx_buffer_idx++] = ch;
-
-            // Stop condition 1: When \n is received
-            if (ch == '\n') {
-                // Null terminate the string
-                rx_buffer[rx_buffer_idx] = '\0';
-
-                float weight;
-                if (_generic_scale_parse(rx_buffer, &weight)) {
-                    scale_make_host->publish_measurement(weight);
-                }
-
-                // Reset buffer index
-                rx_buffer_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
+static float generic_scale_frame_parse(const char *frame, size_t len) {
+    (void) len;
+    float weight;
+    return _generic_scale_parse(frame, &weight) ? weight : NAN;
 }
+
+
+const scale_make_t generic_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .parse = generic_scale_frame_parse,
+};

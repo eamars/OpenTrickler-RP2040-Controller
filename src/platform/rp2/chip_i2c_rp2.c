@@ -20,17 +20,27 @@ void chip_i2c_open(unsigned int bus, unsigned int sda_pin, unsigned int scl_pin,
         gpio_pull_up(sda_pin);
         gpio_pull_up(scl_pin);
     }
+#if RC_TEST_I2C_HELD_LOW
+    // A test build (ADR-017, gate 1): the data line driven low by its pad, under the bus, as a device stuck mid-byte
+    // holds it: every call must end at its time limit
+    gpio_set_outover(sda_pin, GPIO_OVERRIDE_LOW);
+    gpio_set_oeover(sda_pin, GPIO_OVERRIDE_HIGH);
+#endif
 }
 
 
 bool chip_i2c_write(unsigned int bus, uint8_t addr, const uint8_t *data, size_t len) {
-    return i2c_write_blocking(chip_i2c_instance(bus), addr, data, len, false) != PICO_ERROR_GENERIC;
+    // A byte the device did not acknowledge ends the write with the count before it, not an error
+    return i2c_write_timeout_per_char_us(chip_i2c_instance(bus), addr, data, len, false, CHIP_I2C_BYTE_LIMIT_US) ==
+           (int) len;
 }
 
 
 bool chip_i2c_write_read(unsigned int bus, uint8_t addr, const uint8_t *out, size_t out_len, uint8_t *in,
                          size_t in_len) {
     i2c_inst_t *i2c = chip_i2c_instance(bus);
-    bool written = i2c_write_blocking(i2c, addr, out, out_len, true) == (int) out_len;
-    return written && i2c_read_blocking(i2c, addr, in, in_len, false) == (int) in_len;
+    bool written = i2c_write_timeout_per_char_us(i2c, addr, out, out_len, true, CHIP_I2C_BYTE_LIMIT_US) ==
+                   (int) out_len;
+    return written && i2c_read_timeout_per_char_us(i2c, addr, in, in_len, false, CHIP_I2C_BYTE_LIMIT_US) ==
+                      (int) in_len;
 }

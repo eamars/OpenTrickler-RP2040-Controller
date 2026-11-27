@@ -18,6 +18,7 @@ typedef enum {
     // remote control's `screen <id>` (menu_goto_screen(); ADR-001)
     MENU_WAKE,
     MENU_REMOTE_SCREEN,
+    MENU_REMOTE_SAY,        // a message asked from another task (menu_say(); ADR-017, gate 1)
 } ButtonEncoderEvent_t;
 
 typedef enum : uint8_t {

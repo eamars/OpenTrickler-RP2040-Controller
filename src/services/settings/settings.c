@@ -46,12 +46,12 @@ bool settings_register(const settings_resource_t *resource) {
         printf("Settings: no room for %s\n", resource->path);
         return false;
     }
-    bool mended = resource->id_count == 0 && mend_choices(resource, -1);
-    for (int32_t id = 0; id < resource->id_count; id += 1) {
-        mended = mend_choices(resource, id) || mended;
+    // Mended in RAM only: the stored value stays until the person stores the resource (ADR-017, gate 1)
+    if (resource->id_count == 0) {
+        mend_choices(resource, -1);
     }
-    if (mended && resource->save != NULL && !resource->save()) {
-        printf("Settings: %s mended, not stored\n", resource->path);
+    for (int32_t id = 0; id < resource->id_count; id += 1) {
+        mend_choices(resource, id);
     }
     if (resource->id_count == 0) {
         const uint8_t *base = resource->live(-1);
@@ -156,9 +156,11 @@ static uint32_t held_uint(const uint8_t *at, uint8_t size) {
 
 
 /*
- * A stored choice that is none of its choices is no setting: its first choice is put in its place and stored, and
- * the console says so. True when one was mended. A field added into a struct's filler reads whatever byte was stored there (ADR-006, handed on by ADR-010):
- * the display's Charge view read neither 0 nor 1 on the Pico W, and the API gave it as null
+ * A stored choice that is none of its choices is no setting: its first choice runs in its place, in RAM only, and
+ * the console says so; the resource then reads as not stored, and the chip keeps what it held until the person stores
+ * it (ADR-017, gate 1: a load never writes). A field whose module refuses such a value itself is left as it is
+ * (unknown_kept). True when one was mended. A field added into a struct's filler reads whatever byte was stored there
+ * (ADR-006, handed on by ADR-010): the display's Charge view read neither 0 nor 1 on the Pico W
  */
 static void put_uint(uint8_t *at, uint8_t size, uint32_t value);
 
@@ -167,7 +169,7 @@ static bool mend_choices(const settings_resource_t *resource, int32_t id) {
     bool mended = false;
     for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
         const setting_field_t *field = &resource->fields[idx];
-        if (field->type != SETTING_CHOICE || field->choice_count == 0) {
+        if (field->type != SETTING_CHOICE || field->choice_count == 0 || field->unknown_kept) {
             continue;
         }
         uint32_t held = held_uint(base + field->offset, field->size);
@@ -176,8 +178,8 @@ static bool mend_choices(const settings_resource_t *resource, int32_t id) {
             known = held == (uint32_t) field->choices[choice].held;
         }
         if (!known) {
-            printf("Settings: %s %s held %lu, none of its choices: %s put in its place\n", resource->path,
-                   field->name, (unsigned long) held, field->choices[0].label);
+            printf("Settings: %s %s held %lu, none of its choices: %s runs in its place, not stored\n",
+                   resource->path, field->name, (unsigned long) held, field->choices[0].label);
             put_uint(base + field->offset, field->size, (uint32_t) field->choices[0].held);
             mended = true;
         }
@@ -481,6 +483,11 @@ static bool read_value(const setting_field_t *field, const http_json_member_t *m
     char text[SETTINGS_TEXT_MAX];
 
     if (kind == HTTP_JSON_NULL) {
+        // A choice kept unknown reads as null: written back as read, it is left as it is (ADR-017's review, finding 6:
+        // a unit's own copy restores onto it, the rest of its resource with it)
+        if (field->type == SETTING_CHOICE && field->unknown_kept && choice_held(field, held_uint(at, field->size)) == NULL) {
+            return true;
+        }
         if (!field->nullable) {
             fail(outcome, 400, "wrong_type", field, "%s cannot be null", field->name);
             return false;

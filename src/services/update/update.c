@@ -268,7 +268,7 @@ void update_write_reset(uint16_t reset, char *out, size_t room, size_t *len) {
 
 
 static void update_note_save(void) {
-    if (!save_config_now(EEPROM_UPDATE_NOTE_BASE_ADDR, &update_note, sizeof(update_note))) {
+    if (!save_config_now(EEPROM_UPDATE_NOTE_BASE_ADDR, &update_note, sizeof(update_note_t))) {
         printf("Update: the note could not be written\n");
     }
 }
@@ -305,8 +305,8 @@ uint32_t update_back_within_s(void) {
 
 
 void update_start_note(void) {
-    if (!config_read_stored(EEPROM_UPDATE_NOTE_BASE_ADDR, &update_note, sizeof(update_note))) {
-        memset(&update_note, 0, sizeof(update_note));     // never written: no update yet, nothing to say
+    if (!config_read_stored(EEPROM_UPDATE_NOTE_BASE_ADDR, &update_note, sizeof(update_note_t))) {
+        memset(&update_note, 0, sizeof(update_note_t));     // never written: no update yet, nothing to say
     }
     if (update_note.tried != 0) {
         int8_t tried = (int8_t) (update_note.tried - 1);
@@ -342,7 +342,7 @@ void update_start_note(void) {
     if (said && update_note.tried == 0 && update_note.on_version != update_running_version()) {
         // Written while another image ran: an install by USB or the probe came after, so it is not this one's
         printf("Update: the last update's note was written under another image; let go\n");
-        memset(&update_note, 0, sizeof(update_note));
+        memset(&update_note, 0, sizeof(update_note_t));
         update_note_save();
         said = false;
     }
@@ -441,7 +441,7 @@ void update_network_ready(bool on_its_network) {
     if (!update_slots.on_trial || update_confirmed) {
         return;
     }
-    if (!on_its_network || config_defaults_held(EEPROM_WIRELESS_CONFIG_BASE_ADDR)) {
+    if (!on_its_network || !config_settings_read(EEPROM_WIRELESS_CONFIG_BASE_ADDR)) {
         // Its own hotspot is not its network; nor is any network its Wi-Fi settings did not read to name
         printf("Update: not on its network%s; not confirmed, the unit goes back at the trial's end\n",
                on_its_network ? " (its Wi-Fi settings did not read)" : "");

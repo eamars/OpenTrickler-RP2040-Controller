@@ -203,16 +203,11 @@ static const settings_resource_t led_settings = {
 
 
 bool neopixel_led_init(void) {
-    bool is_ok = true;
-    
     // Initialize configuration
     memset(&neopixel_led_config, 0x0, sizeof(neopixel_led_config));
-    is_ok = load_config(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, &neopixel_led_config.eeprom_neopixel_led_metadata, &default_neopixel_led_metadata, sizeof(neopixel_led_config.eeprom_neopixel_led_metadata));
-
-    if (!is_ok) {
-        printf("Unable to read neopixel configuration\n");
-        return is_ok;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1)
+    load_config(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, &neopixel_led_config.eeprom_neopixel_led_metadata,
+                &default_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
 
     // Initialize the mutex
     neopixel_led_config.mutex = xSemaphoreCreateMutex();

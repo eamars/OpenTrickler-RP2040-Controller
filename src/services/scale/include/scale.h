@@ -8,8 +8,15 @@
 
 
 
-// A make of scale, and what it is given by the scale (drivers/scale_protocols)
+// A make of scale: how its frames are found and read (drivers/scale_protocols)
 #include "scale_make.h"
+
+
+// The simulated scale (simulated_scale.c): its task, and its zero
+typedef struct {
+    void (*read_loop_task)(void *self);
+    void (*force_zero)(void);
+} scale_handle_t;
 
 
 typedef enum : uint8_t {
@@ -71,7 +78,6 @@ typedef struct {
 
 typedef struct {
     eeprom_scale_data_t persistent_config;
-    scale_handle_t * scale_handle;
     SemaphoreHandle_t scale_measurement_ready;
     SemaphoreHandle_t scale_serial_write_access_mutex;
     float current_scale_measurement;
@@ -88,8 +94,8 @@ bool scale_init();
 float scale_get_current_measurement();
 
 /**
- * @brief The one way a reading is published (ADR-013). Every scale driver and the simulated scale call it, in place
- * of writing the measurement themselves. A driver says a frame did not parse by giving NaN. A value that is not a
+ * @brief The one way a reading is published (ADR-013). The port's reader and the simulated scale call it, in place
+ * of writing the measurement themselves. A frame with no number is given as NaN, for every make (ADR-017, gate 2). A value that is not a
  * finite number, NaN or an infinity, is not published: the reading is not changed, the charge is not told of a new
  * one, and it is counted (scale_get_bad_frames()). So a bad frame is a frame that never came.
  */
@@ -117,8 +123,8 @@ bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * curre
 bool scale_take_new_measurement(float * current_measurement);
 
 /**
- * @brief The remote control's frame tap (ADR-013): while it is on, a driver that calls scale_tap_frame() copies
- * each frame it decoded to the console, as it came and with the value it made of it. Nothing is stored.
+ * @brief The remote control's frame tap (ADR-013): while it is on, each frame the reader finds, of every make
+ * (ADR-017, gate 2), is copied to the console as it came, with the value it read as. Nothing is stored.
  */
 void scale_tap_set(bool on);
 bool scale_tap_is_on(void);
@@ -165,8 +171,9 @@ const char *scale_driver_api_name(scale_driver_t driver);
 bool scale_config_save(void);
 
 // The start-up's wiring, before scale_init(): a make the build carries, by its stored number. The scale names no
-// make but its own simulated one (ADR-006, gate 6). False when there is no room for it
-bool scale_register_make(scale_driver_t driver, scale_handle_t *handle);
+// make but its own simulated one (ADR-006, gate 6); the port's one reader reads the stored one's frames (ADR-017,
+// gate 2). False when there is no room for it
+bool scale_register_make(scale_driver_t driver, const scale_make_t *make);
 
 // The scale's stored settings, to read: its make and serial format, and what the calibration measured of it
 // (ADR-009 step 1). They are written through the settings' table only

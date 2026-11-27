@@ -60,6 +60,8 @@ static uint64_t menu_visit_step_us = 0;
 // The remote control's `screen <id>`: asked from its task, answered after the draw
 static volatile int menu_current_form_id = -1;
 static char menu_goto_id[32];
+// A message asked from another task (menu_say()): its three lines
+static char menu_say_lines[3][32];
 static volatile bool menu_goto_found = false;
 static SemaphoreHandle_t menu_goto_drawn = NULL;
 
@@ -148,6 +150,9 @@ static void menu_event(ButtonEncoderEvent_t event) {
             break;
         case MENU_REMOTE_SCREEN:
             menu_goto_found = menu_nav_goto(menu_goto_id);
+            break;
+        case MENU_REMOTE_SAY:
+            menu_nav_say(menu_say_lines[0], menu_say_lines[1], menu_say_lines[2]);
             break;
         default:
             break;
@@ -289,7 +294,15 @@ static const activity_screen_t menu_as_screen = {.wake = menu_wake, .takes_start
 
 // And as the API gives it (api_v1.h): the view's frame for the page's mirror, and the hello
 _Static_assert(MENU_VISIT_NAME_MAX == API_V1_HELLO_NAME_MAX, "the hello's name: the API's length is the menu's");
-static api_v1_screen_t menu_as_api_screen = {.frame_copy = menu_frame_copy, .hello = menu_visit};
+// A message over the page, from another task: drawn by the menu's own (a failed factory reset from the web)
+static void menu_say(const char *title, const char *line, const char *more) {
+    snprintf(menu_say_lines[0], sizeof(menu_say_lines[0]), "%s", title);
+    snprintf(menu_say_lines[1], sizeof(menu_say_lines[1]), "%s", line != NULL ? line : "");
+    snprintf(menu_say_lines[2], sizeof(menu_say_lines[2]), "%s", more != NULL ? more : "");
+    button_send(MENU_REMOTE_SAY, 100);
+}
+
+static api_v1_screen_t menu_as_api_screen = {.frame_copy = menu_frame_copy, .hello = menu_visit, .say = menu_say};
 
 
 void menu_init(void) {

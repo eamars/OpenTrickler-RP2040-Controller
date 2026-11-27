@@ -9,56 +9,60 @@
 #include "cat24c256_eeprom.h"
 #include "eeprom.h"
 #include "common.h"
-#include "system_control.h"
-
 
 
 SemaphoreHandle_t eeprom_access_mutex = NULL;
-
-
-// Whether every page was written: the restart follows either way
-bool eeprom_erase(bool reboot) {
-    bool erased = cat24c256_eeprom_erase();
-    if (!erased) {
-        printf("EEPROM: the erase failed: the settings may be left as they were\n");
-    }
-
-    if (reboot) {
-        software_reboot();
-    }
-
-    return erased;
-}
+static bool eeprom_answers = false;
 
 
 bool eeprom_init(void) {
-    bool is_ok = true;
-    eeprom_access_mutex = xSemaphoreCreateMutex();
-
+    // Recursive: the storage holds it across a whole save, whose reads and writes take it again (common.c)
+    eeprom_access_mutex = xSemaphoreCreateRecursiveMutex();
     if (eeprom_access_mutex == NULL) {
         printf("Unable to create EEPROM mutex\n");
         return false;
     }
-    
     cat24c256_eeprom_init();
+    eeprom_answers = cat24c256_present();
+    if (!eeprom_answers) {
+        printf("EEPROM: the chip does not answer: every module runs on its defaults, nothing is stored\n");
+    }
+    return eeprom_answers;
+}
 
-    return is_ok;
+
+bool eeprom_reachable(void) {
+    return eeprom_answers;
 }
 
 
 static inline void _take_mutex(BaseType_t scheduler_state) {
     if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreTake(eeprom_access_mutex, portMAX_DELAY);
+        xSemaphoreTakeRecursive(eeprom_access_mutex, portMAX_DELAY);
     }
 }
 
 static inline void _give_mutex(BaseType_t scheduler_state) {
     if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreGive(eeprom_access_mutex);
+        xSemaphoreGiveRecursive(eeprom_access_mutex);
     }
 }
 
+
+void eeprom_lock(void) {
+    _take_mutex(xTaskGetSchedulerState());
+}
+
+
+void eeprom_unlock(void) {
+    _give_mutex(xTaskGetSchedulerState());
+}
+
+// A chip that did not answer at the start is not asked again: each call would wait out the bus's time limit
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len) {
+    if (!eeprom_answers) {
+        return false;
+    }
     BaseType_t scheduler_state = xTaskGetSchedulerState();
     bool is_ok;
 
@@ -68,11 +72,22 @@ bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len) {
 
     _give_mutex(scheduler_state);
 
+#if RC_TEST_RECORD_DAMAGED
+    // A test build (ADR-017, gate 1): the charge's record read with a byte wrong, every time, as a chip holding damage
+    // gives it back; the chip itself is left as it is
+    uint16_t damaged = EEPROM_CHARGE_MODE_BASE_ADDR + 4;
+    if (is_ok && data_addr <= damaged && damaged < data_addr + len) {
+        data[damaged - data_addr] ^= 0x5A;
+    }
+#endif
     return is_ok;
 }
 
 
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len) {
+    if (!eeprom_answers) {
+        return false;
+    }
     BaseType_t scheduler_state = xTaskGetSchedulerState();
     bool is_ok;
 
@@ -83,4 +98,22 @@ bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len) {
     _give_mutex(scheduler_state);
 
     return is_ok;
+}
+
+
+eeprom_erase_t eeprom_erase(void) {
+    if (config_holding_writes()) {
+        printf("EEPROM: no factory reset while an image is on trial\n");
+        return EEPROM_ERASE_ON_TRIAL;
+    }
+    if (!eeprom_answers) {
+        return EEPROM_ERASE_UNREACHABLE;
+    }
+    // Held from here to the restart: a save between the last page and the restart would survive the reset
+    _take_mutex(xTaskGetSchedulerState());
+    bool erased = cat24c256_eeprom_erase();
+    if (!erased) {
+        printf("EEPROM: the erase failed: the settings may be left in part\n");
+    }
+    return erased ? EEPROM_ERASED : EEPROM_ERASE_FAILED;
 }

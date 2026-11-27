@@ -47,6 +47,8 @@ typedef struct {
     // The hello shown: name is printable ASCII, API_V1_HELLO_NAME_MAX characters at most; *flash says whether the
     // panel flashed first. False while a charge has the screen
     bool (*hello)(const char *name, bool *flash);
+    // A message over whatever the screen shows, as the menu's own (ADR-017, gate 1: a factory reset that failed)
+    void (*say)(const char *title, const char *line, const char *more);
 } api_v1_screen_t;
 
 // The UI, once, before the server starts. The struct is kept by its address

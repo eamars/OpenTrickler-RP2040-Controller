@@ -430,6 +430,9 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         case CHARGE_START_NO_SCALE:
             snprintf(reply, reply_size, "@err no_scale: the stored make of scale is not in this build");
             return false;
+        case CHARGE_START_NO_STORAGE:
+            snprintf(reply, reply_size, "@err no_storage: the settings' EEPROM does not answer");
+            return false;
         default:
             snprintf(reply, reply_size, "@err charge mode is already running or asked");
             return false;
@@ -470,7 +473,8 @@ static bool remote_control_wifi(const char *args, char *reply, size_t reply_size
     if (strcmp(args, "scan") == 0) {
         TickType_t started = xTaskGetTickCount();
         if (!wireless_scan_start()) {
-            snprintf(reply, reply_size, "@err busy wifi scan: a scan or a join runs");
+            snprintf(reply, reply_size, wireless_radio_failed() ? "@err no_radio wifi scan: the radio did not start" :
+                     "@err busy wifi scan: a scan or a join runs");
             return false;
         }
         while (wireless_scanning() && xTaskGetTickCount() - started < pdMS_TO_TICKS(12000)) {

@@ -21,6 +21,7 @@
 #include "profile.h"
 #include "scale.h"
 #include "settings.h"
+#include "eeprom.h"
 
 #define CALIBRATION_POLL_MS 50          // how often a wait looks for an answer, a stop and the drivers
 #define CALIBRATION_READING_WAIT_MS 200 // a watch waits for a reading this long at most before it looks again
@@ -630,6 +631,9 @@ calibration_start_result_t calibration_request_start(calibration_part_t part, in
     if (!scale_reads()) {
         return CALIBRATION_START_NO_SCALE;
     }
+    if (!eeprom_reachable()) {
+        return CALIBRATION_START_NO_STORAGE;
+    }
     asked_part = part;
     asked_profile = profile_get(profile >= 0 ? (uint16_t) profile : 0xFFFFu) != NULL ? profile : -1;
     if (!activity_request_start(ACTIVITY_CALIBRATION, by)) {
@@ -913,7 +917,8 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
         snprintf(reply, reply_size, started == CALIBRATION_START_OK ? "@ok calibrate %s" :
                  (started == CALIBRATION_START_DRIVER_FAULT ? "@err driver_fault calibrate %s" :
                   (started == CALIBRATION_START_NO_SCALE ? "@err no_scale calibrate %s" :
-                   "@err busy calibrate %s")), word);
+                   (started == CALIBRATION_START_NO_STORAGE ? "@err no_storage calibrate %s" :
+                    "@err busy calibrate %s"))), word);
         return started == CALIBRATION_START_OK;
     }
     if (strcmp(word, "answer") == 0) {

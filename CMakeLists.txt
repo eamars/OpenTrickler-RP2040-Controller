@@ -129,6 +129,15 @@ option(RC_TEST_NO_AND_FXI "Test build only: the A&D FX-i's make left out" OFF)
 if (RC_TEST_NO_AND_FXI)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_NO_AND_FXI=1)
 endif()
+# The settings' storage when it fails (ADR-017, gate 1), one test build each: the EEPROM looked for where no chip
+# answers; its bus's data line held low; the charge's record read with a byte wrong; a save of the powders cut after
+# three pages of its place by a restart; a stored make of scale that no make has, written at the start
+foreach(test_build EEPROM_ABSENT I2C_HELD_LOW RECORD_DAMAGED SAVE_CUT SCALE_MAKE_UNKNOWN)
+    option(RC_TEST_${test_build} "Test build only (ADR-017, gate 1)" OFF)
+    if (RC_TEST_${test_build})
+        target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_${test_build}=1)
+    endif()
+endforeach()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # The flash layout and the image's metadata block (ADR-004)

@@ -179,7 +179,7 @@ void servo_gate_control_task(void *p) {
 
 
 bool servo_gate_config_save(void) {
-    bool is_ok = save_config(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config, sizeof(servo_gate.eeprom_servo_gate_config));
+    bool is_ok = save_config(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config, sizeof(eeprom_servo_gate_config_t));
     return is_ok;
 }
 
@@ -263,11 +263,9 @@ bool servo_gate_config_init() {
 
     // Read charge mode config from EEPROM
     memset(&servo_gate, 0x0, sizeof(servo_gate));
-    is_ok = load_config(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config, &default_eeprom_servo_gate_config, sizeof(servo_gate.eeprom_servo_gate_config));
-    if (!is_ok) {
-        printf("Unable to read servo gate configuration\n");
-        return false;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1)
+    load_config(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config,
+                &default_eeprom_servo_gate_config, sizeof(eeprom_servo_gate_config_t));
 
     settings_register(&gate_settings);
 

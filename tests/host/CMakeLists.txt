@@ -69,6 +69,7 @@ add_library(ot::freertos ALIAS ot_freertos)
 set(HOST_MODULES
     common/http_json
     common/ring
+    drivers/scale_protocols
     drivers/tmc2209
     services/calibration_method
     services/charge_control
@@ -100,6 +101,10 @@ endforeach()
 # The loader keeping an earlier version's settings (ADR-009, gate 2), over an EEPROM in RAM
 add_executable(config_migration_test config_migration_test.c fake_eeprom.c)
 target_link_libraries(config_migration_test PRIVATE ot::storage ot::charge ot::profile m)
+
+# The scale's framing (ADR-017, gate 2): a stitched frame, a frame with no number, the Generic's long line
+add_executable(scale_framing_test scale_framing_test.c)
+target_link_libraries(scale_framing_test PRIVATE ot::scale_protocols m)
 
 # The charge controller and the tuner as a library the simulation loads (tests/step2_sim.py)
 add_library(charge_lib SHARED charge_lib.c)

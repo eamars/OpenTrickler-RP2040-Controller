@@ -1,18 +1,17 @@
-#include <string.h>
-#include <FreeRTOS.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <semphr.h>
-#include <time.h>
 #include <math.h>
-#include <task.h>
 #include <stdlib.h>
 
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
 
 
+/*
+    A&D FX-i series, standard format: "ST,+00012.34  g" then CR LF, 17 bytes. A frame is taken at its line ending, and
+    only a whole one (ADR-012): before, any 17 bytes were a frame, and a byte left over from before, or lost, shifted
+    the next frame and it was read as it stood.
+
+    Its other commands, for the record: "PRT" print, "SMP" sample, "U" mode, "P" on and off, "OFF" and "ON" the
+    display, each ended by CR LF.
+*/
 typedef union {
     struct __attribute__((__packed__)){
         char header[2];
@@ -25,119 +24,31 @@ typedef union {
 } scale_standard_data_format_t;
 
 
-// Forward declaration
-void _and_scale_listener_task(void *p);
-void scale_press_re_zero_key();
+static float and_scale_parse(const char *frame, size_t len) {
+    (void) len;     // the framer checked it
+    const scale_standard_data_format_t *msg = (const scale_standard_data_format_t *) frame;
+    if (msg->terminator[0] != '\r') {
+        return NAN;
+    }
 
-
-// Instance of the scale handle for A&D FXi series
-scale_handle_t and_fxi_scale_handle = {
-    .read_loop_task = _and_scale_listener_task,
-    .force_zero = scale_press_re_zero_key,
-};
-
-
-static float _decode_measurement_msg(scale_standard_data_format_t * msg) {
-    // Decode header
-    // Doesn't really matter though..
-
-    // Decode weight information
+    // Decode weight information. The header doesn't really matter
     char *endptr;
     float weight = strtof(msg->data, &endptr);
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return nanf(msg->data);
+        return NAN;
     }
 
     return weight;
 }
 
 
-void _and_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;     // Bytes since the last line ending; past a frame's length it only counts
-    scale_standard_data_format_t frame;
-
-    while (true) {
-        // Read all data
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-
-            if (string_buf_idx < sizeof(frame.bytes)) {
-                frame.bytes[string_buf_idx] = ch;
-            }
-            if (string_buf_idx < UINT8_MAX) {
-                string_buf_idx += 1;
-            }
-
-            /*
-                A frame is taken at its line ending, and only a whole one: 15 characters, CR, LF (ADR-012). Before,
-                any 17 bytes were a frame: a byte left over from before, or lost, shifted the next frame and it was
-                read as it stood. A line of another length is not a reading: it is counted as a frame that does
-                not parse.
-            */
-            if (ch == '\n') {
-                if (string_buf_idx == sizeof(frame.bytes) && frame.terminator[0] == '\r') {
-                    float weight = _decode_measurement_msg(&frame);
-                    scale_make_host->tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes), weight);
-                    scale_make_host->publish_measurement(weight);
-                    if (isfinite(weight)) {
-                        scale_make_host->publish_unit(frame.unit, sizeof(frame.unit));    // the frame carries it (gate 4)
-                    }
-                }
-                else if (string_buf_idx > sizeof(frame.terminator)) {
-                    size_t len = string_buf_idx < sizeof(frame.bytes) ? string_buf_idx : sizeof(frame.bytes);
-                    scale_make_host->tap_frame((const uint8_t *) frame.bytes, len, NAN);
-                    scale_make_host->publish_measurement(NAN);
-                }
-
-                string_buf_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
-
-void scale_press_re_zero_key() {
-    char cmd[] = "Z\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-void scale_press_print_key() {
-    char cmd[] = "PRT\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-void scale_press_sample_key() {
-    char cmd[] = "SMP\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-void scale_press_mode_key() {
-    char cmd[] = "U\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-void scale_press_on_off_key() {
-    char cmd[] = "P\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-void scale_display_off() {
-    char cmd[] = "OFF\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-void scale_display_on() {
-    char cmd[] = "ON\r\n";
-    scale_make_host->write(cmd, strlen(cmd));
-}
-
-
-
-// AppState_t scale_enable_fast_report(AppState_t prev_state) {
-//     // TODO: Finish this
-// }
+const scale_make_t and_fxi_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .length = sizeof(scale_standard_data_format_t),
+    .parse = and_scale_parse,
+    .unit_at = offsetof(scale_standard_data_format_t, unit),     // the frame carries it (ADR-003, gate 4)
+    .unit_len = sizeof(((scale_standard_data_format_t *) 0)->unit),
+    .zero = "Z\r\n",        // the RE-ZERO key
+};

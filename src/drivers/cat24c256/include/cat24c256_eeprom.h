@@ -16,7 +16,10 @@ extern "C" {
 
 // The I2C port and its pins
 void cat24c256_eeprom_init();
-// Bytes from an address, across pages. False when the chip did not answer
+// Whether the chip answers: a byte read from its first address (ADR-017, gate 1)
+bool cat24c256_present();
+// Bytes from an address, across pages: a page at a time from an address that starts one. False unless every byte was
+// taken (a write) or given (a read) within the bus's time limit (chip_i2c.h)
 bool cat24c256_write(uint16_t data_addr, uint8_t * data, size_t len);
 bool cat24c256_read(uint16_t data_addr, uint8_t * data, size_t len);
 // Every byte back to 0xFF, as a new chip

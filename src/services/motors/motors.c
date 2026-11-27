@@ -302,12 +302,10 @@ bool motor_config_init(void) {
     // A header and two motors: each motor of an earlier or a later version read for the fields it has
     static const config_layout_t layout = {.header = offsetof(eeprom_motor_data_t, motor_data),
                                            .element = sizeof(motor_persistent_config_t), .count = 2};
-    is_ok = load_config_layout(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data,
-                               sizeof(eeprom_motor_data), &layout);
-    if (!is_ok) {
-        printf("Unable to read motor configuration\n");
-        return is_ok;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1); the defaults carry the true current's
+    // mark, so only a record read is converted below
+    load_config_layout(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data,
+                       sizeof(eeprom_motor_data_t), &layout);
     
     // Copy the initialized data back to the stack
     memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));

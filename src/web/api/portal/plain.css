@@ -334,6 +334,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sheet::backdrop { background: rgb(8 9 11 / 0.55); }
 .sheet h3 { font-size: 1.3rem; margin-top: 8px; }
 .sheet p { color: var(--soft); margin-top: 4px; }
+.sheet .sheet-figures { display: grid; gap: 2px; margin: 14px 0; color: var(--ink); font-weight: 700;
+                        font-variant-numeric: tabular-nums; }
 .cup { width: 64px; height: 64px; stroke-width: 2.2; }
 .cup .drop { fill: currentColor; stroke: none; }
 /* Side by side, the safe one first; a pair too long for one row stacks rather than wraps its words */

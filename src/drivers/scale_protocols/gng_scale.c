@@ -1,26 +1,15 @@
-#include <string.h>
-#include <FreeRTOS.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <semphr.h>
-#include <time.h>
 #include <math.h>
-#include <task.h>
 #include <stdlib.h>
 
-#include "chip_serial.h"
-#include "configuration.h"
 #include "scale_make.h"
 
-const static char CMD_REQUEST_DATA_TRANSFER[] = "!p\r\n";
-const static char CMD_CALIBRATE_FUNC[] = "!q\r\n";
-// const static char CMD_COUNTING_FUNC[] = "!r\r\n";
-const static char CMD_CHANGE_WEIGHT_UNIT[] = "!s\r\n";
-const static char CMD_TARE_FUNC[] = "!t\r\n";
-const static char CMD_BACKLIGHT[] = "!u\r\n";
+/*
+    G&G JJB series: asked for each reading ("p"), and tared to zero ("t").
 
-
-
+    Its commands, each ended by CR LF: p print (a reading), q calibrate, r counting, s the weight's unit, t tare,
+    u the backlight. The scale's C4 setting (communication) gives the byte before each: ESC (0x1B) as it comes,
+    or 33, '!', which the commands here are sent with: set C4 to 33 on the scale.
+*/
 typedef union {
     struct __attribute__((__packed__)){
         char header[2];
@@ -32,19 +21,10 @@ typedef union {
 } gngscale_standard_data_format_t;
 
 
-// Forward declaration
-void _gng_scale_listener_task(void *p);
-void scalegng_press_print_key();
-void scalegng_press_tare_key();
+static float gng_scale_parse(const char *frame, size_t len) {
+    (void) len;
+    const gngscale_standard_data_format_t *msg = (const gngscale_standard_data_format_t *) frame;
 
-
-// Instance of the scale handle for G&G JJB series
-scale_handle_t gng_scale_handle = {
-    .read_loop_task = _gng_scale_listener_task,
-    .force_zero = scalegng_press_tare_key,
-};
-
-static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
     // Decode header
     // Determine sign
     int sign = 1;
@@ -60,7 +40,7 @@ static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return nanf(msg->data);
+        return NAN;
     }
 
     // Apply the sign
@@ -69,76 +49,12 @@ static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
     return weight;
 }
 
-//read UART
-void _gng_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;
-    gngscale_standard_data_format_t frame;
 
-    while (true) {
-        // Request for a data transfer (ESC p)
-        chip_serial_write(SCALE_UART, (const uint8_t *) CMD_REQUEST_DATA_TRANSFER, strlen(CMD_REQUEST_DATA_TRANSFER));
-
-            // Read all data 
-        int got;
-        while ((got = chip_serial_read(SCALE_UART)) != CHIP_SERIAL_NONE) {
-            char ch = (char) got;
-            frame.bytes[string_buf_idx++] = ch;
-
-            // If we have received 14 bytes then we can decode the message
-            if (string_buf_idx == sizeof(gngscale_standard_data_format_t)) {
-                // Data is ready, send to decode
-                scale_make_host->publish_measurement(_decode_measurement_msg(&frame));
-
-                // Reset
-                string_buf_idx = 0;
-            }
-
-            // \n is the terminator. We shall reset the receive of message on receiving any of those character.
-            if (ch =='\n') {
-                string_buf_idx = 0;
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(250));
-    }
-}
-
-//G&G JJB key function
-//C4 communication setting - data signal command control 
-//standard ESC 0x1B to ! 0x22
-//hint:
-//For better syntax change standard setting 'C4' 27 'ESC' symbol at scale to 33 '!' sign 
-
-//ESC p -> 0x1b 0x70 0x0D 0x0A standard setting
-// ! p -> 0x21 0x70 0x0D 0x0A
-void scalegng_press_print_key() {
-    scale_make_host->write(CMD_REQUEST_DATA_TRANSFER, strlen(CMD_REQUEST_DATA_TRANSFER));
-}
-
-//ESC t -> 0x1B 0x74 0x0D 0x0A standard setting
-// ! t -> 0x21 0x74 0x0D 0x0A
-void scalegng_press_tare_key() {
-    scale_make_host->write(CMD_TARE_FUNC, strlen(CMD_TARE_FUNC));
-}
-
-//ESC s -> 0x1B 0x73 0x0D 0x0A standard setting
-// ! s -> 0x21 0x73 0x0D 0x0A
-void scalegng_press_weight_key() {
-    scale_make_host->write(CMD_CHANGE_WEIGHT_UNIT, strlen(CMD_CHANGE_WEIGHT_UNIT));
-}
-
-//ESC q -> 0x1B 0x71 0x0D 0x0A standard setting
-// ! q -> 0x21 0x71 0x0D 0x0A
-void scalegng_press_cal_key() {
-    scale_make_host->write(CMD_CALIBRATE_FUNC, strlen(CMD_CALIBRATE_FUNC));
-}
-
-// ESC u -> 0x1B 0x75 0x0D 0x0A standard setting
-// ! u -> 0x21 0x75 0x0D 0x0A
-void scalegng_display_light() {
-    scale_make_host->write(CMD_BACKLIGHT, strlen(CMD_BACKLIGHT));
-}
-
-// AppState_t scale_enable_fast_report(AppState_t prev_state) {
-//     // TODO: Finish this
-// }
+const scale_make_t gng_scale_make = {
+    .framing = SCALE_FRAME_AT_LF,
+    .length = sizeof(gngscale_standard_data_format_t),
+    .parse = gng_scale_parse,
+    .zero = "!t\r\n",
+    .request = "!p\r\n",
+    .request_ms = 250,
+};

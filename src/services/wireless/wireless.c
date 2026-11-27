@@ -40,6 +40,7 @@ typedef enum {
     WIRELESS_STATE_AP_MODE_LISTEN,
     WIRELESS_STATE_STA_MODE_INIT,
     WIRELESS_STATE_STA_MODE_LISTEN,
+    WIRELESS_STATE_NO_RADIO,            // the radio did not start: the unit runs without the network (ADR-017, gate 1)
 } wireless_state_t;
 
 typedef enum {
@@ -154,11 +155,9 @@ bool wireless_init() {
     bool is_ok = true;
 
     memset(&wireless_config, 0x00, sizeof(wireless_config_t));
-    is_ok = load_config(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata, &default_eeprom_wireless_metadata, sizeof(wireless_config.eeprom_wireless_metadata));
-    if (!is_ok) {
-        printf("Unable to read WiFi configuration\n");
-        return false;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1): none read, the unit's own hotspot
+    load_config(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata,
+                &default_eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
 
     /*
         The name and the key are used as strings everywhere, and are stored in 32 and 64 bytes: a name of 32
@@ -575,8 +574,20 @@ static void wireless_scan_run(void) {
 }
 
 
+// The radio started, and has not been found failed: not before its start, nor after one that failed
+static bool wireless_radio_up(void) {
+    wireless_state_t state = wireless_config.current_wireless_state;
+    return state != WIRELESS_STATE_NOT_INITIALIZED && state != WIRELESS_STATE_NO_RADIO;
+}
+
+
+bool wireless_radio_failed(void) {
+    return wireless_config.current_wireless_state == WIRELESS_STATE_NO_RADIO;
+}
+
+
 bool wireless_scan_start(void) {
-    if (wireless_config.current_wireless_state == WIRELESS_STATE_NOT_INITIALIZED) {
+    if (!wireless_radio_up()) {
         return false;   // no radio: it has not started, or it did not
     }
     rtos_critical_enter();
@@ -826,7 +837,7 @@ static void wireless_rejoin(void) {
 
 // The console's `wifi leave` (ADR-004): the station leaves its network, as when its router goes away
 bool wireless_station_leave(void) {
-    return wireless_config.current_wireless_state != WIRELESS_STATE_NOT_INITIALIZED && chip_net_leave();
+    return wireless_radio_up() && chip_net_leave();
 }
 
 
@@ -894,6 +905,7 @@ void wireless_get_link(wireless_info_t *info) {
             info->mode = "none";
             break;
     }
+    info->no_radio = wireless_config.current_wireless_state == WIRELESS_STATE_NO_RADIO;
     if (!wireless_own_address(info->address, sizeof(info->address))) {
         info->address[0] = '\0';
     }
@@ -932,6 +944,7 @@ void wireless_task(void *p) {
 #endif
     if (!radio) {
         printf("Wi-Fi: the radio did not start: the unit goes on without the network\n");
+        wireless_config.current_wireless_state = WIRELESS_STATE_NO_RADIO;
         vTaskDelete(NULL);
     }
 

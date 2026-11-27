@@ -33,6 +33,7 @@
 #include "scale.h"
 #include "gate.h"
 #include "settings.h"
+#include "eeprom.h"
 #include "update.h"
 #include "update_poll.h"
 #include "version.h"
@@ -46,6 +47,7 @@
 // margin (api_v1.md, "A zero over the API")
 #define API_V1_ZERO_BAND_MARGINS 5.0f
 #define API_V1_RESTART_DELAY_MS 500     // the reply is out before the unit restarts
+#define API_V1_ERASE_FAILED_SHOWN_MS 3000   // a failed factory reset said on the screen before the restart
 #define ARRAY_COUNT(list) (sizeof(list) / sizeof((list)[0]))
 
 
@@ -153,6 +155,11 @@ static void api_busy(http_server_reply_t *reply, const char *message) {
 // A start that needs the scale, with no make in the build for the stored one (ADR-006, gate 9)
 static void api_no_scale(http_server_reply_t *reply) {
     api_error(reply, 409, "no_scale", NULL, "the stored make of scale is not in this build: no scale reads", NULL);
+}
+
+// A start, or a factory reset, with the settings' EEPROM not answering (ADR-017, gate 1)
+static void api_no_storage(http_server_reply_t *reply) {
+    api_error(reply, 409, "no_storage", NULL, "the settings' EEPROM does not answer: nothing can be kept", NULL);
 }
 
 
@@ -354,6 +361,9 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
             return;
         case CHARGE_START_NO_SCALE:
             api_no_scale(reply);
+            return;
+        case CHARGE_START_NO_STORAGE:
+            api_no_storage(reply);
             return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
@@ -681,6 +691,9 @@ static void api_v1_calibration_start(const http_server_request_t *request, http_
             return;
         case CALIBRATION_START_NO_SCALE:
             api_no_scale(reply);
+            return;
+        case CALIBRATION_START_NO_STORAGE:
+            api_no_storage(reply);
             return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
@@ -1610,8 +1623,17 @@ static void api_v1_get_system(const http_server_request_t *request, http_server_
 static void api_v1_restart_task(void *erase) {
     vTaskDelay(pdMS_TO_TICKS(API_V1_RESTART_DELAY_MS));
     http_server_close_all(1000);    // each client told the unit has gone, not left with a request that hangs
-    if (erase != NULL) {
-        eeprom_erase(true);     // restarts when done
+    eeprom_erase_t erased = erase != NULL ? eeprom_erase() : EEPROM_ERASED;
+    if (erased != EEPROM_ERASED) {
+        // Failed, its lock held to the restart; or refused since the request was taken: the screen says so first
+        // (ADR-017, gate 1)
+        const api_v1_screen_t *screen = api_v1_screen();
+        if (screen != NULL && screen->say != NULL) {
+            bool failed = erased == EEPROM_ERASE_FAILED;
+            screen->say("Factory reset", failed ? "failed: settings" : "not done: the unit",
+                        failed ? "may be left in part" : "restarts as it was");
+            vTaskDelay(pdMS_TO_TICKS(API_V1_ERASE_FAILED_SHOWN_MS));
+        }
     }
     chip_restart(0);
     vTaskDelete(NULL);
@@ -1699,6 +1721,15 @@ static void api_v1_system_factory_reset(const http_server_request_t *request, ht
     }
     if (activity_job_runs()) {
         api_busy(reply, "a job runs: stop it first");
+        return;
+    }
+    if (config_holding_writes()) {
+        api_error(reply, 409, "on_trial", NULL, "an update runs on trial: the image it may go back to would find no "
+                  "settings. Try again once it is kept", NULL);
+        return;
+    }
+    if (!eeprom_reachable()) {
+        api_no_storage(reply);
         return;
     }
     if (!api_v1_restart_later(true)) {
@@ -2012,7 +2043,8 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/start\"," API_V1_SCHEMA_CHARGE_FIELDS ","
     "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
     "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 409 "
-    "no_scale when the stored make of scale is not in this build; 400 no_target when none is set\","
+    "no_scale when the stored make of scale is not in this build; 409 no_storage when the settings' EEPROM does not "
+    "answer; 400 no_target when none is set\","
     "\"example\":{\"target\":30}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
@@ -2035,7 +2067,8 @@ static const char *const api_v1_schema_actions[] = {
     "\"integer\",\"about\":\"a powder's part: the profile calibrated, the powder in the hopper; without it, the one "
     "the charge uses\"}],\"refused_while\":\"a_job_runs\",\"about\":\"starts a part of the calibration (202), the "
     "empty cup on the scale first. 409 busy, 409 driver_fault, 409 no_scale (the stored make of scale is not in "
-    "this build). The scale's and a powder's parts turn the tubes\","
+    "this build), 409 no_storage (the settings' EEPROM does not answer). The scale's and a powder's parts turn the "
+    "tubes\","
     "\"example\":{\"part\":\"powder\",\"profile\":2}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/answer\",\"fields\":[{\"name\":\"answer\","
     "\"type\":\"choice\",\"choices\":[\"next\",\"full\",\"keep\",\"done\",\"go_on\"],\"required\":true}],"
@@ -2107,7 +2140,9 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/factory_reset\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
     "\"choices\":[{\"value\":\"factory_reset\",\"label\":\"Factory reset\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
     "\"about\":\"erases the stored settings and restarts (202): the unit then leaves the network and comes back as "
-    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\",\"example\":{\"confirm\":\"factory_reset\"}}",
+    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation; 409 on_trial "
+    "while an update runs on trial; 409 no_storage when the settings' EEPROM does not answer\","
+    "\"example\":{\"confirm\":\"factory_reset\"}}",
 };
 
 // --- An action's usage (ADR-008, gate 2): a GET of an action's path gives its description from the schema, with an

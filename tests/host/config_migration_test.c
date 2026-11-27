@@ -1,7 +1,10 @@
 /*
-    The loader keeps a record an earlier version stored, before fields were appended to its struct (ADR-009, gate 2).
-    A failure would be silent and costly: an update would reset a user's settings to their defaults. load_config and
-    save_config are common.c's own, compiled on the host over an EEPROM in RAM (tests/host_test.py).
+    The loader keeps a record an earlier version stored, before fields were appended to its struct (ADR-009, gate 2),
+    and a load never writes but for a blank place, another version's record and a save the power cut short (ADR-017,
+    gate 1): every other finding leaves the chip as it is and the module on its defaults. A save is whole or not at
+    all. A failure would be silent and costly: an update, or one bad read, would reset a user's settings to their
+    defaults. load_config and save_config are common.c's own, compiled on the host over an EEPROM in RAM that has a
+    real chip's faults put in (fake_eeprom.c; tests/host_test.py).
 */
 #include <math.h>
 #include <stddef.h>
@@ -9,6 +12,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "eeprom.h"
 #include "fake_eeprom.h"
 #include "profile.h"
 #include "charge_mode.h"
@@ -144,7 +148,9 @@ static void powders(void) {
     uint16_t trial_reset[4];
     config_write_held(trial_reset, 4);
 
-    // A record damaged since: nothing read back
+    // A record damaged since, the spare slot holding another record: nothing read back
+    record_v1_t other = {.rev = 0, .a = 1.0f, .b = 2.0f};
+    save_config_now(0x7000, &other, sizeof(other));
     fake_eeprom_bytes()[POWDERS_ADDR + 10] ^= 0x5A;
     check(!config_read_part(POWDERS_ADDR + second, &part, sizeof(part)), "a damaged record reads nothing back");
 
@@ -258,14 +264,249 @@ static void charge_record(void) {
 }
 
 
+/*
+    What a load finds, and what it leaves on the chip (ADR-017, gate 1): each finding put in on the fake chip, the
+    struct checked to hold settings to run on, and the chip's bytes checked unchanged wherever the load must not write
+*/
+#define SPARE_ADDR EEPROM_SPARE_BASE_ADDR
+
+static uint8_t before[EEPROM_SLOT_SIZE];
+
+static void keep_slot(uint16_t addr) {
+    memcpy(before, fake_eeprom_bytes() + addr, sizeof(before));
+}
+
+static bool slot_unchanged(uint16_t addr) {
+    return memcmp(before, fake_eeprom_bytes() + addr, sizeof(before)) == 0;
+}
+
+static bool amiss_names(uint16_t addr, config_found_t want) {
+    uint16_t addrs[4];
+    config_found_t found[4];
+    size_t count = config_amiss(addrs, found, 4);
+    for (size_t idx = 0; idx < count; idx += 1) {
+        if (addrs[idx] == addr) {
+            return found[idx] == want;
+        }
+    }
+    return false;
+}
+
+// Another record saved, so the spare slot holds that one and not the record a test damages
+static void spare_elsewhere(void) {
+    record_v1_t other = {.rev = 0, .a = 1.0f, .b = 2.0f};
+    save_config_now(0x7000, &other, sizeof(other));
+}
+
+
+static void findings(void) {
+    record_v2_t v2;
+    record_v2_t full = {.rev = 0, .a = 3.0f, .b = 4.0f, .c = 5.0f, .d = 6.0f};
+
+    // Blank: its defaults, stored
+    fake_eeprom_erase();
+    config_found_t found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    record_v2_t read_back;
+    check(found == CONFIG_FOUND_BLANK && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) &&
+          config_read_stored(ADDR, &read_back, sizeof(read_back)) && config_is_saved(ADDR, &v2, sizeof(v2)) &&
+          !amiss_names(ADDR, CONFIG_FOUND_BLANK), "a blank place: its defaults, stored, and nothing said");
+
+    // Damaged: the defaults run, the chip as it was, said, not saved; stored once the module is saved
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    spare_elsewhere();
+    fake_eeprom_bytes()[ADDR + 3] ^= 0x5A;
+    keep_slot(ADDR);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_DAMAGED && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) && slot_unchanged(ADDR),
+          "a damaged record: the defaults run, the chip left as it is");
+    check(!config_is_saved(ADDR, &v2, sizeof(v2)) && amiss_names(ADDR, CONFIG_FOUND_DAMAGED),
+          "and it is said: not saved, and amiss");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_DAMAGED && slot_unchanged(ADDR), "the next start finds it the same, still unwritten");
+    check(save_config_now(ADDR, &v2, sizeof(v2)) && config_found(ADDR) == CONFIG_FOUND_READ &&
+          !amiss_names(ADDR, CONFIG_FOUND_DAMAGED) && config_is_saved(ADDR, &v2, sizeof(v2)),
+          "saved by the person: stored, and no longer amiss");
+
+    // A pre-1.17 record (its revision in the first two bytes): not read, not written
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    spare_elsewhere();
+    fake_eeprom_bytes()[ADDR] = 7;
+    keep_slot(ADDR);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_DAMAGED && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) && slot_unchanged(ADDR),
+          "a record whose first two bytes are neither 0 nor blank: the defaults, the chip left as it is");
+
+    // Read two ways, both wrong: the bus at fault, said so, nothing written
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    spare_elsewhere();
+    fake_eeprom_unsteady(ADDR + 3, true);
+    keep_slot(ADDR);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_UNSTEADY && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) && slot_unchanged(ADDR) &&
+          amiss_names(ADDR, CONFIG_FOUND_UNSTEADY), "read two ways: the bus at fault, the defaults, nothing written");
+
+    // The first read wrong, the second whole (the review, finding 3): the record, read at the second try
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    spare_elsewhere();
+    fake_eeprom_unsteady(ADDR + 3, false);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 3.0f, 4.0f, 5.0f, 6.0f) && config_is_saved(ADDR, &v2, sizeof(v2)),
+          "a first read wrong and a second whole: the record read, not the defaults");
+
+    // Not reachable: every load on its defaults, nothing read or written, a save refused
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    keep_slot(ADDR);
+    fake_eeprom_set_reachable(false);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_UNREACHABLE && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f) &&
+          !save_config_now(ADDR, &v2, sizeof(v2)) && amiss_names(ADDR, CONFIG_FOUND_UNREACHABLE),
+          "an EEPROM that does not answer: the defaults, a save refused, said");
+    fake_eeprom_set_reachable(true);
+    check(slot_unchanged(ADDR), "and the chip is as it was");
+
+    // A save cut by the power in its place: the spare holds it whole, and the next start finishes it
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    record_v2_t newer = {.rev = 0, .a = 13.0f, .b = 14.0f, .c = 15.0f, .d = 16.0f};
+    size_t spare_bytes = 8 + sizeof(newer) + 4 + 4;
+    fake_eeprom_cut_after((long) (spare_bytes + 7));        // the spare whole, seven bytes of the place: a byte changed
+    check(!save_config_now(ADDR, &newer, sizeof(newer)), "a save cut by the power says it did not store");
+    fake_eeprom_cut_after(-1);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_FINISHED && v2_is(&v2, 13.0f, 14.0f, 15.0f, 16.0f) &&
+          config_read_stored(ADDR, &read_back, sizeof(read_back)) && v2_is(&read_back, 13.0f, 14.0f, 15.0f, 16.0f),
+          "cut in its place: the next start takes the new record whole from the spare, and stores it in its place");
+
+    // A save cut while the spare was written: the place untouched, the record before it read
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    fake_eeprom_cut_after(10);
+    check(!save_config_now(ADDR, &newer, sizeof(newer)), "a save cut in the spare slot says it did not store");
+    fake_eeprom_cut_after(-1);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 3.0f, 4.0f, 5.0f, 6.0f), "cut in the spare: the last good record read");
+
+    // Every page boundary of a longer record: whatever the cut, one whole record is read, the old or the new
+    static eeprom_profile_data_t old_powders, new_powders, got;
+    memset(&old_powders, 0, sizeof(old_powders));
+    memset(&new_powders, 0, sizeof(new_powders));
+    for (int idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
+        snprintf(old_powders.profiles[idx].name, PROFILE_NAME_MAX_LEN, "Old%d", idx);
+        snprintf(new_powders.profiles[idx].name, PROFILE_NAME_MAX_LEN, "New%d", idx);
+    }
+    static const config_layout_t layout = {.header = offsetof(eeprom_profile_data_t, profiles),
+                                           .element = sizeof(profile_t), .count = MAX_PROFILE_CNT};
+    size_t total = 2 * (8 + sizeof(new_powders) + 4 + 4) ;
+    bool whole = true;
+    for (long cut = 0; cut <= (long) total; cut += 64) {
+        fake_eeprom_erase();
+        save_config_now(POWDERS_ADDR, &old_powders, sizeof(old_powders));
+        fake_eeprom_cut_after(cut);
+        save_config_now(POWDERS_ADDR, &new_powders, sizeof(new_powders));
+        fake_eeprom_cut_after(-1);
+        found = load_config_layout(POWDERS_ADDR, &got, &old_powders, sizeof(got), &layout);
+        bool is_old = memcmp(&got, &old_powders, sizeof(got)) == 0 && found == CONFIG_FOUND_READ;
+        bool is_new = memcmp(&got, &new_powders, sizeof(got)) == 0 &&
+                      (found == CONFIG_FOUND_READ || found == CONFIG_FOUND_FINISHED);
+        if (!is_old && !is_new) {
+            printf("  cut after %ld bytes: %s\n", cut, config_found_text(found));
+            whole = false;
+        }
+    }
+    check(whole, "the powders cut at every page of their save: the old record or the new, whole, never the defaults");
+
+    // A write the chip does not take, with no word: found by its read back, not believed
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    fake_eeprom_drop(ADDR + 6);
+    check(!save_config_now(ADDR, &newer, sizeof(newer)), "a write that does not take is not believed");
+    fake_eeprom_drop(-1);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_FINISHED && v2_is(&v2, 13.0f, 14.0f, 15.0f, 16.0f),
+          "and the next start takes the record from the spare");
+
+    // On a trial: a damaged record is not held as its defaults, so nothing is written for it when the update is kept
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    spare_elsewhere();
+    fake_eeprom_bytes()[ADDR + 3] ^= 0x5A;
+    keep_slot(ADDR);
+    config_hold_writes(true);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    uint16_t reset[4];
+    size_t resets = config_write_held(reset, 4);
+    check(found == CONFIG_FOUND_DAMAGED && resets == 0 && slot_unchanged(ADDR),
+          "on a trial, a damaged record is not written when the update is kept");
+
+    // On a trial, a held write that fails when the update is kept: not saved, and amiss
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    config_hold_writes(true);
+    load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    v2.a = 99.0f;
+    save_config(ADDR, &v2, sizeof(v2));
+    check(config_is_saved(ADDR, &v2, sizeof(v2)), "on a trial, a write held counts as saved");
+    fake_eeprom_set_reachable(false);
+    config_write_held(reset, 4);
+    fake_eeprom_set_reachable(true);
+    check(!config_is_saved(ADDR, &v2, sizeof(v2)) && amiss_names(ADDR, CONFIG_FOUND_NOT_WRITTEN),
+          "its write failing when the update is kept: not saved, and amiss, not dropped silently");
+
+    // The review, finding 1: a place that did not take its write, its one whole copy in the spare, is finished into
+    // its place before another record's save writes over the spare
+    record_v1_t other = {.rev = 0, .a = 1.0f, .b = 2.0f};
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    fake_eeprom_drop(ADDR + 6);
+    check(!save_config_now(ADDR, &newer, sizeof(newer)), "a place that does not take its write: the save says so");
+    fake_eeprom_drop(-1);
+    check(save_config_now(0x7000, &other, sizeof(other)), "another record's save goes on");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 13.0f, 14.0f, 15.0f, 16.0f),
+          "and the record before it was finished into its place first: its new settings read, not lost");
+
+    // ... and while its place still does not take it, another record's save is refused, so the copy is kept
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    fake_eeprom_drop(ADDR + 6);
+    save_config_now(ADDR, &newer, sizeof(newer));
+    check(!save_config_now(0x7000, &other, sizeof(other)),
+          "a place that still does not take it: another record's save refused, the spare's copy kept");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_FINISHED && v2_is(&v2, 13.0f, 14.0f, 15.0f, 16.0f) &&
+          !config_is_saved(ADDR, &v2, sizeof(v2)),
+          "the next start runs on the spare's copy, and says its place does not hold it (not saved)");
+    fake_eeprom_drop(-1);
+
+    // A place that holds a whole record the spare did not write (another firmware's since) keeps it
+    fake_eeprom_erase();
+    save_config_now(ADDR, &full, sizeof(full));
+    record_v2_t elsewhere_written = {.rev = 0, .a = 21.0f, .b = 22.0f, .c = 23.0f, .d = 24.0f};
+    uint32_t crc = software_crc32_continue(0, &elsewhere_written, sizeof(elsewhere_written));
+    memcpy(fake_eeprom_bytes() + ADDR, &elsewhere_written, sizeof(elsewhere_written));
+    memcpy(fake_eeprom_bytes() + ADDR + sizeof(elsewhere_written), &crc, sizeof(crc));
+    fake_eeprom_drop(-1);
+    save_config_now(0x7000, &other, sizeof(other));
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 21.0f, 22.0f, 23.0f, 24.0f),
+          "a whole record in its place that the spare did not write is kept, not overwritten by the spare's");
+}
+
+
 int main(void) {
     record_v2_t v2;
     uint16_t reset[4];
 
     // An update from the earlier version: its fields kept, the appended ones their defaults, stored at the new size
     store_v1();
-    bool ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "an earlier version's record is kept, the appended fields default");
+    config_found_t found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_MIGRATED && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f),
+          "an earlier version's record is kept, the appended fields default");
     record_v2_t read_back;
     check(config_read_stored(ADDR, &read_back, sizeof(read_back)) && v2_is(&read_back, 1.5f, 2.5f, -1.0f, -1.0f),
           "it is stored again at the new size");
@@ -273,40 +514,36 @@ int main(void) {
 
     // The next start reads it as it is
     memset(&v2, 0, sizeof(v2));
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "the next start reads the new record as it is");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "the next start reads the new record as it is");
 
     // A record of the new size, its appended fields set, is read whole
     record_v2_t full = {.rev = 0, .a = 3.0f, .b = 4.0f, .c = 5.0f, .d = 6.0f};
     fake_eeprom_erase();
     save_config_now(ADDR, &full, sizeof(full));
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 3.0f, 4.0f, 5.0f, 6.0f), "a record of the new size is read whole");
-
-    // A damaged record matches at no size: the defaults, as today
-    store_v1();
-    fake_eeprom_bytes()[ADDR + 3] ^= 0x5A;
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f), "a damaged record gets the defaults");
-
-    // A new chip, erased: the defaults
-    fake_eeprom_erase();
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 10.0f, 20.0f, -1.0f, -1.0f), "an erased EEPROM gets the defaults");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_READ && v2_is(&v2, 3.0f, 4.0f, 5.0f, 6.0f), "a record of the new size is read whole");
 
     // On an update's trial: kept in RAM, nothing written until it is confirmed, and not reported as a reset
     store_v1();
     config_hold_writes(true);
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "on trial, the earlier record is kept in RAM");
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_MIGRATED && v2_is(&v2, 1.5f, 2.5f, -1.0f, -1.0f), "on trial, the earlier record is kept in RAM");
     record_v1_t still;
     check(config_read_stored(ADDR, &still, sizeof(still)) && still.a == 1.5f && still.b == 2.5f &&
           !config_read_stored(ADDR, &read_back, sizeof(read_back)),
           "on trial, the EEPROM still holds the earlier record, so going back reads it");
-    check(!config_defaults_held(ADDR), "on trial, it is not held as a reset");
     size_t resets = config_write_held(reset, 4);
     check(resets == 0 && config_read_stored(ADDR, &read_back, sizeof(read_back)) &&
           v2_is(&read_back, 1.5f, 2.5f, -1.0f, -1.0f), "confirmed, it is written at the new size and no reset is said");
+
+    // On a trial, a blank place: held as its defaults, and said reset when the update is kept
+    fake_eeprom_erase();
+    config_hold_writes(true);
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    resets = config_write_held(reset, 4);
+    check(found == CONFIG_FOUND_BLANK && resets == 1 && reset[0] == ADDR && config_read_stored(ADDR, &read_back, sizeof(read_back)),
+          "on trial, a blank place is held as its defaults and said reset when kept");
 
     // A later version's record, its fields appended after ours (the owner, 2026-11-26: forward compatibility): ours
     // read, the rest discarded, and stored at once at this version's size
@@ -314,25 +551,31 @@ int main(void) {
     fake_eeprom_erase();
     save_config_now(ADDR, &later, sizeof(later));
     record_v1_t v1;
-    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1));
-    check(ok && v1.rev == 0 && v1.a == 7.0f && v1.b == 8.0f, "a later version's longer record: our fields read");
+    found = load_config(ADDR, &v1, &defaults_v1, sizeof(v1));
+    check(found == CONFIG_FOUND_MIGRATED && v1.rev == 0 && v1.a == 7.0f && v1.b == 8.0f,
+          "a later version's longer record: our fields read");
     record_v1_t v1_back;
     check(config_read_stored(ADDR, &v1_back, sizeof(v1_back)) && v1_back.a == 7.0f && v1_back.b == 8.0f &&
           !config_read_stored(ADDR, &read_back, sizeof(read_back)),
           "stored at once at our size, the later version's fields discarded");
     check(config_is_saved(ADDR, &v1, sizeof(v1)), "and it counts as saved");
 
-    // The later version again: ours read back, its own fields at their defaults
-    ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
-    check(ok && v2_is(&v2, 7.0f, 8.0f, -1.0f, -1.0f), "the later version reads them back, its own at their defaults");
+    // The later version again: ours read back, its own at their defaults
+    found = load_config(ADDR, &v2, &defaults_v2, sizeof(v2));
+    check(found == CONFIG_FOUND_MIGRATED && v2_is(&v2, 7.0f, 8.0f, -1.0f, -1.0f),
+          "the later version reads them back, its own at their defaults");
 
-    // A damaged longer record matches at no size: the defaults
+    // A damaged longer record matches at no size, the spare holding another record: the defaults, the chip unwritten
     fake_eeprom_erase();
     save_config_now(ADDR, &later, sizeof(later));
+    spare_elsewhere();
     fake_eeprom_bytes()[ADDR + 5] ^= 0x5A;
-    ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1));
-    check(ok && v1.a == 10.0f && v1.b == 20.0f, "a damaged longer record gets the defaults");
+    keep_slot(ADDR);
+    found = load_config(ADDR, &v1, &defaults_v1, sizeof(v1));
+    check(found == CONFIG_FOUND_DAMAGED && v1.a == 10.0f && v1.b == 20.0f && slot_unchanged(ADDR),
+          "a damaged longer record gets the defaults, the chip left as it is");
 
+    findings();
     powders();
     charge_record();
 

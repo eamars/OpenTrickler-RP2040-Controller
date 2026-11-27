@@ -863,11 +863,8 @@ bool update_poll_init(void) {
     update_set_fetcher(&update_poll_fetcher);
     update_poll_mutex = xSemaphoreCreateMutex();
     bool is_ok = update_poll_mutex != NULL && https_client_init();
-    if (!load_config(EEPROM_UPDATE_CONFIG_BASE_ADDR, &update_config, &default_update_config,
-                     sizeof(eeprom_update_config_t))) {
-        printf("Update: the stored source could not be read; GitHub's is used\n");
-        update_config = default_update_config;
-    }
+    // Whatever is found, the struct holds settings to run on (ADR-017, gate 1): GitHub's source when none was read
+    load_config(EEPROM_UPDATE_CONFIG_BASE_ADDR, &update_config, &default_update_config, sizeof(eeprom_update_config_t));
     // A string read back is ended, whatever the slot held
     update_config.source[sizeof(update_config.source) - 1] = '\0';
     settings_register(&update_settings);
