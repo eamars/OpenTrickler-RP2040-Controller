@@ -34,7 +34,7 @@ typedef struct {
     float coarse_stop_backoff_turns; // 0.125, 0.25, 0.5, 1.0
     float coarse_stop_backoff_speed_rps; // if <=0 uses min speed
 
-    uint8_t decimal_places;                 // decimal_places_t
+    decimal_places_t decimal_places;
 
     // Precharge
     bool precharge_enable;

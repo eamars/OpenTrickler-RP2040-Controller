@@ -13,20 +13,20 @@
 #include "scale_make.h"
 
 
-typedef enum {
+typedef enum : uint8_t {
     BAUDRATE_4800 = 0,
     BAUDRATE_9600 = 1,
     BAUDRATE_19200 = 2,
 } scale_baudrate_t;
 
 
-typedef enum {
+typedef enum : uint8_t {
     UART_FMT_8D_1S_NP = 0,
     UART_FMT_7D_1S_NP = 1,
 } scale_uart_format_t;
 
 
-typedef enum {
+typedef enum : uint8_t {
     SCALE_DRIVER_AND_FXI = 0,
     SCALE_DRIVER_STEINBERG_SBS = 1,
     SCALE_DRIVER_GNG_JJB = 2,
@@ -60,9 +60,9 @@ typedef struct {
 
 typedef struct {
     uint16_t scale_data_rev;
-    uint8_t scale_driver;                   // scale_driver_t
-    uint8_t scale_baudrate;                 // scale_baudrate_t
-    uint8_t scale_uart_format;              // scale_uart_format_t
+    scale_driver_t scale_driver;
+    scale_baudrate_t scale_baudrate;
+    scale_uart_format_t scale_uart_format;
     // The calibration's scale (ADR-009 step 1, items 3 and 4); -1 never calibrated. Appended at the end: an earlier
     // version's record is kept by load_config (ADR-009, gate 2)
     float settle_ms;

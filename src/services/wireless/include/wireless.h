@@ -10,7 +10,7 @@
 #define EEPROM_WIRELESS_CONFIG_METADATA_REV                     2              // 16 byte 
 
 
-typedef enum {
+typedef enum : uint8_t {
     AUTH_OPEN = 0,
     AUTH_WPA_TKIP_PSK = 1,
     AUTH_WPA2_AES_PSK = 2,
@@ -22,7 +22,7 @@ typedef struct {
     uint16_t wireless_data_rev;
     char ssid[32];
     char pw[64];
-    uint8_t auth;               // wireless_auth_t
+    wireless_auth_t auth;
     uint32_t timeout_ms;
     bool enable;
     // The set-up finished or skipped (ADR-008, gate 4). In the struct's filler: the size stays 108 bytes, so no unit's

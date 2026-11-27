@@ -2,6 +2,7 @@
 #define NEOPIXEL_LED_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <semphr.h>
 #include "common.h"
 
@@ -35,7 +36,7 @@ typedef struct {
     rgbw_u32_t mini12864_backlight_colour;
 } neopixel_led_colours_t;
 
-typedef enum {
+typedef enum : uint8_t {
     NEOPIXEL_LED_CHAIN_COUNT_1 = 1,  // 1 LED from the same chain
     NEOPIXEL_LED_CHAIN_COUNT_2 = 2,  // 2 LEDs from the same chain
     NEOPIXEL_LED_CHAIN_COUNT_3 = 3,  // 3 LEDs from the same chain
@@ -54,7 +55,7 @@ typedef enum {
     NEOPIXEL_LED_CHAIN_COUNT_16 = 16, // 16 LEDs from the same chain
 } neopixel_led_chain_count_t;
 
-typedef enum {
+typedef enum : uint8_t {
     NEOPIXEL_COLOUR_ORDER_RGB = 0,  // RGB
     NEOPIXEL_COLOUR_ORDER_GRB = 1, // GRB
 } neopixel_colour_order_t;
@@ -65,8 +66,8 @@ typedef struct {
     neopixel_led_colours_t default_led_colours;
 
     // PWM OUT LED configurations
-    uint8_t pwm_out_led_chain_count;        // neopixel_led_chain_count_t
-    uint8_t pwm_out_led_colour_order;       // neopixel_colour_order_t
+    neopixel_led_chain_count_t pwm_out_led_chain_count;
+    neopixel_colour_order_t pwm_out_led_colour_order;
     bool pwm_out_led_is_rgbw;   // true: RGBW, false: RGB
 #if RC_TEST_LAYOUT_CHANGE
     uint32_t rc_test_layout_change;     // a test build's: the stored layout another size (ADR-008, gate 2)

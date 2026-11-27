@@ -26,7 +26,7 @@
 #define UPDATE_NOTE_MAX 96
 #define EEPROM_UPDATE_CONFIG_REV 1                  // never stored: a new slot validates by its CRC (common.c)
 
-typedef enum {
+typedef enum : uint8_t {
     UPDATE_CHANNEL_STABLE = 0,
     UPDATE_CHANNEL_BETA,
 } update_channel_t;
@@ -34,7 +34,7 @@ typedef enum {
 // The stored format: its layout changes nothing else's (EEPROM_UPDATE_CONFIG_BASE_ADDR, a slot of its own)
 typedef struct {
     uint16_t update_config_rev;                     // 0: validated by its CRC
-    uint8_t channel;                                // update_channel_t
+    update_channel_t channel;
     char source[UPDATE_SOURCE_MAX];                 // a repository's address, GitHub's layout under it
 } eeprom_update_config_t;
 
