@@ -95,6 +95,15 @@ static bool update_hash_holds(const picobin_image_t *image, uintptr_t start, uin
 #define UPDATE_BINARY_INFO_SEARCH_BYTES 1024     // the binary information's header lies near the image's start
 
 
+// A word of the image at any byte: the SDK packs its binary information's items, so an item lies where the compiler
+// put it, which at -Os is not always on a word (the RP2040 faults on a word read off one)
+static uint32_t update_image_word(uintptr_t at) {
+    uint32_t word;
+    memcpy(&word, (const void *) at, sizeof(word));
+    return word;
+}
+
+
 /*
  * The board an image was built for: its binary information's pico_board, which picotool shows. The image is read
  * where it lies, and its pointers are where it runs, so each is moved from runs_at into the window it is read
@@ -106,7 +115,7 @@ static bool update_image_board(uintptr_t read_at, uint32_t size, uint32_t runs_a
         if (words[idx] != BINARY_INFO_MARKER_START || words[idx + 4] != BINARY_INFO_MARKER_END) {
             continue;
         }
-        // The image's own pointers: each on a word and inside the slot, or not read (review Q3)
+        // The image's own pointers: its table of items on a word and inside the slot, or not read (review Q3)
         uint32_t start = words[idx + 1];
         uint32_t end = words[idx + 2];
         if (start < runs_at || end < start || end - runs_at > size || ((start | end) & 3u) != 0) {
@@ -114,15 +123,16 @@ static bool update_image_board(uintptr_t read_at, uint32_t size, uint32_t runs_a
         }
         for (uint32_t at = start; at < end; at += 4) {
             uint32_t entry = *(const uint32_t *) (read_at + (at - runs_at));
-            if (entry < runs_at || entry - runs_at > size - 12 || (entry & 3u) != 0) {
+            if (entry < runs_at || entry - runs_at > size - 12) {
                 continue;   // one kept in RAM: not the board's
             }
-            const uint32_t *item = (const uint32_t *) (read_at + (entry - runs_at));
-            if ((item[0] & 0xffffu) != BINARY_INFO_TYPE_ID_AND_STRING || (item[0] >> 16) != BINARY_INFO_TAG_RASPBERRY_PI ||
-                item[1] != BINARY_INFO_ID_RP_PICO_BOARD) {
+            uintptr_t item = read_at + (entry - runs_at);
+            uint32_t kind = update_image_word(item);
+            if ((kind & 0xffffu) != BINARY_INFO_TYPE_ID_AND_STRING || (kind >> 16) != BINARY_INFO_TAG_RASPBERRY_PI ||
+                update_image_word(item + 4) != BINARY_INFO_ID_RP_PICO_BOARD) {
                 continue;
             }
-            uint32_t text = item[2];
+            uint32_t text = update_image_word(item + 8);
             size_t len = 0;
             while (len + 1 < out_size && text >= runs_at && text - runs_at < size - len &&
                    ((const char *) (read_at + (text - runs_at)))[len] != '\0') {

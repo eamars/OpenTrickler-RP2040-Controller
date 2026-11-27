@@ -85,6 +85,10 @@ set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
 # the kernel stays at the build's own level, the one third-party code stepped through
 file(GLOB_RECURSE THIRD_PARTY_OS_SOURCES ${PICO_SDK_PATH}/lib/lwip/src/*.c ${PICO_SDK_PATH}/lib/cyw43-driver/src/*.c
      ${PICO_SDK_PATH}/src/*.c)
+# But the image's binary information, which says its board: at -Os the compiler puts the SDK's packed items on any
+# byte, and a unit on a firmware before ADR-006's gate 10 reads the board only from an item on a word, refusing the
+# image as built for another board (the Pico 2 W's, met 2026-11-27)
+list(FILTER THIRD_PARTY_OS_SOURCES EXCLUDE REGEX "/pico_standard_binary_info/standard_binary_info\\.c$")
 # In the image only: the Pico W's bootloader (flash_layout.cmake) compiles the SDK's sources at the build's own
 # level, as ADR-004 proved it. These rules hold for targets made in the root folder, which the image is: the SDK's
 # sources compile in the image, and a module compiles none of them
