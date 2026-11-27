@@ -160,3 +160,139 @@ The Pico 2 W waits, by the owner's word: the whole ADR on the Pico W first.
 - The three headers that are a module's own will be refused to any other module from gate 3 on. Nothing else is refused until then.
 - `boards/pico_w` does not exist yet: nothing is the Pico W's alone until a board has its list.
 
+## Gate 3: the modules as libraries
+
+2026-11-27, approved by the owner ("And continue with the gate"), after PR #139 merged gates 1 and 2. On the branch `adr006_gate3`. Commit dceafe6.
+
+**The verdict: each of the 34 modules is built on its own, naming what it needs, and both boards' images are symbol for symbol what they were.** The compiler now refuses an include of anything a module does not name.
+
+### What was built
+
+- **A `CMakeLists.txt` in every module's folder**, one call each: `ot_module(SRCS ... INCLUDE_DIRS include REQUIRES ... PRIV_REQUIRES ...)`. What a module requires was read off its files, not chosen: `REQUIRES` is what its headers in `include/` include, `PRIV_REQUIRES` what only its sources do. Loops and all: nothing was cut to make it build.
+- **The boards' files:** `src/boards/pico_w/board.cmake` and `pico2_w/board.cmake`, each the base build, whole; `boards/common/base.cmake` with what both share: the third-party code and the libraries the image links, the third-party names, the `-Os` rule, the base build's list of modules.
+- **What the build makes went to the module that uses it:** the PIO headers to `platform/rp2`, the pages to `web/api`, the fonts to `ui/view_12864`, the roots to `services/update_fetch`, the version to `app/app`. `src/CMakeLists.txt` is gone. Nothing is found by a glob: a source is named in its module's `SRCS`.
+- **`ot_module()`** takes its name from its folder, and a module with no sources is its headers only (`platform`, and the servo gate when a build leaves it out).
+- **`tools/module_graph.py`** reads the modules' build files and prints what stands against the layers, ending in a verdict. Its counts are gate 6's and gate 7's meter.
+
+### Found on the way
+
+- **A module's library comes last on the link line, after an archive it needs.** The first link failed with every LVGL name undefined: LVGL is a real static library, the image named it before the modules, and the linker had passed it by the time a module asked. The other third-party code did not fail, since its sources are the image's own objects. So a module that requires `lvgl` links the real library, and CMake puts it after.
+- **`rp2_sdk` was one library short:** `common.c` includes `hardware/dma.h`, which the image had through the network's libraries. `hardware_dma` is named now. It was the first build's only compile error.
+- **Two folders had to be split, so a requirement would not hand over more than it says.** Requiring FreeRTOS brings `FreeRTOSConfig.h`'s folder, and requiring LVGL brings `lv_conf.h`'s. Where those lay (`boards/common`, the view's `include/`), a module requiring only FreeRTOS would have had the pin map, and one requiring only LVGL the view's own header. So the third-party settings are in `boards/common/settings`, and `lv_conf.h` in `ui/view_12864/lv_conf`. Five files moved; the gate's text said none would.
+- **`app.h` gave fourteen files nothing.** It declares the start-up's two functions and includes `eeprom.h`. The ten scale makes, the two modes, the motors, the scale and the access point included it and used nothing of it. The ADR named two such includes (`eeprom.c`'s, and `scale.h`'s `app.h`); these are the same kind, and with them seven modules below `app` required `app`. Dropped; no file needed `eeprom.h` put in its place. No module requires `app` now.
+
+### The modules, and what stands against the layers
+
+`python tools/module_graph.py --modules --markdown`, at this gate:
+
+34 modules:
+- app/app: requires storage; its sources also activity api board charge events freertos jobs leds menu mini_12864 motors profile remote_control rp2_sdk scale servo_gate uc1701 update update_fetch wireless
+- ui/menu: requires activity; its sources also api calibration charge cleanup events freertos http_server jobs lvgl mini_12864 motors profile rp2_sdk scale servo_gate settings storage system uc1701 update update_fetch version view_12864 wireless
+- ui/mini_12864: requires nothing; its sources also board freertos rp2 rp2_sdk settings storage uc1701
+- ui/view_12864: requires lvgl menu
+- web/api: requires nothing; its sources also activity calibration charge cleanup events freertos http_json http_server leds lwip menu mini_12864 motors profile rp2_sdk scale servo_gate settings storage system uc1701 update update_fetch version wireless
+- web/http_server: requires nothing; its sources also freertos lwip rp2_sdk
+- console/remote_control: requires nothing; its sources also activity calibration charge freertos http_server lwip menu mini_12864 motors profile rp2_sdk scale settings storage uc1701 update version wireless
+- services/activity: requires nothing; its sources also freertos
+- services/calibration: requires activity calibration_method; its sources also charge events freertos jobs menu motors profile rp2_sdk scale settings
+- services/calibration_method: requires nothing
+- services/charge: requires activity events leds storage; its sources also charge_control freertos jobs menu mini_12864 motors profile ring rp2_sdk scale servo_gate settings uc1701
+- services/charge_control: requires nothing
+- services/cleanup: requires activity motors; its sources also charge events freertos jobs menu mini_12864 scale servo_gate storage uc1701
+- services/events: requires nothing; its sources also activity freertos http_json rp2_sdk update version
+- services/jobs: requires activity; its sources also calibration charge cleanup freertos menu update
+- services/leds: requires freertos storage; its sources also activity board rp2 settings
+- services/motors: requires freertos rp2 storage; its sources also board events rp2_sdk settings tmc2209
+- services/profile: requires nothing; its sources also activity settings storage
+- services/scale: requires freertos; its sources also board charge motors rp2_sdk settings storage
+- services/servo_gate: requires freertos; its sources also board rp2_sdk settings storage
+- services/settings: requires activity; its sources also api events http_json http_server storage version wireless
+- services/storage: requires freertos rp2_sdk; its sources also system
+- services/system: requires nothing; its sources also http_server rp2_sdk storage version
+- services/update: requires activity; its sources also api events freertos http_json http_server jobs mbedtls menu mini_12864 platform rp2 rp2_sdk storage uc1701 update_fetch version wireless
+- services/update_fetch: requires nothing; its sources also activity events freertos lwip mbedtls rp2_sdk settings storage update version wireless
+- services/wireless: requires activity; its sources also api events freertos http_server lwip mbedtls mini_12864 rp2 rp2_sdk settings storage uc1701 update update_fetch version
+- drivers/cat24c256: requires nothing; its sources also board freertos rp2_sdk storage
+- drivers/scale_protocols: requires nothing; its sources also board freertos rp2_sdk scale
+- drivers/tmc2209: requires nothing
+- drivers/uc1701: requires nothing; its sources also board freertos rp2_sdk storage
+- common/http_json: requires nothing
+- common/ring: requires nothing
+- platform/platform: requires nothing
+- platform/rp2: requires lwip rp2_sdk; its sources also board freertos motors platform
+25 requirements go up, against the layers:
+- web/api requires ui/menu (its sources)
+- web/api requires ui/mini_12864 (its sources)
+- console/remote_control requires web/http_server (its sources)
+- console/remote_control requires ui/menu (its sources)
+- console/remote_control requires ui/mini_12864 (its sources)
+- services/calibration requires ui/menu (its sources)
+- services/charge requires ui/menu (its sources)
+- services/charge requires ui/mini_12864 (its sources)
+- services/cleanup requires ui/menu (its sources)
+- services/cleanup requires ui/mini_12864 (its sources)
+- services/jobs requires ui/menu (its sources)
+- services/settings requires web/api (its sources)
+- services/settings requires web/http_server (its sources)
+- services/system requires web/http_server (its sources)
+- services/update requires web/api (its sources)
+- services/update requires web/http_server (its sources)
+- services/update requires ui/menu (its sources)
+- services/update requires ui/mini_12864 (its sources)
+- services/wireless requires web/api (its sources)
+- services/wireless requires web/http_server (its sources)
+- services/wireless requires ui/mini_12864 (its sources)
+- drivers/cat24c256 requires services/storage (its sources)
+- drivers/scale_protocols requires services/scale (its sources)
+- drivers/uc1701 requires services/storage (its sources)
+- platform/rp2 requires services/motors (its sources)
+2 loops:
+- 19 modules: api calibration charge cleanup events jobs leds menu mini_12864 motors profile rp2 scale servo_gate settings update update_fetch view_12864 wireless
+- 2 modules: storage system
+20 modules besides platform/rp2 require the Pico SDK itself:
+- app/app console/remote_control drivers/cat24c256 drivers/scale_protocols drivers/uc1701 services/calibration services/charge services/events services/motors services/scale services/servo_gate services/storage services/system services/update services/update_fetch services/wireless ui/menu ui/mini_12864 web/api web/http_server
+
+The tool ends `VERDICT FAIL 25 requirements go up, 21 modules in 2 loops, 20 modules on the Pico SDK`. That is this gate's finding, not its failure: gate 6 brings the first two to none, gate 7 the third.
+
+What it says, read plainly:
+- **One loop holds 19 of the 34 modules.** The menu is in it with the jobs, the web's API, the update and the Wi-Fi, so today none of them can be taken out of a build alone.
+- **Five modules are free of everything:** `tmc2209`, `charge_control`, `calibration_method`, `http_json` and `ring` require nothing, no RTOS and no chip. The compiler says so now, not a reading of the code.
+- **13 of the 25 upward requirements are into `ui/`, and 8 into `web/`**: the screen named from below, which is what stands between today's tree and another screen.
+- **A requirement the build files cannot show:** a file that declares another module's variable `extern` itself, without the header, needs that module and names nothing. Gate 6 turns each into a call, and the requirement appears.
+
+### The proofs, on the PC
+
+Against gate 2's images (`build_adr006/move_w`, `move_2w`):
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Symbols | 4,688, `VERDICT PASS` | 4,693, `VERDICT PASS` |
+| `app.bin` | 938,452 bytes, 16 more | 923,796 bytes, the same |
+| Bootloader | byte for byte the same | none |
+| `isr_hardfault` from | `libot_rp2.a` | `libot_rp2.a` |
+
+- **Every compile command, before against after:** no source's definitions or options changed, of 844 and 841; no third-party source's compile changed at all. 63 of our own sources now see fewer third-party include paths than they did.
+- **What a module may include, tried twice and not kept:** `tmc2209.c`, a driver that requires nothing, made to include `motors.h`: `fatal error: motors.h: No such file or directory`. `http_json.c`, a helper, made to include `lwip/sockets.h`: refused the same way.
+- **A build without the servo gate** (`-DFEATURE_SERVO_GATE=OFF`), against the same built from main: 4,655 symbols, `VERDICT PASS`.
+- **The other builds:** the two fault test images; a whole release, its five builds, the hard fault's handler from the module in the update images.
+- `tools/size_report.py`: the same parts to the tenth of a KB (the Pico W 915.1 KB of its 1,016 KB slot), the pages still told apart inside the API's library.
+- `tests/host_test.py`, `release_records.py`, `features_check.py`: `VERDICT PASS`.
+
+### On the unit
+
+2026-11-27, the bench's Pico W, the bench ready and the hopper empty (the owner). The images rebuilt from the commit: the unit runs 2.0.3-296 at dceafe6.
+
+- **`pulses`: `VERDICT PASS`**, the three faults; the cup 0.0 gr before and after.
+- **`menu_tour --compare tests/menu_baseline/pico_w`: `VERDICT PASS`**, 14 pages the same and 3 not judged.
+- **`charge_cycle`: `VERDICT PASS`**, 30.000 for a target of 30.000, 12.9 s from charging to the cup prompt.
+- **The portal:** `GET /` gives 42,286 bytes gzipped, the size the build made.
+- **The unit's settings** against the copy from before gate 1: 17 resources, the same.
+
+The Pico 2 W waits, by the owner's word.
+
+**Gate 3 is built.**
+
+### For gate 4
+
+- A module's build file is data now: the PC build can take the five free modules, and `storage`'s loader, by the same call with another `ot_module()`.
+- `storage` requires FreeRTOS and the Pico SDK through `common.h`, which every user of a stored record includes. The host test stands in for both today.

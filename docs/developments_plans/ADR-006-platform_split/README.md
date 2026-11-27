@@ -1,6 +1,6 @@
 # ADR-006: the application apart from the platform
 
-Status: **Open** 2026-11-27. Gates 1 and 2 built, proven on the Pico W and merged (#139): the build's mechanics, and every file in its module's folder. Gate 3, the modules as libraries, approved by the owner the same day and being built. The gates after it are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
+Status: **Open** 2026-11-27. Gates 1 to 3 approved by the owner, built and proven on the Pico W the same day: the build's mechanics, every file in its module's folder, and every module built on its own with what it needs named. Gates 1 and 2 are merged (#139). The gates after 3 are not approved. The Pico 2 W's runs wait, by the owner's word, until the whole ADR is proven on the Pico W.
 
 ## What we want
 
@@ -383,6 +383,12 @@ One thing: each module built on its own. No file moves.
 6. Proof: the symbols as before, both boards; a module made to include a header it does not require fails to compile (tried once, not kept); `pulses`; the five release builds and the test images build; the size within 1 KB; then `flash`, `menu_tour --compare`, `charge_cycle` on both boards.
 7. Merged by a PR of its own.
 
+**Built 2026-11-27** ([progress](progress.md)): 34 modules, each with its build file, both boards' images symbol for symbol what they were; on the Pico W `pulses`, the menu tour and a charge cycle pass. What differs from the steps above:
+- five files did move, to folders of their own (`boards/common/settings`, `ui/view_12864/lv_conf`), so that requiring FreeRTOS or LVGL does not hand a module the pin map or the view's header;
+- `app.h` was dropped from fourteen more files that used nothing of it, the same kind of include as the two named;
+- the graph in progress.md is `tools/module_graph.py`'s, read from the modules' build files, not CMake's `--graphviz`, which draws the SDK's hundred targets with ours: 25 requirements go up, 21 modules are in 2 loops (one of 19), 20 modules require the Pico SDK;
+- a module's optimisation is still the build's own: a board's list of them comes with gate 9.
+
 ### Gate 4: the PC build
 
 1. The CMake project under `tests/host`, `ot_module` given for the PC, the stand-ins as its `freertos` target.
@@ -413,7 +419,7 @@ In this order, the cheapest first, and those that free the screen and the tubes 
 7. **Other modules' state by `extern`:** `scale_config` (16 files) and `charge_mode_config` (8) behind their module's calls; the scale's eleven handles handed to `scale` by the makes; `neopixel_led_config`.
 
 Proof, each cut: both boards build; the path it touched run on the unit, by the command that has it (a restart and its clients: `api_check`; the update: `slot_trial` and `update` from the local OTA server; a job's start refused and taken: `charge_cycle`, a purge, `reach`).
-At the gate's end: the graph with no loop and no arrow upward; `menu_tour --compare`, `charge_cycle`, `api_check`, `settings_roundtrip`. The unit on the probe, and the Pico W for the network's cuts.
+At the gate's end: `tools/module_graph.py` with no loop and no requirement upward (25 and 2 at gate 3); `menu_tour --compare`, `charge_cycle`, `api_check`, `settings_roundtrip`. The unit on the probe, and the Pico W for the network's cuts.
 
 ### Gate 7: the platform's interfaces
 
