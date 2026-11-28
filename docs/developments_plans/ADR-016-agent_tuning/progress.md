@@ -98,3 +98,18 @@ On the Pico W (2.0.3-414 to -416, flashed by the probe from `build_w`; its setti
 **Not run: a factory reset clearing the PIN.** The erase clears every record and the PIN lies in the Wi-Fi record, so a reset clears it by construction; but a reset on the bench's unit leaves its network for its own hotspot, and its Wi-Fi key is the owner's, not in any copy. Left for the owner's word: run it with him at the unit, or accept it as read.
 
 **For the Pico 2 W's next tour:** its baseline has no `settings/clear_pin`; the tour fails on it as a new page until it is saved there (`--save` into a scratch folder, that one picture copied in, as on the Pico W).
+
+## Before the close: reuse and flash (the owner, 2026-11-29)
+
+The owner asked, before the close, whether existing code was reused and the flash used well. It had not been, in five places, each a copy of what was there:
+- the throws' reply copied the event log's (its stream, its held read, its resume, its query): now one numbered-log reader (`api_v1_log_t` in `api_v1_commands.c`), each log a list name, its newest's name, its numbers and an item's writer;
+- a 64-bit number written into JSON three times (`events.c`, `api_v1_commands.c`'s `write_u64`, `charge_throws.c`) and a member's name twice: now `http_json_u64` and `http_json_member`, used by all three;
+- the server's PIN refusal copied `slot_refuse` to add its Retry-After: now `slot_refuse_after`, which `slot_refuse` calls;
+- the PIN's prompt was a dialog and a function of its own: now the one confirmation (`confirmAction`) with a field it shows only for the PIN;
+- the PIN action's schema line and two index lines said again what api_v1.md and the guide say: shortened.
+
+Flash 951.0 KB against 952.2: **1.2 KB back**; ADR-016 16.2 KB of its 18. Left as they are, judged not worth their cost: the throw table's lines in the schema (each short, each what an agent reads), the guide (rehearsed), `sim lag` (0.8 KB, the rehearsal's stand-in), and our code's `-O0`, the owner's rule until ADR-005's trigger.
+
+On the Pico W (2.0.3-417, `444a4e8e`), each `VERDICT PASS`: `flash`; `menu_tour --compare`; `charge_cycle`; `api_check` (48 paths, 48 actions, 103 routes); `tuning_check` (the held read 24.8 s, answered as the throw was recorded); `pin_check`; `soak 180 --target 10 --throws` (8 charges, 0 of 1,172 web reads missed, both event followers 64 events, the throws follower 16 records with no gap, the heap 47,912 bytes quiet before and after). `host_test.py`, `module_graph.py`: `VERDICT PASS`. The prompt in the confirmation looked at on the stand-in: it asks, asks again after a wrong PIN, and the factory reset's confirmation still shows no field.
+
+**Seen twice, both soaks: the throws follower's first held reads reset** as the soak's nine clients start at once (two of them at 00:06:14 this time, one in gate 1's), the unit's console saying nothing, the follower reading again and missing no throw. The server has six slots and holds two reads at most (`HTTP_SERVER_PARK_MAX`); the event followers hold those two, so the throws follower's held read is the third client of its kind and the ninth of all. ADR-003's capacity, not a fault of the throws' code; whether a client beyond the slots should be reset or wait is put to the release candidate's review.
