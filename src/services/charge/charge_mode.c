@@ -176,7 +176,6 @@ typedef struct {
 static charge_step2_t * step2 = NULL;           // from the heap at the first charge, kept from then on
 static charge_room_t * charge_room = NULL;
 static int charge_tuned_profile = -1;           // the powder they are for; -1 none yet
-static char charge_tuned_unit[4] = "";          // the scale's unit then
 static bool charge_tuning = false;              // the switch then
 static float charge_tuned_target = NAN;         // the target the tuner's throws were thrown at
 static float charge_fine_part_seconds = 0.0f;   // the last throw's: from the coarse tube's stop to the throw's
@@ -210,14 +209,12 @@ static size_t charge_heap_low = SIZE_MAX;
 
 static void charge_step2_configure(profile_t * profile) {
     eeprom_charge_mode_data_t * data = &charge_mode_config.eeprom_charge_mode_data;
-    const char * unit = scale_get_unit();
     int idx = (int) profile_get_selected_idx();
-    bool same = idx == charge_tuned_profile && strncmp(unit ? unit : "", charge_tuned_unit, sizeof(charge_tuned_unit)) == 0;
+    bool same = idx == charge_tuned_profile;
     if (!same) {
-        // Another powder or another unit of weight: nothing carried holds
+        // Another powder: nothing carried holds
         charge_controller_init(&step2->controller);
         charge_tuned_profile = idx;
-        snprintf(charge_tuned_unit, sizeof(charge_tuned_unit), "%s", unit ? unit : "");
     }
     if (!same || data->auto_tune != charge_tuning || profile->fine_kp != charge_profile_kp ||
         profile->fine_kd != charge_profile_kd || profile->fine_ki != charge_profile_ki ||

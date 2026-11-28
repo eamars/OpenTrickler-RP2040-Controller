@@ -161,9 +161,6 @@ bool scale_reads(void);
 // The name of the driver that runs
 const char * get_scale_driver_string();
 
-// The weight's unit where the make's frame carries it (the A&D's): "g", "gn"; NULL when it cannot tell (gate 4)
-void scale_publish_unit(const char *unit, size_t len);
-const char *scale_get_unit(void);
 // Whether the driver that runs can ask its scale to zero
 bool scale_can_zero(void);
 // Ask the scale to zero, counted: a charge waiting for zero takes no readings from before one (gate 4)

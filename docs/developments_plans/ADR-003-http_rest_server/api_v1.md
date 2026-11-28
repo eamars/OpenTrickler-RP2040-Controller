@@ -193,7 +193,7 @@ The steps: `cup_on`, `zeroing`, then the cup's `fill`, `keep`, `empty` (its `lif
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/scale` | | `weight` (null with no reading); `unit` (gn, g, or null when the make cannot tell: null for all but the A&D, whose frame carries it); `driver`, the one that runs (null when none does: the stored make is not in this build, ADR-006, gate 9); `simulated` (the console's stand-in is running in its place); `usual_interval_ms` (the scale's rhythm, ADR-013); `bad_frames`; `actions`, what this make can be asked to do (zero now; its display, its fast report later) |
+| `GET /api/v1/scale` | | `weight` (null with no reading), a number alone: the firmware assumes no unit and reports none (the owner, 2026-11-29: "strictly no assumption of the unit"; `unit` was given here until then, the A&D's alone); `driver`, the one that runs (null when none does: the stored make is not in this build, ADR-006, gate 9); `simulated` (the console's stand-in is running in its place); `usual_interval_ms` (the scale's rhythm, ADR-013); `bad_frames`; `actions`, what this make can be asked to do (zero now; its display, its fast report later) |
 | `POST /api/v1/scale/zero` | `{}` | 200: the scale was asked to zero, not that it did (some scales do not zero while unsteady); a client reads the weight after. When it is taken is in the table below. 501 `not_supported` when the make cannot |
 | `GET /api/v1/gate` | | `state` (open, closed, partial, held, disabled), `ratio` (0 open to 1 closed; null when disabled). `held`: the menu's "Disable", which moves the servo no more and leaves it at its last duty, `ratio` the last one (`servo_gate.c`); charge mode moves it again when it needs it. `disabled`: off in its settings (`settings/gate.enable`), so charge mode does not use it |
 | `PATCH /api/v1/gate` | `{"ratio": 0.5}` | 200. 409 `gate_disabled` when it is off in its settings; 409 `busy` while `in_throw`. Holding it as the menu's "Disable" does is not offered in v1: no page sends it, and a held gate reads back its last ratio |
@@ -418,7 +418,7 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | Another chip | ADR-007 | `board`, `features`; what is chip-only (lwIP's pools) is under `debug` |
 | The scale's display, its fast report (TODOs in `and_scale.c`, `gng_scale.c`) | the scale drivers | `actions` in `GET /api/v1/scale`, and `POST /api/v1/scale/{action}` for each make that can |
 | Zero on scales whose drivers cannot yet (Steinberg, Creedmoor, Sartorius, US Solid, JM Science, FA-E/EN, generic: TODOs) | the scale drivers | 501 `not_supported` now; `actions` lists zero once a driver can |
-| The weight's unit for every make | the scale drivers | `unit`, null today but for the A&D |
+| The weight's unit for every make | the scale drivers | None: the firmware assumes no unit and shows none (the owner, 2026-11-29). A person names a unit in a powder's or a load's name if they like (ADR-014) |
 | Which unit is which, among several | OWMC's ADR-013 (the owner's review) | `hostname` and `unit_id` in the index, `GET /api/v1/network`, and the mDNS announcement with the API's and the firmware's versions |
 | The console and the API saying the same | ADR-001, the owner | One table of names for both (gate 3) |
 | A password | ADR-016 | Built as the web's PIN (gate 3): made at each start, shown on the unit, the cookie `pin=`, paths unchanged |

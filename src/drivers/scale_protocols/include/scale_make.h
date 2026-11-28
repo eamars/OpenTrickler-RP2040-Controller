@@ -32,9 +32,6 @@ typedef struct {
     // The weight a frame reads as, in the scale's unit; NAN for a frame with no number. `frame` is its `len` bytes
     // as they came, its line ending included, with a NUL after them
     float (*parse)(const char *frame, size_t len);
-    // Where in a frame the unit of its weight lies, for the scale to report (the A&D's); unit_len 0 for none
-    uint8_t unit_at;
-    uint8_t unit_len;
     const char *zero;               // the command that zeroes the scale; NULL, it cannot be zeroed from here
     const char *request;            // asked for: the request each reading answers, sent every request_ms; NULL, it streams
     uint32_t request_ms;

@@ -25,13 +25,9 @@ void scale_reader_restart(void) {
 
 // A frame found: tapped as it came (ADR-013), and published through the one door, NAN for one with no number
 static void scale_reader_publish(void *context, const char *frame, size_t len, float weight) {
-    const scale_make_t *make = context;
-
+    (void) context;
     scale_tap_frame((const uint8_t *) frame, len, weight);
     scale_publish_measurement(weight);
-    if (isfinite(weight) && make->unit_len > 0) {
-        scale_publish_unit(frame + make->unit_at, make->unit_len);
-    }
 }
 
 

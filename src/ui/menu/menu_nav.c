@@ -1040,8 +1040,6 @@ static int step_decimals(float step) {
 }
 
 
-static const char *unit_text(void);
-
 static void value_setting_step(const menu_row_t *row, char *out, size_t room) {
     const setting_field_t *field = settings_field(row->path, row->name);
     char text[16];
@@ -1049,10 +1047,7 @@ static void value_setting_step(const menu_row_t *row, char *out, size_t room) {
         snprintf(out, room, "?");
         return;
     }
-    // A weight's unit is the scale's, as the charge shows it
-    bool weight = field->unit != NULL && strcmp(field->unit, "weight") == 0;
-    snprintf(out, room, "%.*f%s%s", step_decimals(field->edit_step), (double) strtof(text, NULL),
-             weight && unit_text()[0] != '\0' ? " " : "", weight ? unit_text() : "");
+    snprintf(out, room, "%.*f", step_decimals(field->edit_step), (double) strtof(text, NULL));
 }
 
 
@@ -1488,9 +1483,7 @@ static void value_cup_capacity(const menu_row_t *row, char *out, size_t room) {
         snprintf(out, room, "Not done");
         return;
     }
-    char weight[16];
-    format_weight(capacity, weight, sizeof(weight));
-    snprintf(out, room, "%s%s%s", weight, unit_text()[0] != '\0' ? " " : "", unit_text());
+    format_weight(capacity, out, room);
 }
 
 
@@ -2083,8 +2076,7 @@ static uint8_t calibration_result_lines(const calibration_status_t *cal, char la
         float margin;
         if (calibration_margin_kept(&cal->scale, &margin)) {
             snprintf(label[count], MENU_TEXT, "Charge margins");
-            snprintf(value[count++], MENU_TEXT, "%.3f%s%s", (double) margin, unit_text()[0] != '\0' ? " " : "",
-                     unit_text());
+            snprintf(value[count++], MENU_TEXT, "%.3f", (double) margin);
         }
         seconds = cal->scale.seconds;
         poured = cal->scale.poured;
@@ -2110,8 +2102,7 @@ static uint8_t calibration_result_lines(const calibration_status_t *cal, char la
                 // Its weight a turn, kept as step 2's first figure for this powder
                 snprintf(label[count], MENU_TEXT, "A turn");
                 if (isfinite(cal->fine.stream_per_turn) && cal->fine.stream_per_turn > 0.0f) {
-                    snprintf(value[count++], MENU_TEXT, "%.3f%s%s", (double) cal->fine.stream_per_turn,
-                             unit_text()[0] != '\0' ? " " : "", unit_text());
+                    snprintf(value[count++], MENU_TEXT, "%.3f", (double) cal->fine.stream_per_turn);
                 }
                 else {
                     snprintf(value[count++], MENU_TEXT, "Not found");
@@ -2123,8 +2114,7 @@ static uint8_t calibration_result_lines(const calibration_status_t *cal, char la
         failure = cal->fine.failure[0] != '\0' ? cal->fine.failure : cal->coarse.failure;
     }
     snprintf(label[count], MENU_TEXT, "Took");
-    snprintf(value[count++], MENU_TEXT, "%.1f min, %.0f%s%s", (double) (seconds / 60.0f), (double) poured,
-             unit_text()[0] != '\0' ? " " : "", unit_text());
+    snprintf(value[count++], MENU_TEXT, "%.1f min, %.0f", (double) (seconds / 60.0f), (double) poured);
     // Why an item was not found, as the web says it: its lines under Took
     uint8_t first = count;
     count = wrap_into(failure, false, label, bold, count);
@@ -2942,7 +2932,6 @@ static void screen_setup(menu_screen_t *screen, const menu_page_t *page, const f
             float weight = scale_get_current_measurement();
             if (isfinite(weight)) {
                 format_weight(weight, screen->figure, sizeof(screen->figure));
-                snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
                 snprintf(screen->context, sizeof(screen->context), "The scale sends its weight");
             }
             else {
@@ -3052,16 +3041,6 @@ static void screen_choice(menu_screen_t *screen, const frame_t *frame) {
 }
 
 
-// The scale's unit as a person reads it: "gr" for grains, as the powder profiles write it; "" when not known
-static const char *unit_text(void) {
-    const char *unit = scale_get_unit();
-    if (unit == NULL) {
-        return "";
-    }
-    return strcmp(unit, "gn") == 0 ? "gr" : unit;
-}
-
-
 static void screen_edit(menu_screen_t *screen, const frame_t *frame) {
     screen->kind = MENU_SCREEN_EDIT;
     snprintf(screen->id, sizeof(screen->id), "edit");
@@ -3082,7 +3061,6 @@ static void screen_edit(menu_screen_t *screen, const frame_t *frame) {
         screen->figure[len++] = (char) ('0' + frame->digits[idx]);
     }
     screen->figure[len] = '\0';
-    snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
     // Past the digits the focus is on Cancel, then Set
     snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
     snprintf(screen->softkey_right, MENU_TEXT, "Set");
@@ -3151,7 +3129,6 @@ static void calibration_dialog(menu_screen_t *screen, const char *title, const c
 
 static void calibration_weight_figure(menu_screen_t *screen, float weight) {
     format_weight(weight, screen->figure, sizeof(screen->figure));
-    snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
 }
 
 
@@ -3162,8 +3139,6 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
     snprintf(screen->id, sizeof(screen->id), "job/calibration");
     char line[MENU_TEXT];
     char weight[16];
-    const char *unit = unit_text();
-    const char *space = unit[0] != '\0' ? " " : "";
     switch (cal.step) {
         case CALIBRATION_STEP_CUP_ON:
             if (cal.part == CALIBRATION_PART_POWDER) {
@@ -3198,7 +3173,7 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             return;
         case CALIBRATION_STEP_KEEP:
             format_weight(cal.capacity, weight, sizeof(weight));
-            snprintf(line, sizeof(line), "It holds %s%s%s", weight, space, unit);
+            snprintf(line, sizeof(line), "It holds %s", weight);
             calibration_dialog(screen, "Cup", line, "Keep it as its capacity?", NULL);
             break;
         case CALIBRATION_STEP_EMPTY:
@@ -3211,7 +3186,7 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             snprintf(screen->context, MENU_TEXT, "%s", cal.line);
             break;
         case CALIBRATION_STEP_PAUSED:
-            snprintf(line, sizeof(line), "%s%s%s", cal.line, space, unit);
+            snprintf(line, sizeof(line), "%s", cal.line);
             calibration_dialog(screen, "Empty the cup", line, "Then go on", NULL);
             break;
         case CALIBRATION_STEP_RESULT: {
@@ -3281,7 +3256,6 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
                        charge.last_result != EVENT_RESULT_NONE;
         format_weight(verdict ? charge.last_weight : scale_get_current_measurement(), screen->figure,
                       sizeof(screen->figure));
-        snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
         if (verdict) {
             char off[16];
             format_weight(fabsf(charge.last_weight - charge.target), off, sizeof(off));
@@ -3336,11 +3310,10 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         char weight[16];
         char text[MENU_TEXT];
         format_weight(scale_get_current_measurement(), weight, sizeof(weight));
-        snprintf(text, sizeof(text), "%s%s%s", weight, unit_text()[0] != '\0' ? " " : "", unit_text());
+        snprintf(text, sizeof(text), "%s", weight);
         char flow[MENU_TEXT] = "";
         if (isfinite(flow_per_s)) {
-            snprintf(flow, sizeof(flow), "%.2f%s%s/s", (double) flow_per_s, unit_text()[0] != '\0' ? " " : "",
-                     unit_text());
+            snprintf(flow, sizeof(flow), "%.2f/s", (double) flow_per_s);
         }
         screen->row_info[0] = true;
         screen_row(screen, text, flow, false);

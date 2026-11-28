@@ -1227,16 +1227,8 @@ static void reply_scale(http_server_reply_t *reply, int status) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
-    const char *unit = scale_get_unit();
     http_json_raw(out, room, &len, "{\"weight\":");
     http_json_number(out, room, &len, scale_get_current_measurement(), 6);
-    http_json_raw(out, room, &len, ",\"unit\":");
-    if (unit != NULL) {
-        http_json_string(out, room, &len, unit);
-    }
-    else {
-        http_json_raw(out, room, &len, "null");
-    }
     http_json_raw(out, room, &len, ",\"driver\":");
     if (scale_reads()) {
         http_json_string(out, room, &len, scale_driver_api_name(scale_get_running_driver()));

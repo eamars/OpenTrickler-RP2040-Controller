@@ -402,7 +402,7 @@ static const api_v1_resource_t api_v1_resources[] = {
      "the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, "
      "the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most "
      "3 at once: 503 then, with Retry-After"},
-    {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
+    {"/api/v1/scale", "[\"GET\"]", "the scale: its weight, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
     {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it", gate_present},
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
