@@ -1293,6 +1293,14 @@ class Session:
             self.wait_for_console()
         return reply
 
+    def loads_put_back(self):
+        """
+        After a charge this tool started with a target: the start wrote it into the chosen charge profile, live
+        (ADR-014), so what is stored is put back and the unit is left as it was found: its settings compare, and its
+        Charge page is its baseline's.
+        """
+        self.send("setting charge_profiles/0 revert")
+
     def wait_for_console(self):
         """
         After a restart: restart RTT and ask `state` until the unit answers.
@@ -1633,6 +1641,7 @@ class Session:
             time.sleep(0.5)
         else:
             self.fail("reach: the simulated scale could not be switched off after the charge")
+        self.loads_put_back()
         self.send("screen ack/purge")
         self.press_and_read("enc")
         time.sleep(0.5)
@@ -1935,6 +1944,7 @@ class Session:
         while time.monotonic() < deadline and call("GET", "/api/v1/charge")[1].get("state") != "idle":
             time.sleep(0.2)
         self.send("sim off")
+        self.loads_put_back()
 
         # Nothing changed: each resource as stored as it was
         status, after = call("GET", "/api/v1/settings")
@@ -1976,7 +1986,7 @@ class Session:
 
         Args:
             host: the unit's address.
-            target: the charge's target, set when none is (the menu's digits are not stored: none after a start).
+            target: the charge's target, written live when the chosen charge profile has none, and put back after.
         """
         unit = unit_api.Unit(host)
         index, schema = unit.index, unit.schema
@@ -2071,12 +2081,18 @@ class Session:
         expect("POST", "charge/stop", {}, 200)
         expect("POST", "purge/stop", {}, 200)
         expect("POST", "stop", {}, 200)
-        if unit.read("charge")["target"] is None:
+        # The chosen charge profile's target (ADR-014): where none is stored, one is written live for the checks and
+        # what is stored put back after them, so the saves below store nothing new
+        target_stored = unit.read("charge")["target"] is not None
+        if not target_stored:
             expect("PATCH", "charge", {"target": target}, 200)
         charge = unit.read("charge")
-        expect("PATCH", "charge", {"target": charge["target"], "powder_profile": charge["powder_profile"]}, 200)
+        expect("PATCH", "charge", {"charge_profile": charge["charge_profile"], "target": charge["target"],
+                                   "powder_profile": charge["powder_profile"]}, 200)
         expect("PATCH", "charge", {"target": 1000}, 400, "out_of_range")
+        expect("PATCH", "charge", {"charge_profile": 8}, 400, "out_of_range")
         expect("POST", "charge/start", {"target": 0}, 400, "out_of_range")
+        expect("POST", "charge/start", {"charge_profile": 8}, 400, "out_of_range")
         try:
             unit.write("charge", target=1000)
         except ValueError as error:
@@ -2084,8 +2100,14 @@ class Session:
         else:
             self.fail("api_check: the client sent a target over the schema's most")
         after = unit.read("charge")
-        if (after["state"], after["target"]) != ("idle", charge["target"]):
-            self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}")
+        if (after["state"], after["target"], after["charge_profile"]) != \
+                ("idle", charge["target"], charge["charge_profile"]):
+            self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}, "
+                      f"{after['charge_profile']}")
+        if not target_stored:
+            expect("POST", "charge_profiles/revert", {}, 200)
+            if unit.read("charge")["target"] is not None:
+                self.fail("api_check: the revert did not put back the charge profile's target, not set")
         expect("PATCH", "purge", {"speed_rps": 1}, 409, "not_running")
         expect("POST", "system/factory_reset", {}, 400, "confirm_missing")
         # The gate, where the build carries it (ADR-008, gate 2: the index's features); without it, its paths are gone
@@ -2120,8 +2142,9 @@ class Session:
             return
         scale = unit.read("scale")
         expect("POST", "scale/zero", {}, 200 if "zero" in scale["actions"] else 501)
-        expect("POST", "charge/start", {}, 202)
-        wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
+        expect("POST", "charge/start", {} if target_stored else {"target": charge["target"]}, 202)
+        wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"],
+                   charge_profile=charge["charge_profile"])
         wait_state("charge", ("zeroing", "charging"))
         expect("POST", "charge/start", {}, 409, "busy")
         expect("POST", "purge/start", {}, 409, "busy")
@@ -2131,6 +2154,8 @@ class Session:
         expect("POST", "charge/stop", {}, 202)
         wait_event("charge", "stopped", by="api", reason="stopped")
         wait_state("charge", ("idle",))
+        if not target_stored:
+            expect("POST", "charge_profiles/revert", {}, 200)
         expect("POST", "purge/start", {}, 202)
         wait_event("purge", "started", by="api")
         wait_state("purge", ("running",))
@@ -3021,6 +3046,7 @@ class Session:
         else:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
+        self.loads_put_back()
 
     def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, purge_speed, expect, watch_s,
                      repeat=1, want=None, want_none=False):
@@ -3191,6 +3217,7 @@ class Session:
                 time.sleep(CHARGE_FAULT_POLL_S)
         self.send("sim rate 10")
         self.send("sim off")
+        self.loads_put_back()
 
     def scale_frames(self, idle_s, handovers, reboots, motors_s):
         """
@@ -3595,6 +3622,7 @@ class Session:
             unit.request("POST", "charge/stop", body={})
             time.sleep(1.0)
             self.send("sim off")
+            self.loads_put_back()
             _, after = unit.request("GET", "update")
             if after["state"] != "idle" or after["running"] != before["running"]:
                 self.fail(f"update: after the refused start nothing should have changed: {after}")

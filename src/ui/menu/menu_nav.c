@@ -2470,7 +2470,8 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
         const char *why = idx >= 0 ? row_choose(row, idx) : "no such choice";
         pop();
         if (why != NULL) {
-            push_message("Not changed", why, NULL);
+            // Wrapped: the decimals' refusal names the load whose target stands in the way (ADR-014)
+            push_message_wrapped("Not changed", why);
         }
         return;
     }

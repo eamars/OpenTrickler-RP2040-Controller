@@ -25,7 +25,7 @@ Each field below comes from today's stored structs, read in the code on 2026-11-
 - **Choices** are strings or numbers from a list in the schema, each with a label: `"driver": "and_fxi"` ("A&D FX-i"), `"baud": 9600`. No indexes.
 - **Weights** are in the scale's own unit: `GET /api/v1/scale` says which, or `null` when the scale cannot tell. A client does not assume.
 - **Colours** are `"#rrggbb"`.
-- **Ids:** a powder profile's is an opaque number (0 to 7 today, but a client reads the list and does not count on that); a motor's is its name, `coarse` or `fine`. Each is listed at its collection's path: `GET /api/v1/powder_profiles`, `GET /api/v1/settings/motors`.
+- **Ids:** a powder profile's and a charge profile's are opaque numbers (0 to 7 today, but a client reads the list and does not count on that); a motor's is its name, `coarse` or `fine`. Each is listed at its collection's path: `GET /api/v1/powder_profiles`, `GET /api/v1/charge_profiles`, `GET /api/v1/settings/motors`.
 - **What a request reads or writes is named in its path; what an action works on is a field of its body.** `PATCH /api/v1/settings/motors/fine` writes the fine motor's settings. `POST /api/v1/motor_run/start` takes `{"motor": "fine", ...}`: the run is the job, and the motor its parameter (ADR-009). A GET carries no body. An id is the same in a path, a body, a reply and an event (owner's review of PR #129, 2026-11-16).
 - **A settings write ignores a name the resource does not have, and says so** (the owner, 2026-11-26: forward compatibility): the reply, the resource as its GET gives it, ends with `"ignored": [...]`, each such name (`"..."` last when more did not fit); the names it has are written as usual. So a copy of a later version's settings restores onto an earlier one, and a typo shows in the reply. **An action's body still refuses an unknown field** (400 `unknown_field`): an action does what it was asked, or nothing.
 - **API replies carry `Cache-Control: no-store`.** The schema and the pages carry an `ETag`, the build's hash, and are answered 304 when unchanged.
@@ -97,7 +97,7 @@ The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out
 | `POST /api/v1/setup/done` | `{}` | 200 `{"set_up": true, "hotspot": ...}`: the set-up finished or skipped (ADR-008, gate 4), remembered, so the portal never opens it by itself again; a factory reset forgets it. Joined, the hotspot stops a moment after the reply (`hotspot` false) and the unit is on its network alone; not joined, the hotspot stays (`hotspot` true). `/wizard`, the old wizard's address, redirects to the portal's set-up (`/#setup`) |
 | `POST /api/v1/system/restart` | `{}` | 202 `{"restarting": true}`; the unit restarts once the reply is out. 409 `busy` while a job runs: stop it first |
 | `POST /api/v1/system/factory_reset` | `{"confirm": "factory_reset"}` | 202 `{"resetting": true}`. The stored settings are erased, then the unit restarts. **It then leaves the network and comes back as its own access point**, with the same id and host name: the id is read from the Pico (ADR-008, gate 4). 400 `confirm_missing` without the confirmation; 409 `busy` while a job runs; 409 `on_trial` while an update runs on trial, whose image it may go back to would find no settings; 409 `no_storage` when the EEPROM does not answer. An erase that fails is said on the screen before the restart (ADR-017, gate 1) |
-| `GET /api/v1/debug` | | Not part of v1: today `heap_free` (FreeRTOS) and `net` (lwIP's heap and pools, as the console's `net`) |
+| `GET /api/v1/debug` | | Not part of v1: today `heap_free` (FreeRTOS), `net` (lwIP's heap and pools, as the console's `net`) and `eeprom_kb`, the settings' EEPROM's size told without writing (ADR-014): 32, 16 for a 128 kbit chip, or 0 when it cannot be told |
 
 ## The event log
 
@@ -126,9 +126,9 @@ An event is a change, not a state: a fault that stands is one event when it appe
 
 | Source | Kind | Carries |
 |---|---|---|
-| charge | started | `by` (button, api, console), `target`, `powder_profile` |
+| charge | started | `by` (button, api, console), `target`, `powder_profile`, `charge_profile` (ADR-014: the one chosen, whose target and powder those are) |
 | charge | stopped | `by` (button, api, console, or the unit itself), `reason` (stopped, fault). A charge that ends on a fault is logged stopped at the fault, `by` the unit; its acknowledgment is no event |
-| throw | started | `throw`, `target`, `powder_profile` |
+| throw | started | `throw`, `target`, `powder_profile`, `charge_profile`: each throw takes the chosen charge profile's as it begins |
 | throw | paused | `throw`, `pause`: its number in the throw (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
@@ -153,14 +153,14 @@ Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/charge` | | `state` (idle, starting, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, fault); `in_throw`; `throw`, the number of this throw or the last; `paused` (true while a throw waits for readings); `target` (null until set); `powder_profile` (its id) and `powder_profile_name`; `weight` (null with no reading); `elapsed_s` (this throw, or the last); `last` {`throw`, `result` (good, under, over, none), `reason` (finished, or as a throw's `ended`), `weight`}; `event_seq`, the newest event's number |
-| `PATCH /api/v1/charge` | `{"target": 30.0}`, `{"powder_profile": 3}`, or both | 200. What the next throw uses. One target for the unit: the menu's weight digits show it and set it. `target` from 0.001 to 999.99 at two decimal places, 99.999 at three: what the menu can show. The powder profile chosen is live until saved, with the profiles (`powder_profiles.saved`). 409 `busy` while `in_throw` |
-| `POST /api/v1/charge/start` | `{}`, or `target` and `powder_profile` to set them first | 202 with the charge, in `starting` until the menu begins it. A target or a powder profile given is written only if the start is taken. 409 `busy` while another job runs or the menu is not at its forms (a person is in a mode at the unit); 409 `driver_fault` (the drivers looked at afresh first, as a start at the unit does: a fault that has passed does not refuse); 409 `no_scale` when the stored make of scale is not in this build (ADR-006, gate 9); 409 `no_storage` when the settings' EEPROM does not answer (ADR-017, gate 1); 400 `no_target` when no target is set |
+| `GET /api/v1/charge` | | `state` (idle, starting, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, fault); `in_throw`; `throw`, the number of this throw or the last; `paused` (true while a throw waits for readings); `charge_profile` (the chosen one's id) and `charge_profile_name`; `target` (the chosen charge profile's; null when it has none); `powder_profile` (the chosen charge profile's: its id) and `powder_profile_name`; `weight` (null with no reading); `elapsed_s` (this throw, or the last); `last` {`throw`, `result` (good, under, over, none), `reason` (finished, or as a throw's `ended`), `weight`}; `event_seq`, the newest event's number |
+| `PATCH /api/v1/charge` | Any of `{"charge_profile": 2}`, `{"target": 30.0}`, `{"powder_profile": 3}` | 200. What the next throw uses. `charge_profile` chooses one, which brings its target and its powder. `target` and `powder_profile` write the chosen charge profile's own fields, the one given beside them where one is: there is one target for the unit, the chosen charge profile's, which the menu shows and sets. `target` from 0.001 to 999.99 at two decimal places, 99.999 at three: what the menu can show. Each is live until saved, with the charge profiles (`POST /api/v1/charge_profiles/save`; `saved` in `GET /api/v1/charge_profiles`). 409 `busy` while `in_throw` |
+| `POST /api/v1/charge/start` | `{}`, or `charge_profile`, `target` and `powder_profile` to set them first | 202 with the charge, in `starting` until the menu begins it. A charge profile given is chosen, and a target or a powder profile written into it, only if the start is taken; live, as a PATCH's. 409 `busy` while another job runs or the menu is not at its forms (a person is in a mode at the unit); 409 `driver_fault` (the drivers looked at afresh first, as a start at the unit does: a fault that has passed does not refuse); 409 `no_scale` when the stored make of scale is not in this build (ADR-006, gate 9); 409 `no_storage` when the settings' EEPROM does not answer (ADR-017, gate 1); 400 `no_target` when the charge profile it would throw has no target and none is given |
 | `POST /api/v1/charge/stop` | `{}` | A stop (the rule above). It also acknowledges `fault`, as a press at the unit does |
 
 The charge in `fault` has ended on one: it waits, as the screen does, to be acknowledged by a stop or a press, and `last.reason` says why. It is not a throw: settings are written. A fault between throws ends no throw: `last.reason` says why the charge ended, and `last.result` stays the last throw's verdict.
 
-ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_profile`, in the GET, the PATCH and start. A target or a powder profile given beside it overrides it for that charge.
+**The charge profile** (ADR-014, built). One is always chosen, and the charge's `target` and `powder_profile` are its own fields: there is no second, working target, so a target or a powder profile given beside a `charge_profile` writes that profile. Each throw takes the chosen one's target and powder as it begins. A charge whose next throw would begin with no target (another charge profile chosen between throws, its target not set) ends in `fault`, "No target": the unit never throws a weight nobody set.
 
 ## Purge
 
@@ -236,10 +236,10 @@ What ADR-014 calls a powder profile: how a powder flows, and the controller's ga
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/powder_profiles` | | `saved`, and `profiles`: for each its `id` and `name`. Which one the next throw uses is the charge's `powder_profile` |
+| `GET /api/v1/powder_profiles` | | `saved`, and `profiles`: for each its `id` and `name`. Which one the next throw uses is the charge's `powder_profile`, the chosen charge profile's |
 | `GET /api/v1/powder_profiles/{id}` | | Its fields, below; 404 for an id not in the list |
 | `PATCH /api/v1/powder_profiles/{id}` | Fields, below | 200; 409 `busy` while `in_throw`, when it is the one in use |
-| `POST /api/v1/powder_profiles/save` | `{}` | 200: all of them, and which one is chosen, stored. They are one block in the EEPROM |
+| `POST /api/v1/powder_profiles/save` | `{}` | 200: all of them stored. They are one block in the EEPROM. Which one is in use is no longer stored here (ADR-014): it is the chosen charge profile's `powder_profile`, stored by `POST /api/v1/charge_profiles/save`, so `powder_profiles`' `saved` no longer moves with the choice |
 
 | Field | Type | Unit | Limits | Today |
 |---|---|---|---|---|
@@ -253,19 +253,41 @@ What ADR-014 calls a powder profile: how a powder flows, and the controller's ga
 
 Eight slots today, so no POST to make one and no DELETE. Those may come (ADR-014, or ADR-009's tuning saving a new one) without changing the paths. Today's `rev` (`p0`) and `compatibility` (`p1`, written by v1.2x's REST API) are kept as stored, used by nothing, and are not in v1. The two weights a turn are appended to each powder (ADR-009, 2026-11-26), so a v1.2x block is read whole by the migration (`load_config_layout`) and they start null, never calibrated.
 
+## Charge profiles
+
+What is thrown, kept apart from how a powder flows (ADR-014): two calibres on one powder share that powder's profile and differ in their weight. A person reads them as "Loads". Eight slots, one always chosen (`charge_profile` in the charge).
+
+| Method and path | Body | Reply |
+|---|---|---|
+| `GET /api/v1/charge_profiles` | | `saved` (the eight and the choice, one block), and `profiles`: for each its `id` and `name`. Which one is chosen is the charge's `charge_profile` |
+| `GET /api/v1/charge_profiles/{id}` | | `saved`, this profile's own, and its fields, below; 404 for an id not in the list |
+| `PATCH /api/v1/charge_profiles/{id}` | Fields, below | 200; 409 `busy` while `in_throw`, when it is the one chosen; the others are free |
+| `POST /api/v1/charge_profiles/save` | `{}` | 200: the eight, and which one is chosen, stored. They are one block in the EEPROM |
+| `POST /api/v1/charge_profiles/revert` | `{}` | 200 `{"reverted": true}`: the eight and the choice as stored; 409 `busy` while `in_throw`, as a write to the one chosen is |
+
+| Field | Type | Unit | Limits |
+|---|---|---|---|
+| `name` | string | | 1 to 15 bytes, printable ASCII (the screen's font draws nothing else). "Load 1" to "Load 8" until named. No unit is stored with a weight: a person who wants one puts it in the name |
+| `target` | number or null | weight | What the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (`settings/charge` `decimal_places`); null, not set (0 held) |
+| `powder_profile` | integer | | A powder profile's id, 0 to 7 |
+
+- **A change at the screen is stored when it is confirmed;** over the API a write is live until saved, as every write is. A store at the screen stores the block, so it also stores what the API left live in the other seven.
+- **A unit updated from before ADR-014** has "Load 1" chosen, no target, each profile on the powder the unit had chosen.
+- **What a record holds that no unit can run on** (a chosen index or a powder's id out of range, a target that is no weight) runs as the first, or not set, in RAM: `saved` is then false until the person stores them.
+
 ## Settings
 
 Each is `GET` and `PATCH`; the schema names its save path. "When" is when a change takes effect. "Refused" is when a write to it is refused with 409.
 
-- **`GET /api/v1/settings`**: every settings resource and the powder profiles in one document, with the firmware's version: the portal's export, `rc_run.py settings`, and the copy taken before a flash (AGENTS.md). It holds no Wi-Fi key, so a copy cannot bring a wiped unit back onto the network by itself.
+- **`GET /api/v1/settings`**: every settings resource, the powder profiles and the charge profiles in one document, with the firmware's version: the portal's export, `rc_run.py settings`, and the copy taken before a flash (AGENTS.md). It holds no Wi-Fi key, so a copy cannot bring a wiped unit back onto the network by itself.
 - **An import is the client's work:** a PATCH of each resource and each profile in turn, leaving out fields the schema marks read-only or does not list, and saying what it left out. A bulk write may come later, as a new method on this path.
-- **`POST /api/v1/settings/save`** `{}`: every settings resource and the powder profiles stored. 500 names the one that failed.
-- **A revert beside each save** (ADR-008, gate 2): `POST` the save's path with `/revert` in place of `/save` (`/api/v1/settings/charge/revert`, `/api/v1/powder_profiles/revert`, `/api/v1/settings/motors/revert`), `{}`: every resource stored there given back what the EEPROM holds, undoing what was written since. Each part is written as a write is: refused whole with 409 `busy` as a write to it would be (the motors' while a job runs, the powder in use during a throw), and a `setting changed` event for each resource that changed. 200 `{"reverted": true}`. The schema gives it as each resource's `revert`, and as an action.
+- **`POST /api/v1/settings/save`** `{}`: every settings resource, the powder profiles and the charge profiles stored. 500 names the one that failed.
+- **A revert beside each save** (ADR-008, gate 2): `POST` the save's path with `/revert` in place of `/save` (`/api/v1/settings/charge/revert`, `/api/v1/powder_profiles/revert`, `/api/v1/charge_profiles/revert`, `/api/v1/settings/motors/revert`), `{}`: every resource stored there given back what the EEPROM holds, undoing what was written since. Each part is written as a write is: refused whole with 409 `busy` as a write to it would be (the motors' while a job runs, the powder or the charge profile in use during a throw), and a `setting changed` event for each resource that changed. The charge profiles' gives back the choice too, which lies in their block beside the eight. 200 `{"reverted": true}`. The schema gives it as each resource's `revert`, and as an action.
 - **A test stand-in is never stored.** The console's simulated scale runs in place of the stored driver and never shows in `settings/scale`, and no save stores it.
 - **The shapes, as built in gate 3:**
   - `GET /api/v1/settings` is `{"api": "1", "firmware": {"version", "vcs", "build"}, "unit_id", "resources": {...}}`, each resource under its path (`"/api/v1/settings/charge"`, `"/api/v1/powder_profiles/0"`) as its own GET gives it. An import PATCHes each path with its fields, `saved` left out.
   - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`), as an action's. `saved` sent in a PATCH is 400 `read_only`.
-  - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`, and `short_label` where the label is long), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies: `min`, `max` and `step` for numbers only. For a client with little room (ADR-010, gate 6: the unit's screen; ADR-008's pages may use them): `short_label` (where the label and a value do not fit 128 px), `edit_step` (what one detent, or an arrow, moves a number by), and a boolean's `on_label` and `off_label` ("Reversed", "Normal"). `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`.
+  - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`, and `short_label` where the label is long), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies: `min`, `max` and `step` for numbers only. For a client with little room (ADR-010, gate 6: the unit's screen; ADR-008's pages may use them): `short_label` (where the label and a value do not fit 128 px), `edit_step` (what one detent, or an arrow, moves a number by), and a boolean's `on_label` and `off_label` ("Reversed", "Normal"). `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles and the charge profiles `in_throw_when_in_use`.
   - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_purge_runs` for the purge's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `purge`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
   - `GET /api/v1/powder_profiles/{id}` gives `saved`, this powder's own (ADR-008, gate 2: the eight are one block in the EEPROM, and a powder is saved when it is as the EEPROM holds it, whatever the others are) and its fields; `GET /api/v1/powder_profiles` gives `saved`, the block's, and each profile's `id` and `name`.
   - `GET /api/v1/settings/motors/coarse` and `/fine` give `saved`, each motor's own as a powder's, and their fields; `GET /api/v1/settings/motors` gives `saved` and each motor's `id` and `label`.
@@ -278,7 +300,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `fine_stop_threshold` | number | weight | 0 to 10 *p* | now | `c6` |
 | `steady_sd_margin` | number | weight | 0 to 1 *p*. The steady test, in three places: the zero, the cup's removal, the resume after a pause. The scale's calibration writes it from the scale's own noise (ADR-009, 2026-11-26) | now | `c7` (`set_point_sd_margin`) |
 | `zero_mean_margin` | number | weight | 0 to 1 *p*. Written with `steady_sd_margin` by the scale's calibration. The cup counts as lifted once the readings are steady and their mean 10 of it below zero (ADR-009, 2026-11-26) | now | `c8` (`set_point_mean_margin`) |
-| `decimal_places` | choice | | 2, 3 | now. A change keeps the charge's target as a weight, and is refused (400 `out_of_range`) when the target cannot be shown at the new decimals (review D2) | `c9` (an index) |
+| `decimal_places` | choice | | 2, 3 | now. A change keeps each charge profile's target as a weight, and is refused (400 `out_of_range`) when one of the eight cannot be shown at the new decimals, its message naming that profile (review D2; ADR-014) | `c9` (an index) |
 | `coarse_stop_gate_ratio` | number or null | | 0 to 1; null: the gate is not moved | now | `c13` (-1 for not moved) |
 | `coarse_stop_backoff_enable` | boolean | | false by default: v1.21 had no back-off (ADR-009, 2026-11-27) | now | `c14` |
 | `coarse_stop_backoff_turns` | number | turns | 0.125 to 2 *p*, step 0.125 | now | `c15` |
@@ -376,8 +398,8 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 
 | Need | From | Its place |
 |---|---|---|
-| A charge profile: a name, a weight, the powder profile it uses | ADR-014 | `/api/v1/charge_profiles`; `charge_profile` beside `target` and `powder_profile` in the charge. Powder profiles are named apart now so it has room |
-| The target weight kept, with the charge profile | ADR-014, PR #109's need | The charge's `target` is there now; whether it is stored is ADR-014's |
+| A charge profile: a name, a weight, the powder profile it uses | ADR-014 | Built: `/api/v1/charge_profiles` ("Charge profiles", above); `charge_profile` beside `target` and `powder_profile` in the charge |
+| The target weight kept, with the charge profile | ADR-014, PR #109's need | Built: the charge's `target` is the chosen charge profile's, stored with the charge profiles |
 | Stop thresholds per profile | ADR-009, ADR-014 | A profile's own field, `null` for "the default in `settings/charge`", which stays |
 | Every throw recorded, downloaded, drawn | ADR-009, ADR-008 | Recordings, below |
 | Test functions: a recorded test throw, a motor at a speed for a time, the scale's readings and rate | ADR-009 | Test throws, motor runs and scale recordings, below |
