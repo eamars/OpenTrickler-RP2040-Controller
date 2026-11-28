@@ -2,9 +2,69 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, later: proven on the Pico W
+
+The owner opened the bench for one unit: "A pico w unit is connected, but no powder in the hopper for your disposal." The Pico W on the probe (opentrickler-4A82, unit 4A821948, 192.168.2.100, on 2.0.3-374 before), its scale reading 0.00, the hopper empty. Every run that turned a motor went through `rc_run.py`'s cup check: 0.00 gr before and after each. The Pico 2 W was not touched.
+
+### What the unit found that the PC could not
+
+**`GET /api/v1` was cut off.** `api_check` failed at its first read: "HTTP: a streamed reply overflowed its chunk; it is cut off". The index's guide is one item of the index's stream and must fit a chunk, 1,526 bytes; ADR-014's words had taken it from 1,387 to 1,521 characters, past the chunk with its quotes and the 14 bytes after it. Every client that works from the unit's own description reads the index first (`unit_api.py`; the portal's Settings page takes the unit's paths from it), on every unit. Fixed in `4043b28`: the guide is 1,463 characters, and a static assert in `api_v1.c` fails the build when it no longer fits. The schema's longest item is 1,097 bytes (the charge's start), read on the unit.
+
+### The EEPROM's size: this unit says 16 KB
+
+`stats` on the console ends `eeprom_kb=16`, and `GET /api/v1/debug` gives `"eeprom_kb":16`. 32 was expected: the README has the owner's "I don't have the 128kbit board".
+
+- **What the answer rests on:** the 64 bytes read at 17 KB are the 64 read at 1 KB, where the scale's record lies.
+- **Why it is probably the chip:** no build's map puts a copy of the scale's record at 17 KB. ADR-009's first build kept a powder's calibration there, another struct. On a 256 kbit chip that never ran that build, 17 KB is blank.
+- **Not verified by a second means.** The chip's marking would settle it at a glance; so would a read of every page against its twin 16 KB above, which no command does today.
+- **If it is so,** this is the board the README could not try: the spare slot at 31 KB has lain at 15 KB on this unit since ADR-017, every save written there first, and 15 KB kept empty for good is then proven by this unit's own saves.
+
+### The checks, in order
+
+| Check | Verdict |
+|---|---|
+| `settings --save logs/adr014/picow_before`, before the flash | 17 resources of 2.0.3-374 kept |
+| `flash` (2.0.3-389 at `ec21c95`; again 2.0.3-390 at `4043b28` after the guide's fix) | `VERDICT PASS`. At its first start: "Config: 0x1800 never written: its defaults stored" |
+| `settings --compare` with that copy | every field of the 17 unchanged; the eight charge profiles new, as meant ("Load 1" to "Load 8", no target, each on powder 0, the powder the unit had chosen) |
+| `menu_tour --compare tests/menu_baseline/pico_w`, the inversion off live | `VERDICT PASS`: every judged page as its baseline. The Charge page differed, as meant |
+| `reach` | `VERDICT PASS`: the Charge page's four rows, the load's choice page (eight rows and its title), the target's editor, Change's three rows |
+| `charge_cycle` | `VERDICT PASS`: 30.000 for a target of 30.000 |
+| `settings_roundtrip` | `VERDICT PASS`: 25 resources, 204 fields written back unchanged, 205 values outside their limits refused |
+| `api_check`, the local OTA server up without its name | `VERDICT PASS` on `4043b28`: 75 paths, 47 of the schema's 47 actions called, 99 routes, none unlisted. The server was stopped after |
+
+`reach`, `charge_cycle` and `settings_roundtrip` ran on `ec21c95`; `4043b28` differs from it by the guide's words alone. `rc_run.py`'s changes ran as written: `api_check` with `charge_profile`, and each command's revert after its charge.
+
+### The ADR's own checks
+
+- **Two charge profiles on one powder throw two weights.** One simulated charge, "Load 1" at 20 and "Load 2" at 10, both on powder 0, the load changed between throws by `PATCH /api/v1/charge`: throw 2 ended at 20, throw 3 at 10, each `started` carrying its `charge_profile`, its `target` and the same `powder_profile`.
+- **A change to the powder's gains shows in both.** `fine_kp` of powder 0 from 2 to 1.5 between throws: the console's "throw 4 on fine kp 1.5000" on "Load 2" and "throw 5 on fine kp 1.5000" on "Load 1". The tuner began afresh at each change of target, as the README says it does.
+- **During a throw:** a write to the chosen profile 409, to another 200, a choice 409.
+- **The weight is there after a restart.** 44.00 set at the screen by presses on "308 match"; 41.5 set by `PATCH /api/v1/charge_profiles/1` and saved on "223 varmint"; "223 varmint" chosen at the screen. After `rc_run.py reset`: `charge_profile` 1, its target 41.5; `charge_profiles/0` at 44; both names; `saved` true.
+- **The EEPROM's size** on the console and in `GET /api/v1/debug`: above.
+
+### The screens, on the unit
+
+Seen against the mock's third row: the name is the row, the page is titled Load, Change has the same three rows.
+
+| Charge, a unit just updated | Charge, a load named | Load | Change, between throws |
+|---|---|---|---|
+| ![](screens/charge_just_updated.png) | ![](screens/charge.png) | ![](screens/load.png) | ![](screens/change.png) |
+
+The Pico W's baseline of the Charge page was saved again (`tests/menu_baseline/pico_w/page_charge.png`). `menu_tour` now judges that page: its target is stored, where it "lives in RAM until ADR-014". The choice's page has no id of its own and is no page of the tour.
+
+### How the unit was left
+
+Running 2.0.3-390 at `4043b28`, a debug build, flashed by the probe. Its 25 resources all stored: the 17 from before the flash unchanged field for field, the eight charge profiles at their defaults, "Load 1" chosen, no target. Nothing live that is not stored: the test loads' names and targets were written back and saved, the display's inversion and the powder's gain reverted, the simulated scale off. Reset once at the end, idle at the main menu. The local OTA server is stopped; the unit's update source is as stored (this PC's), so its poll at a start fails for want of it, as it did before.
+
+### Still open after the unit
+
+- **The Pico 2 W:** not flashed. Its baseline's Charge page will differ, and `menu_tour` now judges it: to be saved again with the unit on the probe.
+- **A unit on v1.21 updated to this,** a soak, `pulses`: not this session's.
+- **The EEPROM's size on this board,** to be settled by the chip's marking.
+
 ## 2026-11-28: the firmware, built and proven on the PC
 
-Built on the branch `adr014_charge_profiles`, from main at 391a90e, by a session of its own in the owner's checkout. **Nothing here was proven on a unit:** the owner had not said the bench was ready, so no flash, no probe and no call to a unit was made. Every figure below is from the PC.
+Built on the branch `adr014_charge_profiles`, from main at 391a90e, by a session of its own in the owner's checkout. When this part was written nothing had been proven on a unit: the owner had not said the bench was ready. Every figure in it is from the PC; the unit's proof came later the same day, above.
 
 ### What was built
 
@@ -57,12 +117,12 @@ A unit updated over Wi-Fi finds the slot at 6 KB blank on its trial, so the reco
 
 | Check | Verdict |
 |---|---|
-| `build_pico_w.ps1` | links. Flash 933.3 KB of 1,016 (927.3 before: 6.0 KB more); RAM at link time 252.9 KB of 256 (252.6 before: 0.3 KB more). The module is 3.2 KB of the flash |
-| `build_pico_2w.ps1` | links. Flash 919.7 KB of 1,792; RAM at link time 285.9 KB of 512 |
+| `build_pico_w.ps1` | links. Flash 933.3 KB of 1,016 (927.3 before: 6.0 KB more; 933.2 at `4043b28`); RAM at link time 252.9 KB of 256 (252.6 before: 0.3 KB more). The module is 3.2 KB of the flash |
+| `build_pico_2w.ps1` | links. Flash 919.7 KB of 1,792 (919.6 at `4043b28`); RAM at link time 285.9 KB of 512 |
 | `tests/host_test.py` | `VERDICT PASS`, the new cases in it (below) |
 | `tools/module_graph.py` | `VERDICT PASS`: nothing goes up, no loop |
 | `tests/release_records.py --elf build_w/app.elf --elf build/app.elf` | `VERDICT PASS`: `charge_profile_t` 24 bytes and `eeprom_charge_profile_data_t` 196, new since v1.21, found by their use, laid out the same in both images |
-| `tests/calibration_sim.py` | `VERDICT PASS` (what it loads was not touched) |
+| `tests/calibration_sim.py`, `tests/step2_sim.py` | `VERDICT PASS` each (what they load was not touched) |
 | `tests/features_check.py --final` | passes |
 
 **The host test's new cases** (`tests/host/config_migration_test.c`, by the module's own load over the EEPROM in RAM):
@@ -76,6 +136,8 @@ A unit updated over Wi-Fi finds the slot at 6 KB blank on its trial, so the reco
 - the EEPROM's size: not told on a blank chip; 16 KB where 17 KB reads what lies at 1 KB, nothing written. The 32 KB answer is every bench unit's own and was not made on the PC.
 
 ### Not done, not verified
+
+*As this part stood before the unit's proof; what the unit then settled is above.*
 
 - **The unit's proof, all of it:** two loads on one powder throwing two weights; the weight there after a power cycle; a v1.21 unit updated to this; `menu_tour`, `reach`, `api_check`, `settings_roundtrip`; the EEPROM's size read on a real chip. The screen was built to the mock's third row and has not been seen on a panel.
 - **`rc_run.py`'s changes were not run:** they need a unit. `api_check` sends `charge_profile` in the charge's PATCH and start, expects it in the `started` event, and where the chosen load has no stored target writes one live and reverts it. Each command that starts a charge with a target (`charge_cycle`, `soak`, `reach`, `charge_fault`, `settings_roundtrip`, `update --expect busy`) puts back what is stored after it (`setting charge_profiles/0 revert`), since a start now writes the target into a stored resource and would otherwise leave the unit's settings differing from their copy.
