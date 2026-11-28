@@ -8,7 +8,7 @@ This is how firmware is installed by cable: the first time, the move from an old
 1. Find out which Pico your controller board carries: the two take different files, and the wrong one does not start. The board's name is printed on the Pico: Pico W or Pico 2 W. If you cannot read it, follow steps 4 to 7 below without a file, until the Pico shows as a drive; the drive's name tells you. Then disconnect the USB cable and come back to step 2.
    - a drive named `RPI-RP2`: a Raspberry Pi Pico W;
    - a drive named `RP2350`: a Raspberry Pi Pico 2 W.
-2. From the [latest release](https://github.com/eamars/OpenTrickler-RP2040-Controller/releases/latest), download the file for your board. Each file's name starts with its version, `OpenTrickler-2.0.3-` for example, and ends:
+2. From the [latest release](https://github.com/eamars/OpenTrickler-RP2040-Controller/releases/latest), download the file for your board. Each file's name starts with its version, `OpenTrickler-2.0.0-` for example, and ends:
    - Raspberry Pi Pico W: `pico_w_full_install.uf2`
    - Raspberry Pi Pico 2 W: `pico2_w_full_install.uf2`
 

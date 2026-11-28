@@ -1,1 +1,1 @@
-Release candidate 2.0.0: a test build, not for use.
+The v2.0 beta, the first 2.0 release. A new menu on the screen, a web page for your phone, up to eight loads, calibration and auto-tuning, and updates over Wi-Fi. The formal 2.0 release will come as an update.
