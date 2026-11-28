@@ -91,7 +91,7 @@ The owner placed it next, before ADR-007 (2026-11-28): it is the current Pico pl
 - **A value tried is a PATCH:** live at once and not stored; each settings resource says whether it is `saved` and has a revert; a restart puts back what is stored. A write to the charge's settings, or to the powder in use, is refused while a throw is under way, from its zeroing to its verdict: a write fits between a verdict and the cup's return.
 - **No PIN:** anyone on the network reads and writes. api_v1.md kept the place for one.
 - **An agent given an address** most likely reads `http://<address>/` first: the portal's page, whose head names the index and the schema (`rel="service-doc"`, `rel="service-desc"`) and nothing more for an agent.
-- **The simulated scale** has no lag and no fall after the stop: its powder stops the moment the motors do and snaps to the target. It proves what a tool or an agent does with the API, never a tuning.
+- **The simulated scale** (until gate 2's `sim lag`) has no lag and no fall after the stop: its powder stops the moment the motors do and snaps to the target. It proves what a tool or an agent does with the API, never a tuning.
 
 ## What we do
 
@@ -99,7 +99,7 @@ Three gates, in this order, each approved and built on its own; one may be merge
 
 ### The budget
 
-ADR-016 takes at most **12 KB of flash and 4 KB of RAM** on the Pico W, nothing of it static: what it keeps is taken from the heap at its first use and kept, as the charge's controller is. Each gate measures its own (`size_report.py`; `stats`'s `heap_min` and `charge_heap_low` across a charge) and says it in the progress. A gate that would pass the budget stops and comes back to the owner before it is built further.
+ADR-016 takes at most **16 KB of flash and 4 KB of RAM** on the Pico W (12 KB until gate 2, when gates 1 and 2 had taken 11.3 KB and the PIN was reckoned at 2.5 to 3.5 KB; the owner, 2026-11-28, chose "Raise it to 16 KB", the option recommended to him), nothing of it static: what it keeps is taken from the heap at its first use and kept, as the charge's controller is. Each gate measures its own (`size_report.py`; `stats`'s `heap_min` and `charge_heap_low` across a charge) and says it in the progress. A gate that would pass the budget stops and comes back to the owner before it is built further.
 
 ### The auto-tuner is not touched
 
@@ -169,7 +169,7 @@ Each gate on the Pico W, the tighter in RAM and the one whose memory is judged: 
 
 - **Gate 1:** a new `rc_run.py tuning_check --host <address>`, on the simulated scale, its cup checked by its most pour as every motor command's is: a charge, settings written between throws; each record's gains and thresholds what was live when it was thrown, its figures in order (coarse before fine, the fall the weight less the fine stop's reading); a read from 0 that gives every record kept; a `?wait` answered at the next throw; a restart that begins afresh; the settings left as they were found. Then a soak with a client following the throws, the heap read quiet before and after.- **Gate 2:** a fresh agent with no source and no repository, given only "My OpenTrickler is at <address>; help me tune my powder", finds the guide from the address alone, says hello, asks for permission, reads the throws, and gives its reason for a change from the record's figures. At the end nothing is live that is not stored, unless the person chose it.
   - **Before any powder, an average agent rehearses it** (the owner, 2026-11-28: "Before the powder test, I'd like you to spawn a haiku subagent that navigate through the unit mimicking an average agent helping the power tuning, without the context. Then you shall be responsible to monitor the haiku behavior, then tune the prompt/instructions accordingly."). A Haiku subagent is given only the person's words and the unit's address, with the simulated scale on. The development agent watches what it does, from the unit's side (`net log on`, the event log) and from its transcript, and changes the guide where it went wrong, never the subagent's prompt, then runs a new one; until one finds the guide, says hello, asks permission, and reasons from the record. A first run against the unit as it is, before the guide is written, shows what an agent does with none.
-  - Then with the owner at the cup and real powder, which is the use case.
+  - ~~Then with the owner at the cup and real powder, which is the use case.~~ In a simulated environment instead (the owner, 2026-11-28, asked when to run it: "You should setup the simulated environment. This is the session to test the agent, not the tuning. As long as the agent can get enough information to make decision then the gate can be accepted."). The simulated scale was given a lag for it (`sim lag <ms>`, the console's, never stored), so a throw lands over by what was in the air at its stop, as real powder does.
 - **Gate 3:** with a PIN set: every write refused without it and done with it, every read free; five wrong refuse writes for a minute; the portal asks once and works after; the PIN cleared at the screen (pressed through the console) and by a factory reset; a settings copy holds no PIN; `tests/release_records.py` passes.
 - **At the close:** PR #113 closed with its note, at the owner's word.
 
