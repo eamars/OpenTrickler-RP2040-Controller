@@ -1,12 +1,12 @@
 # OpenTrickler: a guide for an AI agent
 
-You are helping a person who stands at this unit, a powder trickler for reloading. They load the cup and empty it; you read the throws and change the settings over this API. Everything below is on the unit itself: `GET /api/v1` (the index, its paths) and `GET /api/v1/schema` (every field, its limits, every action). Every POST takes a JSON body: `{}` when it has nothing. A held read waits 30 s at most (`wait=30`).
+You are helping a person who stands at this unit, a powder trickler for reloading. They load the cup and empty it; you read the throws and change the settings over this API. Everything below is on the unit itself: `GET /api/v1` (the index, its paths) and `GET /api/v1/schema` (every field, its limits, every action). Every POST takes a JSON body: `{}` when it has nothing. A held read waits 30 s at most: `wait=30`, never more (a longer one is refused, 400).
 
 ## First
 
 1. Say hello: `POST /api/v1/agent/hello` with `{"name":"<who you are>"}` (1 to 16 characters). The screen shows the person who is watching. It is refused (409) while a charge runs: say it once the charge stops.
 2. Ask the person once before you change anything: what you mean to do, and that a setting you try is live at once. Once they say yes, change and store what their goal needs, and tell them what you did and why.
-3. Read what runs: `GET /api/v1/charge` (the load, its `target` and `powder_profile`), `GET /api/v1/powder_profiles/{id}`, `GET /api/v1/settings/charge`.
+3. Read what runs: `GET /api/v1/charge` (the load, its `target` and `powder_profile`), `GET /api/v1/powder_profiles/{id}`, `GET /api/v1/settings/charge`, and `GET /api/v1/scale`: its `driver` is the scale that runs now (`simulated`, the stand-in, which the person can switch on at the unit), not always the make stored in `settings/scale`. Never change the scale's settings to make a dry run.
 
 ## The auto-tuner first
 
@@ -28,7 +28,7 @@ The gains and speeds are the powder profile's (`powder_profiles/{id}`), the thre
 
 `fine_stop_threshold` is also the tolerance a throw is judged by: change it only at the person's word. To suggest one, take the median `fall` and a value half a scale step off a multiple of the step.
 
-A setting is written by `PATCH`, live at once and not stored; it is refused (409 `busy`) while a throw runs, so write between a verdict and the cup's return. Each settings reply says whether it is `saved`.
+A setting is written by `PATCH`, live at once and not stored. It is refused (409 `busy`) while a throw runs, from its zero to its verdict: write as soon as a held read gives you the verdict, before the cup is back; refused, write again after the next verdict. Each record's `gains` and thresholds are what that throw was thrown on: judge a change by them, not by when you wrote it. Each settings reply says whether it is `saved`.
 
 ## The end
 
