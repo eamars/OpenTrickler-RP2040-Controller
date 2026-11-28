@@ -202,6 +202,25 @@ void http_json_unsigned(char *out, size_t room, size_t *len, uint32_t value) {
 }
 
 
+void http_json_u64(char *out, size_t room, size_t *len, uint64_t value) {
+    char digits[24];
+    size_t pos = sizeof(digits) - 1;
+    digits[pos] = '\0';
+    do {
+        digits[--pos] = (char) ('0' + value % 10);
+        value /= 10;
+    } while (value > 0 && pos > 0);
+    http_json_raw(out, room, len, digits + pos);
+}
+
+
+void http_json_member(char *out, size_t room, size_t *len, const char *name) {
+    http_json_raw(out, room, len, ",\"");
+    http_json_raw(out, room, len, name);
+    http_json_raw(out, room, len, "\":");
+}
+
+
 void http_json_bool(char *out, size_t room, size_t *len, bool value) {
     http_json_raw(out, room, len, value ? "true" : "false");
 }

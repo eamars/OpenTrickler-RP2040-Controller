@@ -9,9 +9,12 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317191c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z'/%3E%3C/svg%3E">
 <link rel="service-doc" href="/api/v1">
 <link rel="service-desc" href="/api/v1/schema">
+<link rel="help" href="/api/v1/agent" type="text/markdown">
 <style>/*STYLE*/</style>
 </head>
 <body>
+<!-- For a reader without scripts, an AI agent's fetch most of all (ADR-016, gate 2) -->
+<noscript><p>AI agents: read <a href="/api/v1/agent">/api/v1/agent</a> first.</p></noscript>
 <!-- The link to the unit is shown only when it is lost (web-ui-design, rule 9): normal takes no room -->
 <!-- features: 29 89 -->
 <p id="link" class="offline" role="alert" hidden>Unit not reached. Trying again&hellip;</p>
@@ -55,7 +58,7 @@
           <circle id="ring" class="arc" cx="100" cy="100" r="90" pathLength="1000"/>
         </svg>
         <div class="readout-text">
-          <div class="figure-line"><span id="weight" class="figure ringed">---</span><span id="unit" class="unit">gr</span></div>
+          <div class="figure-line"><span id="weight" class="figure ringed">---</span></div>
           <div class="bar"><i id="bar"></i></div>
         </div>
       </div>
@@ -140,6 +143,9 @@
   <form method="dialog">
     <h3 id="confirm-title"></h3>
     <p id="confirm-text"></p>
+    <!-- Shown only when the web's PIN is asked for (ADR-016, gate 3: askPin) -->
+    <input id="confirm-field" class="sheet-field" type="password" inputmode="numeric" autocomplete="off" maxlength="8"
+           aria-label="PIN" hidden>
     <div class="sheet-actions">
       <button id="confirm-keep" class="ghost" value="keep"></button>
       <button id="confirm-act" class="action halt" value="act"></button>

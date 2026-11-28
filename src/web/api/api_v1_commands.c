@@ -21,6 +21,7 @@
 #include "calibration.h"
 #include "charge_mode.h"
 #include "charge_profiles.h"
+#include "charge_throws.h"
 #include "cleanup_mode.h"
 #include "eeprom.h"
 #include "unit_id.h"
@@ -189,18 +190,6 @@ static void api_send(http_server_reply_t *reply, int status, size_t room, size_t
         return;
     }
     http_server_reply_send(reply, status, "application/json", len);
-}
-
-
-static void write_u64(char *out, size_t room, size_t *len, uint64_t value) {
-    char digits[24];
-    size_t pos = sizeof(digits) - 1;
-    digits[pos] = '\0';
-    do {
-        digits[--pos] = (char) ('0' + value % 10);
-        value /= 10;
-    } while (value > 0 && pos > 0);
-    http_json_raw(out, room, len, digits + pos);
 }
 
 
@@ -839,56 +828,71 @@ static void api_v1_stop(const http_server_request_t *request, http_server_reply_
 }
 
 
-// --- The event log
+// --- A numbered log read from where a client left off: the event log, and the throws (ADR-016, gate 1)
+
+// A log: its list's name in the reply, its newest's name ("next" for the events, as v1 named it), its numbers, and
+// one item written by its number (false when it is no longer kept)
+typedef struct {
+    const char *items;
+    const char *newest_name;
+    uint32_t (*first)(void);
+    uint32_t (*newest)(void);
+    bool (*write)(uint32_t number, char *out, size_t room, size_t *len);
+} api_v1_log_t;
 
 typedef struct {
+    const api_v1_log_t *log;
     uint32_t after;     // asked after this number
     uint32_t cursor;    // the next to write
     uint32_t last;      // the newest when the reply began
-    uint8_t phase;      // 0 the head, 1 the events, 2 the end
-    bool wrote_one;     // an event is out: the next takes a comma
-} api_v1_events_t;
+    uint8_t phase;      // 0 the head, 1 the items, 2 the end
+    bool wrote_one;     // an item is out: the next takes a comma
+} api_v1_log_reply_t;
+
+_Static_assert(sizeof(api_v1_log_reply_t) <= HTTP_SERVER_CONTEXT_MAX, "a log's reply lives in its slot");
 
 
-static bool api_v1_events_more(void *ctx, char *buf, size_t room, size_t *len) {
-    api_v1_events_t *events = ctx;
+static bool api_v1_log_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_log_reply_t *reading = ctx;
+    const api_v1_log_t *log = reading->log;
     *len = 0;
-    if (events->phase == 0) {
-        uint32_t first = events_first_seq();
+    if (reading->phase == 0) {
+        uint32_t first = log->first();
         http_json_raw(buf, room, len, "{\"boot\":");
         http_json_unsigned(buf, room, len, api_v1_boot_id());
-        http_json_raw(buf, room, len, ",\"now_ms\":");
-        write_u64(buf, room, len, chip_time_us() / 1000u);
-        http_json_raw(buf, room, len, ",\"first\":");
-        http_json_integer(buf, room, len, (long) first);
-        http_json_raw(buf, room, len, ",\"next\":");
-        http_json_integer(buf, room, len, (long) events->last);
-        http_json_raw(buf, room, len, ",\"events\":[");
-        events->cursor = events->after + 1 > first ? events->after + 1 : first;
-        events->phase = 1;
+        http_json_member(buf, room, len, "now_ms");
+        http_json_u64(buf, room, len, chip_time_us() / 1000u);
+        http_json_member(buf, room, len, "first");
+        http_json_unsigned(buf, room, len, first);
+        http_json_member(buf, room, len, log->newest_name);
+        http_json_unsigned(buf, room, len, reading->last);
+        http_json_member(buf, room, len, log->items);
+        http_json_raw(buf, room, len, "[");
+        reading->cursor = reading->after + 1 > first ? reading->after + 1 : first;
+        reading->phase = 1;
         return true;
     }
-    if (events->phase == 1) {
-        while (events->cursor <= events->last) {
-            event_t event;
-            if (!events_get(events->cursor, &event)) {
-                events->cursor += 1;    // gone while the reply was made: the client sees the gap
-                continue;
-            }
+    if (reading->phase == 1) {
+        while (reading->cursor >= 1 && reading->cursor <= reading->last) {
             size_t mark = *len;
-            if (events->wrote_one) {
+            if (reading->wrote_one) {
                 http_json_raw(buf, room, len, ",");
             }
-            events_write_json(&event, buf, room, len);
+            if (!log->write(reading->cursor, buf, room, len)) {
+                *len = mark;
+                buf[mark] = '\0';
+                reading->cursor += 1;   // gone while the reply was made: the client sees the gap
+                continue;
+            }
             if (!http_json_fits(room, *len)) {
-                *len = mark;    // the next chunk begins with it
+                *len = mark;            // the next chunk begins with it
                 buf[mark] = '\0';
                 return true;
             }
-            events->wrote_one = true;
-            events->cursor += 1;
+            reading->wrote_one = true;
+            reading->cursor += 1;
         }
-        events->phase = 2;
+        reading->phase = 2;
         return true;
     }
     http_json_raw(buf, room, len, "]}");
@@ -896,39 +900,51 @@ static bool api_v1_events_more(void *ctx, char *buf, size_t room, size_t *len) {
 }
 
 
-static void api_v1_events_reply(http_server_reply_t *reply, uint32_t after) {
-    api_v1_events_t *events = http_server_reply_context(reply, sizeof(api_v1_events_t));
-    memset(events, 0, sizeof(*events));
-    events->after = after;
-    events->last = events_latest_seq();
-    http_server_reply_stream(reply, 200, "application/json", api_v1_events_more, events);
+static void api_v1_log_reply(const api_v1_log_t *log, http_server_reply_t *reply, uint32_t after) {
+    api_v1_log_reply_t *reading = http_server_reply_context(reply, sizeof(api_v1_log_reply_t));
+    memset(reading, 0, sizeof(*reading));
+    reading->log = log;
+    reading->after = after;
+    reading->last = log->newest();
+    http_server_reply_stream(reply, 200, "application/json", api_v1_log_more, reading);
 }
 
 
-static bool api_v1_events_ready(void *ctx) {
-    return events_latest_seq() > *(uint32_t *) ctx;
+// A held read's log and the number it was held after
+typedef struct {
+    const api_v1_log_t *log;
+    uint32_t after;
+} api_v1_log_held_t;
+
+
+static bool api_v1_log_ready(void *ctx) {
+    const api_v1_log_held_t *held = ctx;
+    return held->log->newest() != held->after;
 }
 
 
-static void api_v1_events_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+// A held read resumed: its after read again from its query (a parked request keeps its request)
+static void api_v1_log_resume(const api_v1_log_t *log, const http_server_request_t *request,
+                              http_server_reply_t *reply) {
     char value[16];
     uint32_t after = 0;
     if (http_server_query_value(request->query, "after", value, sizeof(value))) {
         after = (uint32_t) strtoul(value, NULL, 10);
     }
-    api_v1_events_reply(reply, after);
+    api_v1_log_reply(log, reply, after);
 }
 
 
-// GET /api/v1/events?after=N[&wait=s]: the events after N; with wait, held until there is one or the time is out
-static void api_v1_get_events(const http_server_request_t *request, http_server_reply_t *reply) {
+// GET of a log ?after=N[&wait=s]: the items after N; with wait, held until there is one after N or the time is out
+static void api_v1_log_get(const api_v1_log_t *log, http_server_handler_t resume, const http_server_request_t *request,
+                           http_server_reply_t *reply) {
     char value[16];
     uint32_t after = 0;
     if (http_server_query_value(request->query, "after", value, sizeof(value))) {
         char *end;
         unsigned long parsed = strtoul(value, &end, 10);
         if (end == value || *end != '\0') {
-            api_error(reply, 400, "wrong_type", "after", "after is an event's number", NULL);
+            api_error(reply, 400, "wrong_type", "after", "after is a number of the list's", NULL);
             return;
         }
         after = (uint32_t) parsed;
@@ -941,15 +957,76 @@ static void api_v1_get_events(const http_server_request_t *request, http_server_
         }
         // Held only when the client is up to date. After a number above the newest it read before a restart: answered
         // at once, so it sees the new boot now, not when its hold ends (review Q2)
-        if (events_latest_seq() == after) {
-            uint32_t *held_after = http_server_reply_context(reply, sizeof(uint32_t));
-            *held_after = after;
-            http_server_reply_park(reply, api_v1_events_ready, held_after, (uint32_t) wait_s * 1000,
-                                   api_v1_events_resume);
+        if (log->newest() == after) {
+            api_v1_log_held_t *held = http_server_reply_context(reply, sizeof(api_v1_log_held_t));
+            held->log = log;
+            held->after = after;
+            http_server_reply_park(reply, api_v1_log_ready, held, (uint32_t) wait_s * 1000, resume);
             return;
         }
     }
-    api_v1_events_reply(reply, after);
+    api_v1_log_reply(log, reply, after);
+}
+
+
+static bool api_v1_event_write(uint32_t number, char *out, size_t room, size_t *len) {
+    event_t event;
+    if (!events_get(number, &event)) {
+        return false;
+    }
+    events_write_json(&event, out, room, len);
+    return true;
+}
+
+
+static const api_v1_log_t api_v1_events_log = {.items = "events", .newest_name = "next", .first = events_first_seq,
+                                               .newest = events_latest_seq, .write = api_v1_event_write};
+
+
+static void api_v1_events_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_log_resume(&api_v1_events_log, request, reply);
+}
+
+
+// GET /api/v1/events?after=N[&wait=s]
+static void api_v1_get_events(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_log_get(&api_v1_events_log, api_v1_events_resume, request, reply);
+}
+
+
+static uint32_t api_v1_throws_first(void) {
+    return charge_throws_first();
+}
+
+
+static uint32_t api_v1_throws_newest(void) {
+    return charge_throws_newest();
+}
+
+
+static bool api_v1_throw_write(uint32_t number, char *out, size_t room, size_t *len) {
+    charge_throw_t record;
+    if (number > UINT16_MAX || !charge_throws_get((uint16_t) number, &record)) {
+        return false;
+    }
+    charge_throws_write_json(&record, out, room, len);
+    return true;
+}
+
+
+static const api_v1_log_t api_v1_throws_log = {.items = "throws", .newest_name = "newest",
+                                               .first = api_v1_throws_first, .newest = api_v1_throws_newest,
+                                               .write = api_v1_throw_write};
+
+
+static void api_v1_throws_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_log_resume(&api_v1_throws_log, request, reply);
+}
+
+
+// GET /api/v1/charge/throws?after=N[&wait=s] (ADR-016, gate 1): each throw's record, read as the event log is
+static void api_v1_get_throws(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_log_get(&api_v1_throws_log, api_v1_throws_resume, request, reply);
 }
 
 // --- The event stream (ADR-008, gate 2): the event log as it happens, as server-sent events
@@ -1150,16 +1227,8 @@ static void reply_scale(http_server_reply_t *reply, int status) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
-    const char *unit = scale_get_unit();
     http_json_raw(out, room, &len, "{\"weight\":");
     http_json_number(out, room, &len, scale_get_current_measurement(), 6);
-    http_json_raw(out, room, &len, ",\"unit\":");
-    if (unit != NULL) {
-        http_json_string(out, room, &len, unit);
-    }
-    else {
-        http_json_raw(out, room, &len, "null");
-    }
     http_json_raw(out, room, &len, ",\"driver\":");
     if (scale_reads()) {
         http_json_string(out, room, &len, scale_driver_api_name(scale_get_running_driver()));
@@ -1721,6 +1790,57 @@ static void api_v1_agent_hello(const http_server_request_t *request, http_server
     http_json_bool(out, room, &len, flash);
     http_json_raw(out, room, &len, "}");
     api_send(reply, 200, room, len);
+}
+
+
+// --- The web's PIN (ADR-016, gate 3): a lock against mistakes and meddling, not security
+
+#define API_V1_PIN_WRONG_MOST 5             // wrong in a row, and every write is refused for a while
+#define API_V1_PIN_LOCKED_MS 60000
+
+static uint8_t api_v1_pin_wrong = 0;
+static bool api_v1_pin_locked = false;
+static uint32_t api_v1_pin_locked_at_ms = 0;
+
+
+// The server's guard: with the switch on, every write needs the PIN on the unit's Wi-Fi page, by the Cookie pin=,
+// but a client's that reached the unit by its own hotspot; five wrong in a row lock every write for a minute. A write
+// with no PIN is refused, and not counted as wrong
+static int api_v1_pin_guard(const char *pin, const uint8_t peer[4], const uint8_t reached[4], const char **code,
+                            const char **message, uint32_t *retry_after_s) {
+    if (!wireless_pin_required() || wireless_reached_by_hotspot(peer, reached)) {
+        return 0;
+    }
+    uint32_t now_ms = (uint32_t) (chip_time_us() / 1000u);
+    if (api_v1_pin_locked) {
+        uint32_t past_ms = now_ms - api_v1_pin_locked_at_ms;
+        if (past_ms < API_V1_PIN_LOCKED_MS) {
+            *code = "pin_locked";
+            *message = "five wrong PINs in a row: every write is refused for a minute";
+            *retry_after_s = (API_V1_PIN_LOCKED_MS - past_ms + 999u) / 1000u;
+            return 429;
+        }
+        api_v1_pin_locked = false;
+    }
+    if (pin[0] == '\0') {
+        *code = "pin_required";
+        *message = "this unit asks for the PIN on its Wi-Fi page: send it with the write, as the Cookie pin=<digits>";
+        return 401;
+    }
+    if (!wireless_pin_matches(pin)) {
+        api_v1_pin_wrong += 1;
+        if (api_v1_pin_wrong >= API_V1_PIN_WRONG_MOST) {
+            api_v1_pin_wrong = 0;
+            api_v1_pin_locked = true;
+            api_v1_pin_locked_at_ms = now_ms;
+            printf("API: five wrong PINs in a row; every write refused for a minute\n");
+        }
+        *code = "pin_wrong";
+        *message = "not the PIN on the unit's Wi-Fi page: it is new at each start";
+        return 401;
+    }
+    api_v1_pin_wrong = 0;
+    return 0;
 }
 
 
@@ -2380,6 +2500,32 @@ static const char *const api_v1_schema_events[] = {
 };
 
 
+// A throw's record, GET /api/v1/charge/throws (ADR-016, gate 1): each field. Weights in the scale's unit; a figure
+// the throw did not reach is null
+static const char *const api_v1_schema_throw[] = {
+    "{\"name\":\"throw\",\"about\":\"its number, as the throw's events carry it: from 1 at each start\"}",
+    "{\"name\":\"at_ms\",\"about\":\"when its verdict was read, or it ended: the unit's clock, as now_ms\"}",
+    "{\"name\":\"simulated\",\"about\":\"thrown with the simulated scale: never tune on it\"}",
+    "{\"name\":\"charge_profile\"},{\"name\":\"powder_profile\"},{\"name\":\"target\"}",
+    "{\"name\":\"result\",\"about\":\"good, under, over; none when it ended short\"}",
+    "{\"name\":\"reason\",\"about\":\"finished, or why it ended short: as the throw's ended event\"}",
+    "{\"name\":\"weight\",\"about\":\"the verdict's; ended short, the reading at its end\"}",
+    "{\"name\":\"elapsed_s\",\"about\":\"the whole pour, from its start after the zero\"}",
+    "{\"name\":\"coarse_s\",\"about\":\"from the pour's start to the coarse tube's stop\"}",
+    "{\"name\":\"fine_s\",\"about\":\"the fine tube's part: from the coarse tube's stop to the fine stop\"}",
+    "{\"name\":\"coarse_stop\",\"about\":\"at the coarse tube's stop: weight, the reading; rps, its speed just "
+    "before\"}",
+    "{\"name\":\"fine_stop\",\"about\":\"at the fine stop: weight, the reading; rps, the fine tube's speed just "
+    "before\"}",
+    "{\"name\":\"fall\",\"about\":\"weight less fine_stop's reading: what landed after the fine stop\"}",
+    "{\"name\":\"pauses\",\"about\":\"for want of readings\"}",
+    "{\"name\":\"gains\",\"about\":\"coarse and fine kp, ki, kd it was thrown on; by: profile, or auto_tune (the "
+    "auto-tuner's trial, in no settings resource)\"}",
+    "{\"name\":\"coarse_threshold\"},{\"name\":\"fine_threshold\"},{\"name\":\"forecast\"},{\"name\":\"auto_tune\"},"
+    "{\"name\":\"backoff\",\"about\":\"the charge's settings it was thrown on\"}",
+};
+
+
 // A part's items, then the gate's where one is handed over
 static const char *api_v1_schema_item_of(const char *const *items, size_t count, const char *const *gate_items,
                                          size_t gate_count, size_t idx) {
@@ -2399,6 +2545,8 @@ const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx) {
         case API_V1_SCHEMA_STATES:
             return api_v1_schema_item_of(api_v1_schema_states, ARRAY_COUNT(api_v1_schema_states),
                                          api_v1_schema_gate_states, ARRAY_COUNT(api_v1_schema_gate_states), idx);
+        case API_V1_SCHEMA_THROW:
+            return idx < ARRAY_COUNT(api_v1_schema_throw) ? api_v1_schema_throw[idx] : NULL;
         case API_V1_SCHEMA_EVENTS:
         default:
             return idx < sizeof(api_v1_schema_events) / sizeof(api_v1_schema_events[0]) ?
@@ -2413,6 +2561,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/charge", api_v1_patch_charge);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/start", api_v1_charge_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/stop", api_v1_charge_stop);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/charge/throws", api_v1_get_throws);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/purge", api_v1_get_purge);
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/purge", api_v1_patch_purge);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/start", api_v1_purge_start);
@@ -2440,6 +2589,8 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/factory_reset", api_v1_system_factory_reset);
     // The owner's hello for agents: listed since ADR-008's gate 2, an action of the kind agent
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
+    // The web's PIN (ADR-016, gate 3): the guard every write passes
+    http_server_set_write_guard(api_v1_pin_guard);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/wifi/networks", api_v1_get_networks);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/scan", api_v1_wifi_scan);

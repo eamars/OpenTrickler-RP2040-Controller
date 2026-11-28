@@ -34,6 +34,8 @@
 
 #include "chip.h"
 
+#include "agent_guide.h"    // made from agent_guide.md as the build configures (ADR-016, gate 2)
+
 
 
 // /debug/load's bounds: well past a throw's 650 rows of 16 columns
@@ -66,6 +68,15 @@ const api_v1_screen_t *api_v1_screen(void) {
 
 
 // GET /api/v1/display
+// GET /api/v1/agent and /llms.txt (ADR-016, gate 2): the guide for an AI agent a person points at the unit, as it is,
+// not compressed, so any client reads it
+static void api_v1_get_agent_guide(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    http_server_reply_static(reply, 200, "text/markdown; charset=utf-8", agent_guide_text,
+                             sizeof(agent_guide_text) - 1, NULL);
+}
+
+
 static void api_v1_get_display(const http_server_request_t *request, http_server_reply_t *reply) {
     const api_v1_screen_t *screen = api_v1_screen();
     if (screen == NULL) {
@@ -346,6 +357,8 @@ typedef struct {
 
 static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1", "[\"GET\"]", "this index"},
+    {"/api/v1/agent", "[\"GET\"]",
+     "for an AI agent helping the person at the unit: what to do first and how to help, in Markdown. Read it first"},
     {"/api/v1/schema", "[\"GET\"]",
      "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is "
      "refused; every action with its body's fields; every state and event kind; the error codes"},
@@ -365,6 +378,9 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/charge/start", "[\"POST\"]",
      "starts a charge: {}, or the charge profile to choose, the target and the powder profile to set first"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
+    {"/api/v1/charge/throws", "[\"GET\"]",
+     "each throw's record after a number (?after=N, ?wait=s as the events), the newest 32: what it was thrown on "
+     "and what it did (the schema's throw)"},
     {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
      "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
     {"/api/v1/purge/start", "[\"POST\"]", "starts a purge, at speed 0"},
@@ -386,7 +402,7 @@ static const api_v1_resource_t api_v1_resources[] = {
      "the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, "
      "the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most "
      "3 at once: 503 then, with Retry-After"},
-    {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
+    {"/api/v1/scale", "[\"GET\"]", "the scale: its weight, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
     {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it", gate_present},
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
@@ -497,7 +513,11 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
             http_json_string(buf, room, len, feature->about);
             http_json_raw(buf, room, len, "}");
         }
-        http_json_raw(buf, room, len, "],\"guide\":");
+        // The guide for an AI agent, by its path: the index's own guide has no room left (ADR-016, gate 2)
+        http_json_raw(buf, room, len, "],\"agent\":\"/api/v1/agent\",\"pin\":");
+        // Whether writes need the PIN on the unit's Wi-Fi page (ADR-016, gate 3); never the PIN
+        http_json_bool(buf, room, len, wireless_pin_required());
+        http_json_raw(buf, room, len, ",\"guide\":");
         index->phase = 1;
         return true;
     }
@@ -707,6 +727,8 @@ bool api_v1_init(void) {
     api_v1_settings_init();
     // The commands, the event log and the unit's reads (gate 4)
     ok = ok && api_v1_commands_init();
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/agent", api_v1_get_agent_guide);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/llms.txt", api_v1_get_agent_guide);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display/frame", api_v1_get_display_frame);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug", api_v1_get_debug);

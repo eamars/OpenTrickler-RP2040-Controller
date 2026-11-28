@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-393",
-   "vcs": "ba863a8",
+   "version": "2.0.3-414",
+   "vcs": "9b0d41b",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
   "hostname": "opentrickler-4A82",
-  "boot": 4283050194,
-  "uptime_s": 31,
+  "boot": 2893589230,
+  "uptime_s": 205,
   "features": [
    {
     "name": "servo_gate",
@@ -18,6 +18,8 @@
     "about": "the shutters' servos: GET /api/v1/gate, settings/gate, the screen's Settings, Servo gate"
    }
   ],
+  "agent": "/api/v1/agent",
+  "pin": false,
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge throws the chosen charge profile's target (GET /api/v1/charge_profiles). It is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
    {
@@ -26,6 +28,13 @@
      "GET"
     ],
     "about": "this index"
+   },
+   {
+    "path": "/api/v1/agent",
+    "methods": [
+     "GET"
+    ],
+    "about": "for an AI agent helping the person at the unit: what to do first and how to help, in Markdown. Read it first"
    },
    {
     "path": "/api/v1/schema",
@@ -90,6 +99,13 @@
      "POST"
     ],
     "about": "stops the charge, and acknowledges its fault; never fails"
+   },
+   {
+    "path": "/api/v1/charge/throws",
+    "methods": [
+     "GET"
+    ],
+    "about": "each throw's record after a number (?after=N), the newest 32 since the start, held until one is recorded with ?wait=s: what it was thrown on and what it did (the schema's throw)"
    },
    {
     "path": "/api/v1/purge",
@@ -161,6 +177,13 @@
      "POST"
     ],
     "about": "stops the calibration, discarding what it found; never fails"
+   },
+   {
+    "path": "/api/v1/pin",
+    "methods": [
+     "POST"
+    ],
+    "about": "sets the web's PIN, or clears it: with one set (pin, above), every write needs it as the Cookie pin=<digits>"
    },
    {
     "path": "/api/v1/agent/hello",
@@ -562,11 +585,14 @@
    }
   ]
  },
+ "/api/v1/agent": {
+  "base64": "IyBPcGVuVHJpY2tsZXI6IGEgZ3VpZGUgZm9yIGFuIEFJIGFnZW50CgpZb3UgYXJlIGhlbHBpbmcgYSBwZXJzb24gd2hvIHN0YW5kcyBhdCB0aGlzIHVuaXQsIGEgcG93ZGVyIHRyaWNrbGVyIGZvciByZWxvYWRpbmcuIFRoZXkgbG9hZCB0aGUgY3VwIGFuZCBlbXB0eSBpdDsgeW91IHJlYWQgdGhlIHRocm93cyBhbmQgY2hhbmdlIHRoZSBzZXR0aW5ncyBvdmVyIHRoaXMgQVBJLiBFdmVyeXRoaW5nIGJlbG93IGlzIG9uIHRoZSB1bml0IGl0c2VsZjogYEdFVCAvYXBpL3YxYCAodGhlIGluZGV4LCBpdHMgcGF0aHMpIGFuZCBgR0VUIC9hcGkvdjEvc2NoZW1hYCAoZXZlcnkgZmllbGQsIGl0cyBsaW1pdHMsIGV2ZXJ5IGFjdGlvbikuIEV2ZXJ5IFBPU1QgdGFrZXMgYSBKU09OIGJvZHk6IGB7fWAgd2hlbiBpdCBoYXMgbm90aGluZy4gQSBoZWxkIHJlYWQgd2FpdHMgMzAgcyBhdCBtb3N0OiBgd2FpdD0zMGAsIG5ldmVyIG1vcmUgKGEgbG9uZ2VyIG9uZSBpcyByZWZ1c2VkLCA0MDApLgoKIyMgRmlyc3QKCjAuIElmIHRoZSBpbmRleCdzIGBwaW5gIGlzIHRydWUsIHRoaXMgdW5pdCBoYXMgYSBQSU46IGFzayB0aGUgcGVyc29uIGZvciBpdCwgYW5kIHNlbmQgaXQgd2l0aCBldmVyeSB3cml0ZSBhcyB0aGUgaGVhZGVyIGBDb29raWU6IHBpbj08ZGlnaXRzPmAuIFdpdGhvdXQgaXQgYSB3cml0ZSBpcyByZWZ1c2VkICg0MDEgYHBpbl9yZXF1aXJlZGApLCB3aXRoIGEgd3Jvbmcgb25lIDQwMSBgcGluX3dyb25nYDsgZml2ZSB3cm9uZyBpbiBhIHJvdyByZWZ1c2UgZXZlcnkgd3JpdGUgZm9yIGEgbWludXRlICg0MjkgYHBpbl9sb2NrZWRgKS4gUmVhZHMgbmVlZCBub25lLiBBIFBJTiBndWFyZHMgYWdhaW5zdCBtaXN0YWtlcyBhbmQgbWVkZGxpbmc7IGl0IGlzIG5vdCBzZWN1cml0eS4KMS4gU2F5IGhlbGxvOiBgUE9TVCAvYXBpL3YxL2FnZW50L2hlbGxvYCB3aXRoIGB7Im5hbWUiOiI8d2hvIHlvdSBhcmU+In1gICgxIHRvIDE2IGNoYXJhY3RlcnMpLiBUaGUgc2NyZWVuIHNob3dzIHRoZSBwZXJzb24gd2hvIGlzIHdhdGNoaW5nLiBJdCBpcyByZWZ1c2VkICg0MDkpIHdoaWxlIGEgY2hhcmdlIHJ1bnM6IHNheSBpdCBvbmNlIHRoZSBjaGFyZ2Ugc3RvcHMuCjIuIEFzayB0aGUgcGVyc29uIG9uY2UgYmVmb3JlIHlvdSBjaGFuZ2UgYW55dGhpbmc6IHdoYXQgeW91IG1lYW4gdG8gZG8sIGFuZCB0aGF0IGEgc2V0dGluZyB5b3UgdHJ5IGlzIGxpdmUgYXQgb25jZS4gT25jZSB0aGV5IHNheSB5ZXMsIGNoYW5nZSBhbmQgc3RvcmUgd2hhdCB0aGVpciBnb2FsIG5lZWRzLCBhbmQgdGVsbCB0aGVtIHdoYXQgeW91IGRpZCBhbmQgd2h5LgozLiBSZWFkIHdoYXQgcnVuczogYEdFVCAvYXBpL3YxL2NoYXJnZWAgKHRoZSBsb2FkLCBpdHMgYHRhcmdldGAgYW5kIGBwb3dkZXJfcHJvZmlsZWApLCBgR0VUIC9hcGkvdjEvcG93ZGVyX3Byb2ZpbGVzL3tpZH1gLCBgR0VUIC9hcGkvdjEvc2V0dGluZ3MvY2hhcmdlYCwgYW5kIGBHRVQgL2FwaS92MS9zY2FsZWA6IGl0cyBgZHJpdmVyYCBpcyB0aGUgc2NhbGUgdGhhdCBydW5zIG5vdyAoYHNpbXVsYXRlZGAsIHRoZSBzdGFuZC1pbiwgd2hpY2ggdGhlIHBlcnNvbiBjYW4gc3dpdGNoIG9uIGF0IHRoZSB1bml0KSwgbm90IGFsd2F5cyB0aGUgbWFrZSBzdG9yZWQgaW4gYHNldHRpbmdzL3NjYWxlYC4gTmV2ZXIgY2hhbmdlIHRoZSBzY2FsZSdzIHNldHRpbmdzIHRvIG1ha2UgYSBkcnkgcnVuLgoKIyMgVGhlIGF1dG8tdHVuZXIgZmlyc3QKCmBzZXR0aW5ncy9jaGFyZ2VgIGBhdXRvX3R1bmVgOiBvbiwgdGhlIHVuaXQgbW92ZXMgdGhlIGZpbmUga3AgYW5kIGtkIGl0c2VsZiwganVkZ2luZyB3aW5kb3dzIG9mIDI1IHRocm93cyBhdCBvbmUgdGFyZ2V0LCBhbmQgc3RvcmVzIGJldHRlciBnYWlucyBpbnRvIHRoZSBwb3dkZXIncyBwcm9maWxlLiBJdCBiZWdpbnMgYWZyZXNoIGF0IGEgcmVzdGFydCwgYXQgYSBjaGFuZ2Ugb2YgcG93ZGVyIG9yIHRhcmdldCwgYW5kIHdoZW4gdGhlIGdhaW5zIGFyZSBjaGFuZ2VkLiBJZiBpdCBpcyBvZmYsIG9mZmVyIGl0IGJlZm9yZSB0dW5pbmcgYnkgaGFuZC4gV2hpbGUgeW91IG1vdmUgdGhlIGdhaW5zIHlvdXJzZWxmLCB0dXJuIGl0IG9mZiwgYW5kIHNheSBzby4KCiMjIFJlYWRpbmcgYSB0aHJvdwoKYEdFVCAvYXBpL3YxL2NoYXJnZS90aHJvd3M/YWZ0ZXI9TiZ3YWl0PTMwYCBnaXZlcyBlYWNoIHRocm93J3MgcmVjb3JkIGFmdGVyIHRocm93IE4sIGhlbGQgdW50aWwgdGhlIG5leHQgb25lIGlzIHJlY29yZGVkLiBUaGUgc2NoZW1hJ3MgYHRocm93YCBsaXN0cyBpdHMgZmllbGRzLiBgc2ltdWxhdGVkOiB0cnVlYCBpcyB0aGUgdW5pdCdzIHN0YW5kLWluIHNjYWxlOiBuZXZlciB0dW5lIGZyb20gaXQuIE9uIGEgZHJ5IHJ1biB0aGUgcGVyc29uIGFza3MgZm9yLCBnbyB0aHJvdWdoIHlvdXIgc3RlcHMgYXMgeW91IHdvdWxkLCBhbmQgc3RvcmUgbm90aGluZyBmcm9tIGl0LgoKLSAqKk92ZXIsIHdpdGggYGZpbmVfc2AgbmVhciAwOioqIHRoZSBjb2Fyc2UgdHViZSBwb3VyZWQgcGFzdCB0aGUgdGFyZ2V0LiBSYWlzZSBgY29hcnNlX3N0b3BfdGhyZXNob2xkYCAoYHNldHRpbmdzL2NoYXJnZWApLCBvciBsb3dlciBgY29hcnNlX2twYC4KLSAqKk92ZXIsIHdpdGggYSBoaWdoIGBmaW5lX3N0b3AucnBzYDoqKiB0aGUgZmluZSB0dWJlIHdhcyB0b28gZmFzdCBhdCBpdHMgc3RvcC4gTG93ZXIgYGZpbmVfa3BgLCBieSBhIHRlbnRoIGF0IGEgdGltZSwgb3IgYGZpbmVfbWluX3NwZWVkX3Jwc2AgYnkgYSBxdWFydGVyLgotICoqT3Zlciwgd2l0aCBhIGxhcmdlIGBmYWxsYDoqKiBwb3dkZXIgbGFuZGVkIGFmdGVyIHRoZSBzdG9wLiBMb3dlciB0aGUgZmluZSB0dWJlJ3Mgc3BlZWQgbmVhciB0aGUgZW5kLCBhcyBhYm92ZS4KLSAqKkdvb2QgYnV0IHNsb3cgKGBlbGFwc2VkX3NgIHBhc3QgMTMgcywgb3IgYGNvYXJzZV9zYCBwYXN0IDggcyk6KiogcmFpc2UgYGZpbmVfa3BgIG9yIGBjb2Fyc2Vfa3BgIGEgbGl0dGxlLgotICoqT3Zlciwgd2l0aCBgZmluZV9raWAgYWJvdmUgMDoqKiBsb3dlciBgZmluZV9raWAgdG93YXJkIDAuCgojIyBXaGF0IHRvIG1vdmUsIGFuZCB3aGVuIHRvIHN0b3AKClRoZSBnYWlucyBhbmQgc3BlZWRzIGFyZSB0aGUgcG93ZGVyIHByb2ZpbGUncyAoYHBvd2Rlcl9wcm9maWxlcy97aWR9YCksIHRoZSB0aHJlc2hvbGRzIHRoZSBjaGFyZ2UncyAoYHNldHRpbmdzL2NoYXJnZWApLiBDaGFuZ2Ugb25lIHRoaW5nIGF0IGEgdGltZSBhbmQganVkZ2UgaXQgb3ZlciAxMCB0aHJvd3M6IDkgZ29vZCBpcyBkb25lLiBUd28gb3ZlcnMgaW4gMTA6IGxvd2VyIGBmaW5lX2twYCBieSBhIHRlbnRoLCBvciBgZmluZV9taW5fc3BlZWRfcnBzYCBieSBhIHF1YXJ0ZXIsIGF0IG1vc3QgdGhyZWUgdGltZXMsIHRoZW4gdGVsbCB0aGUgcGVyc29uIHdoYXQgeW91IGZvdW5kLgoKYGZpbmVfc3RvcF90aHJlc2hvbGRgIGlzIGFsc28gdGhlIHRvbGVyYW5jZSBhIHRocm93IGlzIGp1ZGdlZCBieTogY2hhbmdlIGl0IG9ubHkgYXQgdGhlIHBlcnNvbidzIHdvcmQuIFRvIHN1Z2dlc3Qgb25lLCB0YWtlIHRoZSBtZWRpYW4gYGZhbGxgIGFuZCBhIHZhbHVlIGhhbGYgYSBzY2FsZSBzdGVwIG9mZiBhIG11bHRpcGxlIG9mIHRoZSBzdGVwLgoKQSBzZXR0aW5nIGlzIHdyaXR0ZW4gYnkgYFBBVENIYCwgbGl2ZSBhdCBvbmNlIGFuZCBub3Qgc3RvcmVkLiBJdCBpcyByZWZ1c2VkICg0MDkgYGJ1c3lgKSB3aGlsZSBhIHRocm93IHJ1bnMsIGZyb20gaXRzIHplcm8gdG8gaXRzIHZlcmRpY3Q6IHdyaXRlIGFzIHNvb24gYXMgYSBoZWxkIHJlYWQgZ2l2ZXMgeW91IHRoZSB2ZXJkaWN0LCBiZWZvcmUgdGhlIGN1cCBpcyBiYWNrOyByZWZ1c2VkLCB3cml0ZSBhZ2FpbiBhZnRlciB0aGUgbmV4dCB2ZXJkaWN0LiBFYWNoIHJlY29yZCdzIGBnYWluc2AgYW5kIHRocmVzaG9sZHMgYXJlIHdoYXQgdGhhdCB0aHJvdyB3YXMgdGhyb3duIG9uOiBqdWRnZSBhIGNoYW5nZSBieSB0aGVtLCBub3QgYnkgd2hlbiB5b3Ugd3JvdGUgaXQuIEVhY2ggc2V0dGluZ3MgcmVwbHkgc2F5cyB3aGV0aGVyIGl0IGlzIGBzYXZlZGAuCgojIyBUaGUgZW5kCgpMZWF2ZSBldmVyeSByZXNvdXJjZSBzdG9yZWQgKGBQT1NUYCBpdHMgYHNhdmVgIHBhdGgpIG9yIHB1dCBiYWNrIChpdHMgYHJldmVydGAgcGF0aCk6IGBzYXZlZGAgdHJ1ZSBldmVyeXdoZXJlLiBMZWF2ZSBgYXV0b190dW5lYCBhcyB5b3UgZm91bmQgaXQgdW5sZXNzIHRoZSBwZXJzb24gY2hvc2Ugb3RoZXJ3aXNlLiBUZWxsIHRoZSBwZXJzb24gaW4gYSBmZXcgbGluZXMgd2hhdCB5b3UgY2hhbmdlZCwgYW5kIHRoZSB0aHJvd3MgdGhhdCBzaG93IGl0LgoKIyMgTGltaXRzCgotIFN0YXJ0IGEgY2hhcmdlIChgUE9TVCAvYXBpL3YxL2NoYXJnZS9zdGFydGApIG9ubHkgd2hlbiB0aGUgcGVyc29uIHNheXMgYW4gZW1wdHkgY3VwIGlzIG9uIHRoZSBwYW4uIFRoZSB1bml0IGNhbm5vdCBzZWUgdGhlIGN1cCBvciB0aGUgaG9wcGVyLiBgUE9TVCAvYXBpL3YxL3N0b3BgIHN0b3BzIHdoYXRldmVyIHJ1bnMuCi0gQSBzY2FsZSB0aGF0IHNlbmRzIG5vdGhpbmcgZ2l2ZXMgdGhlIHVuaXQgbm90aGluZyB0byByZWFkOiBjaGVjayB3aXRoIHRoZSBwZXJzb24gaXRzIGNhYmxlLCBpdHMgbWFrZSAoYHNldHRpbmdzL3NjYWxlYCkgYW5kIGl0cyByYXRlLgo="
+ },
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-393",
-   "vcs": "ba863a8",
+   "version": "2.0.3-414",
+   "vcs": "9b0d41b",
    "build": "Debug"
   },
   "resources": [
@@ -2225,6 +2251,23 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/pin",
+    "fields": [
+     {
+      "name": "pin",
+      "type": "string",
+      "required": true,
+      "about": "4 to 8 digits; \"\" for none"
+     }
+    ],
+    "refused_while": "never",
+    "about": "sets the web's PIN, stored at once (ADR-016): with one set (the index's pin), every write needs it, sent as the Cookie pin=<digits>: 401 pin_required without it, 401 pin_wrong, five wrong in a row 429 pin_locked for a minute. Every read is free. A lock against mistakes and meddling, not security: a forgotten PIN is cleared at the unit (Settings, Clear PIN) or by a factory reset",
+    "example": {
+     "pin": "1234"
+    }
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/agent/hello",
     "fields": [
      {
@@ -3060,6 +3103,89 @@
     "about": "the set-up's join did not join, nothing stored; reason: wrong_password, timeout, failed"
    }
   ],
+  "throw": [
+   {
+    "name": "throw",
+    "about": "its number, as the throw's events carry it: from 1 at each start"
+   },
+   {
+    "name": "at_ms",
+    "about": "when its verdict was read, or it ended: the unit's clock, as now_ms"
+   },
+   {
+    "name": "simulated",
+    "about": "thrown with the simulated scale: never tune on it"
+   },
+   {
+    "name": "charge_profile"
+   },
+   {
+    "name": "powder_profile"
+   },
+   {
+    "name": "target"
+   },
+   {
+    "name": "result",
+    "about": "good, under, over; none when it ended short"
+   },
+   {
+    "name": "reason",
+    "about": "finished, or why it ended short: as the throw's ended event"
+   },
+   {
+    "name": "weight",
+    "about": "the verdict's; ended short, the reading at its end"
+   },
+   {
+    "name": "elapsed_s",
+    "about": "the whole pour, from its start after the zero"
+   },
+   {
+    "name": "coarse_s",
+    "about": "from the pour's start to the coarse tube's stop"
+   },
+   {
+    "name": "fine_s",
+    "about": "the fine tube's part: from the coarse tube's stop to the fine stop"
+   },
+   {
+    "name": "coarse_stop",
+    "about": "at the coarse tube's stop: weight, the reading; rps, its speed just before"
+   },
+   {
+    "name": "fine_stop",
+    "about": "at the fine stop: weight, the reading; rps, the fine tube's speed just before"
+   },
+   {
+    "name": "fall",
+    "about": "weight less fine_stop's reading: what landed after the fine stop"
+   },
+   {
+    "name": "pauses",
+    "about": "for want of readings"
+   },
+   {
+    "name": "gains",
+    "about": "coarse and fine kp, ki, kd it was thrown on; by: profile, or auto_tune (the auto-tuner's trial, in no settings resource)"
+   },
+   {
+    "name": "coarse_threshold"
+   },
+   {
+    "name": "fine_threshold"
+   },
+   {
+    "name": "forecast"
+   },
+   {
+    "name": "auto_tune"
+   },
+   {
+    "name": "backoff",
+    "about": "the charge's settings it was thrown on"
+   }
+  ],
   "errors": [
    "bad_json",
    "bad_request",
@@ -3094,14 +3220,17 @@
    "no_network",
    "not_on_hotspot",
    "not_now",
-   "not_filling"
+   "not_filling",
+   "pin_required",
+   "pin_wrong",
+   "pin_locked"
   ]
  },
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-393",
-   "vcs": "ba863a8",
+   "version": "2.0.3-414",
+   "vcs": "9b0d41b",
    "build": "Debug"
   },
   "unit_id": "4A821948",
@@ -3324,9 +3453,9 @@
    },
    "/api/v1/charge_profiles/0": {
     "saved": true,
-    "name": "Load 1",
-    "target": null,
-    "powder_profile": 0
+    "name": "6.5CM",
+    "target": 42.5,
+    "powder_profile": 1
    },
    "/api/v1/charge_profiles/1": {
     "saved": true,
@@ -3429,7 +3558,7 @@
   "profiles": [
    {
     "id": 0,
-    "name": "Load 1"
+    "name": "6.5CM"
    },
    {
     "id": 1,
@@ -3480,10 +3609,10 @@
   "throw": 0,
   "paused": false,
   "charge_profile": 0,
-  "charge_profile_name": "Load 1",
-  "target": null,
-  "powder_profile": 0,
-  "powder_profile_name": "AR2208,gr",
+  "charge_profile_name": "6.5CM",
+  "target": 42.5,
+  "powder_profile": 1,
+  "powder_profile_name": "AR2209,gr",
   "weight": 0,
   "elapsed_s": 0,
   "last": {
@@ -3492,7 +3621,14 @@
    "reason": "none",
    "weight": null
   },
-  "event_seq": 1
+  "event_seq": 7
+ },
+ "/api/v1/charge/throws": {
+  "boot": 2893589230,
+  "now_ms": 207562,
+  "first": 0,
+  "newest": 0,
+  "throws": []
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -3524,8 +3660,8 @@
     "lag": []
    },
    "powder": {
-    "profile": 0,
-    "name": "AR2208,gr",
+    "profile": 1,
+    "name": "AR2209,gr",
     "fine_min_speed_rps": 0.08,
     "coarse_min_speed_rps": 0.1,
     "fine_weight_per_turn": null,
@@ -3535,7 +3671,6 @@
  },
  "/api/v1/scale": {
   "weight": 0,
-  "unit": "gn",
   "driver": "and_fxi",
   "simulated": false,
   "usual_interval_ms": 48,
@@ -3560,13 +3695,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-393",
-   "vcs": "ba863a8",
+   "version": "2.0.3-414",
+   "vcs": "9b0d41b",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
-  "uptime_s": 34,
+  "uptime_s": 207,
   "activity": "none",
   "restart_pending": false,
   "set_up": true
@@ -3576,7 +3711,7 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-4A82",
-  "rssi": -51,
+  "rssi": -61,
   "station": {
    "state": "joined",
    "ssid": "dummy_ssid",
@@ -3599,7 +3734,7 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-393",
+   "version": "2.0.3-414",
    "block": "2.0.3-255",
    "slot": "a",
    "trial": false
@@ -3629,7 +3764,7 @@
   "format": "mono_rows"
  },
  "/api/v1/display/frame": {
-  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB5AAAAAAAAAAAAAAAAAAAAhQAAAAAAAAAAAAAAAAAAAIFnKaYAAAAAAAAAAAAAIACBkLJpAAAAAAAAAAAAABAAgROiLwAAAAAAAAAAAAAIAIEUoigAAAAAAAAAAAAAEACFFKJpAAAAAAAAAAAAACAAeRNhpgAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAP////////////////////j////////////////////4////////////////////+Ph/V//3/2+///2///////j3v3f/9/9v////v//////49+NU1GM+KbPtTR/////9+Pf9U0+232at7TW//////vj38VdeNh9us+11v/////949+1XXbb/br3tdb/////++PetU122326t7XW//////fj4clTeUz8us/F1n//////4////////////////////+P////////////////////j////////////////////4////////////////////+P////////////////////jw///////////////////493//////////////////+Pdass////////////////jw2my3///////////////499ruh///////////////+Pfa7r////////////////j32uy3///////////////49+Lyz///////////////+P///v////////////////j///H////////////////4////////////////////+P////////////////////j////////////////////+7ufgf////////////////u7v7/////////////////721+9///////////////3+9tfhf//////////////+/vVUb3///////////////377t+9///////////////7++7fvf//////////////9/vu373////////////////7////////////////////+/////////////////////g=="
+  "base64": "///////////////////////////////////////////j///gfPzz////////wf/zyf//+f/88////////93/85ynGnnQxJMaf//////d/5Ockkk5xJQySP//////3f+TnJIJOcyccgn//////938k5ySeTnMnDJ5///////B/JPJkkk5zJSSSf//////1eST44cZOczEwxn//////8Hkk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB5AAAAAAAAAAAAAAAAAAAAhQAAAAAAAAAAAAAAAAAAAIFnKaYAAAAAAAAAAAAAIACBkLJpAAAAAAAAAAAAABAAgROiLwAAAAAAAAAAAAAIAIEUoigAAAAAAAAAAAAAEACFFKJpAAAAAAAAAAAAACAAeRNhpgAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAP////////////////////j////////////////////4////////////////////+Ph/V//3/2+///2///////j3v3f/9/9v////v//////49+NU1GM+KbPtTR/////9+Pf9U0+232at7TW//////vj38VdeNh9us+11v/////949+1XXbb/br3tdb/////++PetU122326t7XW//////fj4clTeUz8us/F1n//////4////////////////////+P////////////////////j////////////////////4////////////////////+P////////////////////jw///////////////////493//////////////////+Pdass////////////////jw2my3///////////////499ruh///////////////+Pfa7r////////////////j32uy3///////////////49+Lyz///////////////+P///v////////////////j///H////////////////4////////////////////+P////////////////////j////////////////////+7ufgf////////////////u7v7/////////////////721+9///////////////3+9tfhf//////////////+/vVUb3///////////////377t+9///////////////7++7fvf//////////////9/vu373////////////////7////////////////////+/////////////////////g=="
  },
  "/api/v1/settings/leds": {
   "saved": true,
@@ -3849,9 +3984,9 @@
  },
  "/api/v1/charge_profiles/0": {
   "saved": true,
-  "name": "Load 1",
-  "target": null,
-  "powder_profile": 0
+  "name": "6.5CM",
+  "target": 42.5,
+  "powder_profile": 1
  },
  "/api/v1/charge_profiles/1": {
   "saved": true,

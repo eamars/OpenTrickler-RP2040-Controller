@@ -206,13 +206,23 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
             simulated_scale_force_weight(true, weight);
         }
     }
+    else if (strncmp(args, "lag ", 4) == 0) {
+        // The powder lands this long after it is poured, so a throw can land over (ADR-016, gate 2); never stored
+        char *end;
+        long ms = strtol(args + 4, &end, 10);
+        if (end == args + 4 || *end != '\0' || ms < 0 || !simulated_scale_set_lag((uint32_t) ms)) {
+            snprintf(reply, reply_size, "@err usage: sim lag <ms, 0 to 2000>");
+            return false;
+        }
+    }
     else if (*args != '\0') {
-        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>|weight <a number|off>]");
+        snprintf(reply, reply_size,
+                 "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>|weight <a number|off>|lag <ms>]");
         return false;
     }
 
-    snprintf(reply, reply_size, "@ok sim=%d scale=\"%s\" rate=%.1f", scale_simulation_is_on() ? 1 : 0,
-             get_scale_driver_string(), simulated_scale_get_rate());
+    snprintf(reply, reply_size, "@ok sim=%d scale=\"%s\" rate=%.1f lag=%lu", scale_simulation_is_on() ? 1 : 0,
+             get_scale_driver_string(), simulated_scale_get_rate(), (unsigned long) simulated_scale_get_lag());
     return true;
 }
 

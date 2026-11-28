@@ -21,7 +21,7 @@ Each field below comes from today's stored structs, read in the code on 2026-11-
 - **Only the unit's own name is served.** An API request whose `Host` is not the unit's address or its host name (with or without `.local`) is refused with 403. A page asked for under another name is redirected to the unit's address, which the captive portal needs too. This stops a page that has pointed its own name at the unit (DNS rebinding).
 - **A write or an action must be sent as `application/json`**, or as `application/octet-stream` where a path takes bytes (ADR-004's image). Anything else is refused with 415, a POST with no body and no `Content-Type` included. The unit sends no CORS headers and answers `OPTIONS` with 405. A browser asks a server's leave before it sends either type from another site, and the unit never gives it. With the `Host` rule, a page from another site cannot make a browser write to the unit.
 - **Settings are live when written and stored when saved.** A PATCH changes the setting at once (or at the next start, where the schema says so). A save stores it. Every settings resource carries `"saved": true|false`. `saved` is worked out, not remembered: the struct in RAM against what was last stored, by their CRCs. So a change made at the menu or at the console counts too.
-- **Numbers** are JSON numbers. **A number a GET gives, PATCHed back, changes nothing:** a setting's float is written as the shortest decimal that reads back to the same float, nine significant digits at most (30.02, not 30.0200005). A recording's samples are written with six (below). A value that is not there, such as a weight with no scale reading, is `null`.
+- **Numbers** are JSON numbers. **A number a GET gives, PATCHed back, changes nothing:** a setting's float is written as the shortest decimal that reads back to the same float, nine significant digits at most (30.02, not 30.0200005). A value that is not there, such as a weight with no scale reading, is `null`.
 - **Choices** are strings or numbers from a list in the schema, each with a label: `"driver": "and_fxi"` ("A&D FX-i"), `"baud": 9600`. No indexes.
 - **Weights** are in the scale's own unit: `GET /api/v1/scale` says which, or `null` when the scale cannot tell. A client does not assume.
 - **Colours** are `"#rrggbb"`.
@@ -43,7 +43,7 @@ What may change within v1, and what a client does about it:
 - **Bytes are sent with PUT** (ADR-004's image), as `application/octet-stream`, and handed to their route in pieces as they come (gate 4): the server holds none of it whole, and the route says how much it takes (413 `too_large`).
 - **A resource may gain a representation,** asked for with `?format=` (a link can carry it, a header cannot); JSON stays the default.
 - **What is under `/api/v1/debug` is not part of v1.** It may change or go in any build.
-- **A password,** if its own ADR adds one, comes as a header (`Authorization`). Paths and bodies stay as they are; a client adds the header.
+- **The web's PIN** (ADR-016, gate 3; a password was reserved here as a header): a check that whoever changes the unit over the network can read its screen. A switch, `settings/wifi`'s `pin_required`, off by default, turned at the unit (Wi-Fi › Options) or on the web; with it on (the index's `pin`), every write to `/api/` (a POST, PUT, PATCH or DELETE, a stop and a hello included) needs the PIN the unit shows on its Wi-Fi page, 4 digits made at each start and kept in RAM alone, sent as the cookie `pin=<digits>` (`Cookie: pin=1234`); every read is free, and a client that reached the unit by its own hotspot needs none. Refused before its route, so it changes nothing: 401 `pin_required` without it, 401 `pin_wrong`, and after five wrong in a row 429 `pin_locked` with `Retry-After` for a minute, the right one too. A restart makes a new PIN: a client keeps the old until a write is refused. A `Cookie:` line longer than the unit reads (256 bytes) is passed over, so its PIN is not seen. Not security: it is in the clear, and while a person holds the unit's Wi-Fi page open the mirror (`/api/v1/display/frame`, a read) shows it, as it shows the hotspot's key there (accepted by the owner, ADR-016). Paths and bodies stay as they are.
 - **A change that breaks any of this** is `/api/v2`, served beside v1 for a time.
 
 ### Status and errors
@@ -54,6 +54,7 @@ What may change within v1, and what a client does about it:
 | 202 | An action under way: a charge started or stopped, a restart |
 | 304 | The schema or a page, unchanged since the `ETag` the client gave |
 | 400 | Not JSON, an unknown field in an action's body, a wrong type, a value outside its limits, a missing confirmation, a start with no target |
+| 401 | A write without the PIN on the unit's Wi-Fi page, or with a wrong one, while the web PIN is on (`pin_required`, `pin_wrong`) |
 | 403 | A `Host` that is not the unit's |
 | 404 | No such path on this build, or no such id |
 | 405 | The path exists, the method does not; `Allow` lists the methods. A GET of an action's path is not refused: it gives the action's usage (below) |
@@ -62,6 +63,7 @@ What may change within v1, and what a client does about it:
 | 413 | A request larger than the unit takes: a JSON body over 1 KB; headers over 8 KB in all; one of the headers the unit reads, longer than its line. Other headers, a long `Cookie:` line among them, are passed over unread |
 | 414 | A request line over 256 bytes |
 | 415 | A write not sent as `application/json` (or `application/octet-stream` where bytes are taken) |
+| 429 | Every write, after five wrong PINs in a row, for a minute (`pin_locked`, with `Retry-After`) |
 | 500 | The unit failed to do it, such as a save the EEPROM did not take |
 | 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor, Sartorius, US Solid, JM Science, FA-E/EN and generic drivers cannot zero their scale (TODOs in their code); `actions` in `GET /api/v1/scale` says which can |
 
@@ -78,7 +80,7 @@ Every error has the same body (with `see` under `/api/v1`):
 {"error": {"code": "out_of_range", "field": "fine_stop_threshold", "message": "12 is above the most, 10", "min": 0, "max": 10}}
 ```
 
-The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `no_scale` (the stored make of scale is not in this build: ADR-006, gate 9), `no_storage` (the settings' EEPROM does not answer: ADR-017, gate 1), `on_trial` (a factory reset while an update runs on trial: ADR-017, gate 1), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`; for the update's poll (ADR-010) `no_network`; for the set-up's join (ADR-008) `not_on_hotspot`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
+The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `no_scale` (the stored make of scale is not in this build: ADR-006, gate 9), `no_storage` (the settings' EEPROM does not answer: ADR-017, gate 1), `on_trial` (a factory reset while an update runs on trial: ADR-017, gate 1), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`; for the update's poll (ADR-010) `no_network`; for the set-up's join (ADR-008) `not_on_hotspot`; for the web's PIN (ADR-016) `pin_required`, `pin_wrong` and `pin_locked`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
 
 ## What the unit is
 
@@ -86,6 +88,7 @@ The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out
 |---|---|---|
 | `GET /api/v1` | | `api` ("1"); `firmware` {`version`, `vcs`, `build`}; `board` (pico_w, pico2_w; esp32_s3_pico with ADR-007); `unit_id` (eight hex digits made from the Pico's own unique id: the same across a factory reset, never stored; ADR-008, gate 4); `hostname` (`opentrickler-` and the id's first four); `boot`, a 32-bit random number new at each start (the SDK's `pico_rand`; 32 bits, since a browser's JSON keeps only 53); `uptime_s`; `features`, each part a build may leave out, `{name, present, about}`, present or not (ADR-008, gate 2; ADR-005's feature table): made from the board's list (ADR-006, gate 9); today `servo_gate`, which `-DFEATURE_SERVO_GATE=OFF` leaves out with its paths, its settings, its schema entries and its menu page; a client shows only what is present; `guide`, a page of plain words for a client new to the unit (the job cycle, what stop does, what the unit cannot know); `resources`: each path with its methods and a line on what it is |
 | `GET /api/v1/schema` | | Every resource's fields **and every action's body**: `name`, `label`, `group`, `type` (number, integer, boolean, string, colour, choice), `unit`, `min`, `max`, `step`, `choices` (each `{value, label}`), `access` (read, read_write, write_only), `applies` (now, at_restart, or as the field says), `refused_while` (in_throw, a_job_runs, or never), and a line on what it is. Each settings resource names its save path. Also every state and what it means, every event kind and what it carries, and every error code. ADR-008's forms and ADR-010's settings screen are drawn from it. It changes only with the firmware |
+| `GET /api/v1/agent` | | The guide for an AI agent a person points at the unit (ADR-016, gate 2): who it helps, what to do first, the auto-tuner first, how to read a throw and what to move, how to end, its limits. Markdown (`text/markdown`), not compressed, so any client reads it; its source is `src/web/api/agent_guide.md`. Also at `/llms.txt`, where some agents look; named by the index's `agent`, by the portal's head (`rel="help"`) and by a line its page shows a reader without scripts |
 | `GET /api/v1/system` | | `firmware`, `board`, `unit_id`, `uptime_s`; `activity` (none, charge, purge, view, update; more later); `restart_pending` (a setting that applies at restart was changed). `view` is never reported since ADR-010 (a job takes the screen from any page); it stays a name of v1. It was: a person has a screen open at the unit that is not a job, and a start is refused until it is closed there. A job in `fault` is still that job's `activity`: the mode holds the screen and the motors until it is acknowledged. A view is no job: it refuses a start, and nothing else (`refused_while: a_job_runs` is the charge, a cleanup and an update). The scale's calibration was removed in ADR-010 (the owner: no scale supports it) `set_up` (ADR-008, gate 4): the set-up finished or skipped, or a network named; false after a factory reset, when the portal opens the set-up by itself on the unit's own hotspot |
 | `GET /api/v1/network` | | `mode` (station, access_point), `ssid`, `address`, `hostname` (the mDNS name), `rssi`: the menu's Wi-Fi info, and how a person or an agent finds which unit is which. `station` (ADR-008, gate 4): the station's last join, whichever asked it (the start's, the minute's retry, the set-up's): `state` (idle, joining, joined, failed), `ssid`, `address` on that network, `reason` when failed (wrong_password, timeout, failed), `joining_ms` while joining (since it began: the page and the screen count the same seconds). On its own hotspot with the station joined beside it, `mode` is access_point and `station` says where else it is |
 | `GET /api/v1/setup` | | `set_up`; `step` (code, wifi, scale, motors, ready, done); `network` (chosen on the Wi-Fi step, or null); `phone` (a phone has an address from its hotspot); `hotspot` (its name while it is up, else null). Kept in RAM: a restart begins it again (ADR-008, gate 4) |
@@ -190,7 +193,7 @@ The steps: `cup_on`, `zeroing`, then the cup's `fill`, `keep`, `empty` (its `lif
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/scale` | | `weight` (null with no reading); `unit` (gn, g, or null when the make cannot tell: null for all but the A&D, whose frame carries it); `driver`, the one that runs (null when none does: the stored make is not in this build, ADR-006, gate 9); `simulated` (the console's stand-in is running in its place); `usual_interval_ms` (the scale's rhythm, ADR-013); `bad_frames`; `actions`, what this make can be asked to do (zero now; its display, its fast report later) |
+| `GET /api/v1/scale` | | `weight` (null with no reading), a number alone: the firmware assumes no unit and reports none (the owner, 2026-11-29: "strictly no assumption of the unit"; `unit` was given here until then, the A&D's alone); `driver`, the one that runs (null when none does: the stored make is not in this build, ADR-006, gate 9); `simulated` (the console's stand-in is running in its place); `usual_interval_ms` (the scale's rhythm, ADR-013); `bad_frames`; `actions`, what this make can be asked to do (zero now; its display, its fast report later) |
 | `POST /api/v1/scale/zero` | `{}` | 200: the scale was asked to zero, not that it did (some scales do not zero while unsteady); a client reads the weight after. When it is taken is in the table below. 501 `not_supported` when the make cannot |
 | `GET /api/v1/gate` | | `state` (open, closed, partial, held, disabled), `ratio` (0 open to 1 closed; null when disabled). `held`: the menu's "Disable", which moves the servo no more and leaves it at its last duty, `ratio` the last one (`servo_gate.c`); charge mode moves it again when it needs it. `disabled`: off in its settings (`settings/gate.enable`), so charge mode does not use it |
 | `PATCH /api/v1/gate` | `{"ratio": 0.5}` | 200. 409 `gate_disabled` when it is off in its settings; 409 `busy` while `in_throw`. Holding it as the menu's "Disable" does is not offered in v1: no page sends it, and a held gate reads back its last ratio |
@@ -288,7 +291,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
   - `GET /api/v1/settings` is `{"api": "1", "firmware": {"version", "vcs", "build"}, "unit_id", "resources": {...}}`, each resource under its path (`"/api/v1/settings/charge"`, `"/api/v1/powder_profiles/0"`) as its own GET gives it. An import PATCHes each path with its fields, `saved` left out.
   - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`), as an action's. `saved` sent in a PATCH is 400 `read_only`.
   - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`, and `short_label` where the label is long), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies: `min`, `max` and `step` for numbers only. For a client with little room (ADR-010, gate 6: the unit's screen; ADR-008's pages may use them): `short_label` (where the label and a value do not fit 128 px), `edit_step` (what one detent, or an arrow, moves a number by), and a boolean's `on_label` and `off_label` ("Reversed", "Normal"). `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles and the charge profiles `in_throw_when_in_use`.
-  - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_purge_runs` for the purge's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `purge`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
+  - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_purge_runs` for the purge's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `purge`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. `throw` gives each field of a throw's record (ADR-016, gate 1) as `{name, about}`. A client works from these (`tools/remote_control/unit_api.py`).
   - `GET /api/v1/powder_profiles/{id}` gives `saved`, this powder's own (ADR-008, gate 2: the eight are one block in the EEPROM, and a powder is saved when it is as the EEPROM holds it, whatever the others are) and its fields; `GET /api/v1/powder_profiles` gives `saved`, the block's, and each profile's `id` and `name`.
   - `GET /api/v1/settings/motors/coarse` and `/fine` give `saved`, each motor's own as a powder's, and their fields; `GET /api/v1/settings/motors` gives `saved` and each motor's `id` and `label`.
 
@@ -390,6 +393,7 @@ Its own slot in the EEPROM (11 KB): no other module's stored layout changed.
 | `ssid` | string | 1 to 31 bytes | at restart | `w0` |
 | `key` | string, write only | 0 to 63 bytes; never in a reply, nor in the export | at restart | `w1` |
 | `auth` | choice | open, wpa_tkip, wpa2_aes, wpa2_mixed | at restart | `w2` (an index) |
+| `pin_required` | boolean | false by default; with it on, every write over the network needs the PIN on the unit's Wi-Fi page, made at each start, but a client's on the unit's own hotspot (ADR-016, gate 3). Stored as a word past the release's 108 bytes | now | new |
 | `timeout_ms` | integer | 1,000 to 120,000 *p* | at restart | `w3` (cut to 16 bits: 70,000 became 4,464) |
 
 ## What it must grow into
@@ -401,9 +405,9 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | A charge profile: a name, a weight, the powder profile it uses | ADR-014 | Built: `/api/v1/charge_profiles` ("Charge profiles", above); `charge_profile` beside `target` and `powder_profile` in the charge |
 | The target weight kept, with the charge profile | ADR-014, PR #109's need | Built: the charge's `target` is the chosen charge profile's, stored with the charge profiles |
 | Stop thresholds per profile | ADR-009, ADR-014 | A profile's own field, `null` for "the default in `settings/charge`", which stays |
-| Every throw recorded, downloaded, drawn | ADR-009, ADR-008 | Recordings, below |
-| Test functions: a recorded test throw, a motor at a speed for a time, the scale's readings and rate | ADR-009 | Test throws, motor runs and scale recordings, below |
-| Automatic tuning, on the unit or by an agent off it | ADR-009 | Tuning, below: both run test throws, so both give the same recordings |
+| Every throw recorded | ADR-009, ADR-008, ADR-016 | Built by ADR-016, gate 1: "The throws", below; a throw's samples dropped |
+| Test functions: a recorded test throw, a motor at a speed for a time, the scale's readings and rate | ADR-009 | Dropped by ADR-016 ("The throws", below); the calibration measures the motors and the scale (ADR-009, step 1) |
+| Automatic tuning, on the unit or by an agent off it | ADR-009, ADR-016 | On the unit, the auto-tuner (ADR-009); off it, an agent reading the throws and writing the settings between them (ADR-016) |
 | An agent developing the firmware with no probe: the log, the simulated scale and its faults, presses, the drivers' registers | ADR-001's console, the owner | `/api/v1/debug`, below |
 | A press to skip the current charge (issue #75); ladder loading (issue #106) | ADR-009's list | Actions on the charge job, or a series of charge profiles; added, not changed |
 | An update from the browser: upload, check, install; refused while a job runs | ADR-004 | Built in ADR-004's gate 2: "Firmware updates", above |
@@ -414,103 +418,42 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | Another chip | ADR-007 | `board`, `features`; what is chip-only (lwIP's pools) is under `debug` |
 | The scale's display, its fast report (TODOs in `and_scale.c`, `gng_scale.c`) | the scale drivers | `actions` in `GET /api/v1/scale`, and `POST /api/v1/scale/{action}` for each make that can |
 | Zero on scales whose drivers cannot yet (Steinberg, Creedmoor, Sartorius, US Solid, JM Science, FA-E/EN, generic: TODOs) | the scale drivers | 501 `not_supported` now; `actions` lists zero once a driver can |
-| The weight's unit for every make | the scale drivers | `unit`, null today but for the A&D |
+| The weight's unit for every make | the scale drivers | None: the firmware assumes no unit and shows none (the owner, 2026-11-29). A person names a unit in a powder's or a load's name if they like (ADR-014) |
 | Which unit is which, among several | OWMC's ADR-013 (the owner's review) | `hostname` and `unit_id` in the index, `GET /api/v1/network`, and the mDNS announcement with the API's and the firmware's versions |
 | The console and the API saying the same | ADR-001, the owner | One table of names for both (gate 3) |
-| A password | its own ADR | A header, paths unchanged |
+| A password | ADR-016 | Built as the web's PIN (gate 3): made at each start, shown on the unit, the cookie `pin=`, paths unchanged |
 | Waiting for news in place of polling | ADR-008, ADR-009 | `?wait=` on the event log, or a push channel |
 
-## Experiments and recordings, for ADR-009 (reserved)
+## The throws (ADR-016, gate 1)
 
-**Not built by ADR-009** (the PR's review, O3, 2026-11-27): ADR-009 closed with its own calibration job and its tuner on the unit, and built neither the test throw nor the recordings below. They stay reserved as written until ADR-016 (Draft, 2026-11-27: an AI agent helps tune a powder's profile) settles what of them is built, replaced or dropped. Until then a client tunes by each throw's `finished` (result, weight, elapsed_s), the live weight on the stream and the settings; a value it tries is a PATCH, live for a person's next charge until put back.
-
-ADR-009's step 1 built its calibration as its own job (Calibration, above), its cup a part of it: the cup's resource reserved here is not built by it.
-
-Written 2026-11-15 at the owner's challenge ("does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?"), with the owner's word to settle it with the reviewer so that ADR-009 needs "minimum changes later", and the owner's warning that "tuning will need some access to huge amount of data". Reviewed in a fourth round (E1 to E21, at the end). **ADR-003 builds none of this but what "What gate 2 and gate 4 build for it" names.** It fixes the paths and the shapes now, so that ADR-009 builds to them and only adds: columns, marks, summary fields, override fields, as the growth rules allow.
-
-**One primitive for every experiment.** PR #113's tuner and PR #101's both cut at "give me the next trial's settings" and "here is the trial's result" (ADR-009, "Handed on by ADR-002"). So the API has one call that takes a trial's settings and one record that is its result: a **test throw** and its **recording**. An agent tuning off the unit, and ADR-009's tuner on it, use the same two, and their data are the same.
-
-**The rules for experiments:**
-- **Every stage ends by itself:** a throw, its zero, a motor run, a scale recording, a cup's ask. Nothing an experiment starts turns a motor without a bound in time, because nobody need be there.
-- **What pours, pours into a declared cup,** and **a cup is declared at the unit, by a press**, never over the network: a person is there when a cup is put on or emptied, and the call that gets a stuck agent moving must not be the one that pours.
-- **What a throw reads is one list of names.** A powder profile's field with the name of a field in `settings/charge` is the same parameter, and the profile's is used when it is not null. An override sets that parameter for one throw. The schema's entry for each start lists what may be overridden: the fields a throw reads, not a name or a colour.
-- **Try a value with a test throw's overrides, not with a PATCH:** a PATCHed gain is live for a person's next real charge, and stays so after a lost agent until a restart. The guide says so.
-
-### The data: summaries first, the client keeps
-
-The figures, from the A&D at 21 readings a second: a throw is 400 to 650 rows, 24 KB as floats and 40 to 50 KB as JSON; live, about 1.7 KB a second. A session of 300 trials is about 14 MB over more than 3 hours. So the data is large in sum and small by the second. The hard parts are the unit's RAM, loss, and what sending costs the charge loop, and the cup bounds a session before any protocol does: at 10 gr a trial a 200 gr cup holds 20 trials, and a person empties it.
-
-- **The unit is the source, not the store.** It keeps a short ring; the client keeps the data. The scripted client in `tools/` writes each recording to a folder as it reads it, in the same JSON that is ADR-009's test fixture on a PC, so "is it better" is answered from files and nothing depends on what a unit still holds. A board with more room (ADR-005's extended tier, ADR-007's PSRAM) keeps more, and `samples_kept` and 410 say what is there.
-- **A rich summary is the answer to "huge".** A tuner decides from a few figures a throw (both PRs judge a throw by its overthrow and its times), and ADR-009's tuner on a Pico W cannot hold hundreds of throws' samples. So the summary is where ADR-009 spends its fields, and samples are pulled for the throws someone studies.
-- **No silent loss.** Rows are numbered, so a gap is seen. **The samples of the last complete recording are not dropped before the next experiment starts**, so a client that reads each recording before it starts the next loses nothing. A hold kept by the caller (`"hold": true` on a start, released by `DELETE /api/v1/recordings/{id}`) may come with ADR-009 if it is needed; never a hold released by a read, since a read changes nothing.
-- **An `id` is unique among the recordings the unit holds,** so `/recordings/{id}` names one. A unit that keeps none across a restart starts its ids again, so a client that keeps recordings keys them by `boot` and `id`; each recording carries the `boot` it was made in. A board that keeps recordings across a restart keeps their `boot` and goes on from the highest `id` it kept.
-
-### Recordings
-
-Every throw is recorded (ADR-009: "every throw recorded"), and so is each motor run and scale recording.
+Every throw, finished or ended short, leaves one record: what it was thrown on and what it did, so an agent off the unit can tell where a miss came from. The newest 32 are kept in RAM until the unit restarts, numbered as the throws are (from 1 at each start): the number the throw's events carry.
 
 | Method and path | Reply |
 |---|---|
-| `GET /api/v1/recordings` | `recordings`, newest first: for each its `boot`, `id`, `kind` (throw, motor_run, scale), `job` (charge, test_throw, tuning, motor_run, scale_record), `throw` (for a throw), `tag`, `started_at_ms`, `duration_ms`, `rows`, `complete` (false while it is being made), `truncated` (the cap on rows cut it), `samples_kept`, and its `summary` |
-| `GET /api/v1/recordings/{id}` | The same, and `settings`, the values in force: the firmware's version, `simulated` (made with the console's simulated scale; a tuner never takes one for powder), the weight's `unit`, the controller (`controller`: `pid` today), the powder profile's fields, the charge's settings, the scale's driver and usual interval, the motors' speed limits, and `overridden`, the names given as overrides; and `marks`, each with `t_ms`, `row` (the row it falls at), `kind` (coarse_stop, gate_moved, backoff_done, paused, resumed, fine_stop, verdict; more later) and what its kind carries |
-| `GET /api/v1/recordings/{id}/samples?after=N` | `columns`, `rows` (arrays of numbers in the columns' order) after row N, `next`, `complete`. Readable while the recording is made, so a client follows it live. Chunked. `?wait=s` holds the request until there is a row after N or the time is out (below) |
+| `GET /api/v1/charge/throws?after=N` | `boot`, `now_ms`, `first` (the oldest kept, 0 with none), `newest` (0 with none), and `throws`: the records after N, oldest first. `?wait=s` (1 to 30) holds the request until a throw after N is recorded, as the event log's. After a number past `newest` (one read before a restart) it is answered at once: `boot` tells the restart |
 
-- **A row is a moment,** in time order, with its own `t_ms`. Its column `reading` counts the scale's readings: a row whose `reading` is the row before's holds no new weight. Today there is one row a reading; ADR-009 may add rows between readings and nothing changes.
-- **The columns v1 promises are what the hardware did:** `t_ms`, `reading`, `weight`, `coarse_rps`, `fine_rps` (the speeds commanded). ADR-009 adds columns: the turns counted on each STEP pin (`motor_get_step_stats`), the gate's ratio, the reading's own time.
-- **The controller's columns are the controller's.** They start with `ctl_` (`ctl_coarse_p`, `ctl_coarse_i`, ..., today's PID terms), come and go with the controller that `settings.controller` names, and a client that does not know the controller passes over them. So a controller that is not three terms (ADR-009's stop by what still falls, a top-up, PR #101's learned allowance) changes no promise.
-- **A value may be `null`.** `t_ms` and `reading` are whole numbers; the rest are written with six significant digits, the scale's own resolution (999.999).
-- **A throw's span** is from the start of the pour (`t_ms` 0, as `elapsed_s`) to the verdict, the settling after the fine stop included: what falls after the stop is what PR #113 measures and ADR-009 lists. The zero's readings are not in it.
-- **A throw's summary** now: `target`, `weight`, `error` (weight less target), `result`, `reason`, `elapsed_s`, `pauses`. ADR-009 adds its own: overshoot, the time to the coarse stop, what fell after the stop.
-- **What is kept.** Summaries of the newest 32 *p*, with their snapshots, 6 to 8 KB; samples within a fixed budget of RAM, oldest dropped first (`samples_kept` false, and the samples' path answers 410). A recording is capped at a number of rows, so a stuck throw cannot take the budget. The Pico W's figures are ADR-005's and ADR-009's.
-- **A recording is named where its throw is:** `recording` in the events `throw started` and `throw finished` and in the charge's `last`, when ADR-009 builds recordings.
-- **Other forms by `?format=`,** JSON the default: a CSV by a link from a tuning page (a link cannot set a header, nor can most agents' fetch tools), a packed form only if a measured rate asks for it. By the figures above it does not.
+A record is closed at the throw's verdict, before its `throw finished` event, or as it ends short, before its `throw ended`: a client the event wakes finds the record it names. Its fields (the schema's `throw` lists them, each with a line):
 
-### The cup
+| Field | What it is |
+|---|---|
+| `throw`, `at_ms` | its number, and when it was closed (the unit's clock, as `now_ms`) |
+| `simulated` | thrown with the simulated scale, the console's or the stored driver: never tuned on |
+| `charge_profile`, `powder_profile`, `target` | the load, the powder and the weight it was thrown at |
+| `result`, `reason`, `weight` | good, under, over, or none when it ended short; `finished`, or why it ended (as the `throw ended` event's); the verdict's weight, or the reading at its end |
+| `elapsed_s`, `coarse_s`, `fine_s` | the whole pour from its start after the zero (as the event's), to the coarse tube's stop, and the fine tube's part from there to the fine stop |
+| `coarse_stop`, `fine_stop` | at each stop `weight`, the reading, and `rps`, that tube's speed asked just before; null when the throw did not reach it |
+| `fall` | `weight` less `fine_stop.weight`: what landed after the fine stop; null without a verdict |
+| `pauses` | the pauses for want of readings (ADR-013) |
+| `gains` | `coarse` and `fine`, each `kp`, `ki`, `kd`, as thrown, and `by`: `profile`, or `auto_tune` (the auto-tuner's trial, which no settings resource holds); null when it ended before its pour |
+| `coarse_threshold`, `fine_threshold`, `forecast`, `auto_tune`, `backoff` | the charge's settings it was thrown on; null when it ended before its pour |
 
-The one thing an experiment pours into. Its own resource, since test throws, tuning and forward motor runs all pour into it.
+Weights are in the scale's unit. A figure the throw did not reach is `null`. The record takes about 2.9 KB of the FreeRTOS heap, taken at the first charge and kept; with none to have the charge ends at once, "No memory", as for the controller.
 
-| Method and path | Body | Reply |
-|---|---|---|
-| `GET /api/v1/cup` | | `state` (none, asked, declared), `capacity`, `poured` |
-| `POST /api/v1/cup/ask` | `{"capacity": 200}` | 202. The screen says "Put an empty cup on the pan, and press". The press zeroes the scale and declares the cup, with `poured` 0. The ask ends by itself after a time *p*. 409 `busy` while a job runs. The console's command counts as at the unit, so a bench proof needs nobody there. ADR-009's tuner on the unit asks the same way |
+### What was reserved here, and dropped
 
-- `capacity` is in the scale's unit; with `unit` null, the guide warns, as for a target.
-- **Poured is counted, and a drop is a touched cup.** Before each throw's zero the weight must be what the last left. A drop beyond 5 times `zero_mean_margin` is a cup touched, emptied or taken: `cup_changed`, and a new cup is asked for. A rise is what fell late, or a scale that reported late: it is added to `poured`, and given in the reply and in that recording's summary. Only a rise beyond the last target is `cup_changed`.
-- A test cup is not a charge: after five trials it holds five. The LEDs do not show a charge's "good", and the screen gives the cup's total (for ADR-009).
+Until ADR-016 this section held, for ADR-009, a test throw with its overrides, a cup declared at the unit, recordings of every throw with their samples and marks, a tuning job, motor runs and scale recordings (written 2026-11-15 at the owner's challenge; reviewed as E1 to E21, below). ADR-009 built none of them: its calibration is a job of its own, its auto-tuner on the unit. ADR-016 dropped the rest: a setting is tried between real throws, which a person loads, so no test throw and no declared cup; and the Pico W has no room for a throw's samples (24 KB as floats) beside the throw's own. Samples come back as a gate of an ADR of their own only if a real session meets a miss the record cannot explain.
 
-### Test throws
-
-A job: one throw to a target, recorded, with **no cup cycle** (no removal, no return), with a trial's settings given in its start and not stored. Charge mode needs the cup lifted and put back between throws, which an agent cannot do; a test throw is how an agent, or the tuner, runs a series of trials.
-
-| Method and path | Body | Reply |
-|---|---|---|
-| `GET /api/v1/test_throw` | | `state` (idle, zeroing, charging, settling, fault), `in_throw`, `throw`, `recording`, `last` (its summary) |
-| `POST /api/v1/test_throw/start` | `{"target": 10.0}`, and any of `powder_profile`, `tag` (up to 31 bytes), `time_s` (60 by default, 300 at most *p*), and the overridable parameters by name, for this throw only | 202. The unit zeroes on top of what is in the cup, throws to the target with the overrides, records, gives the verdict, and is idle again, with `poured` grown. Refused: 409 `no_cup` without a declared cup; 409 `cup_full` when `poured` and the target would pass `capacity`; 409 `cup_changed` as above; 409 `busy`, `driver_fault` as a charge's start; 400 for an override outside its limits, refused whole. It ends by itself: `throw ended`, `reason: time` past `time_s`; `reason: not_zeroed` when its zero does not take within a bound *p* |
-| `POST /api/v1/test_throw/stop` | `{}` | A stop |
-
-- **The one place the unit zeroes on top of powder,** by design, and safe only as far as the cup is: declared at the unit, within its capacity, unchanged since the last throw.
-- **Zeroing on top depends on the scale.** The A&D's driver sends `Z` (`and_scale.c`), the Radwag's `T`, a tare, "not Zero" (`radwag_scale.c`), since a true zero works only near the scale's own zero. On a make whose zero cannot take a cup's weight, `not_zeroed` says so at once; the cup and what is poured stay inside the scale's range, past which its frames are no reading (ADR-013).
-- A test throw runs through the same controller and the same floor as a charge's throw (ADR-013's pause and stop, ADR-012's driver faults), takes the same lock, and is a throw in the event log (`throw started` with `job` and `tag`) and in the one series of throw numbers.
-- One trickler alone cannot be had by overrides today: a profile's speed at 0 leaves that trickler at the motor's own least speed (`charge_mode.cpp`, the higher of the two minimums). PR #101's tuning runs the coarse trickler alone, then the fine; ADR-009 adds a parameter for it, so nobody counts on today's.
-
-### Tuning
-
-A job, ADR-009's to design: `/api/v1/tuning`, with `state`, `start` (a powder profile, a target, the tuner's own fields) and `stop`. Its trials are test throws into the declared cup: the same recordings, with `job` tuning and a tag a trial, so its data are the same as an agent's. Its result is written into the powder profile live and kept by the profile's save, as every setting is. It plans for a person every cupful.
-
-### Motor runs and scale recordings
-
-Jobs in the one shape:
-
-| Method and path | Body | Reply |
-|---|---|---|
-| `GET /api/v1/motor_run` | | `state`, `motor`, `speed_rps`, `time_left_s`, `recording` |
-| `POST /api/v1/motor_run/start` | `{"motor": "coarse", "speed_rps": 2.0, "time_s": 5}` | 202. That motor at that speed for that time (1 to 60 s *p*), recorded with the scale's weight (`t_ms`, `reading`, `weight`, `speed_rps`): a step of speed and the scale's answer give the powder's flow rate and the scale's lag (ADR-009's "slow" and "late" scales). A run forward pours: it needs the declared cup, ends when the weight gained would pass the capacity (`reason: cup_full`), and its gain is counted into `poured`. A run backwards needs no cup. 409 `busy` while another job runs |
-| `POST /api/v1/motor_run/stop` | `{}` | A stop |
-| `GET /api/v1/scale_record` | | `state`, `time_left_s`, `recording` |
-| `POST /api/v1/scale_record/start` | `{"time_s": 10}` | 202. Moves nothing; the scale's readings for that time (`t_ms`, `reading`, `weight`, `interval_ms`), for its rate, its noise and its gaps (ADR-013's rhythm). 409 `busy` while another job runs |
-| `POST /api/v1/scale_record/stop` | `{}` | A stop |
-
-### Development: `/api/v1/debug` (reserved, not part of v1)
+## Development: `/api/v1/debug` (reserved, not part of v1)
 
 For an agent developing the firmware over the network, with no probe: the log, the simulated scale and its faults, presses for the menu, a driver's registers. Its paths are its own ADR's. Two rules are fixed now:
 - **It is never turned on over the network,** only at the unit (the menu) or at the console. How long it stays on, across a flash included, is its ADR's: off at every restart would defeat an agent that flashes over Wi-Fi (ADR-004).
@@ -518,17 +461,13 @@ For an agent developing the firmware over the network, with no probe: the log, t
 
 Today's `GET /api/v1/debug`, which only reads figures (lwIP's pools, the FreeRTOS heap, the server's counts, the uploads whole and cut off), is always there: the soak reads it. So are gate 2's and gate 4's routes for the proofs: `debug/load` (a reply the size of a throw's samples), `debug/wait` (a parked request), and `PUT debug/upload` (bytes taken in pieces, answered with their count and CRC-32, and dropped). None of it is part of v1.
 
-### What gate 2 and gate 4 build for it
+## What ADR-003's gates 2 and 4 built for later needs
 
-So that ADR-009 changes nothing in the server:
+So that what came later changed nothing in the server:
 - **Gate 2: a slot that can be parked.** A request may be held, with a deadline and a condition, until there is something to send; the server's task looks at parked slots at least every 50 ms, so no other task wakes it. At most two are parked; a third request with `wait` is answered at once. The stall rule becomes "a reply that makes no progress while the unit has something to send". Built and proven in gate 2 (README).
 - **Gate 2: the server's task below the menu's**, which runs the charge loop (6), so at 5 or under, and the load proven: a reply the size of a throw's samples (600 rows of 16 numbers, from a route under `debug`) pulled back to back, and a client asking four times a second, through `charge_cycle` and a soak, with no late feed of the step pulses (`motor`), the scale's readings as regular as without it, each charge's time and weight as without it, and no allocation failed (`net`).
 - **Gate 4: a body in pieces.** A route may take its body as it comes, a piece at a time (`http_server_add_upload`: begin, piece, end, and abort when the client goes): ADR-004's image is 700 KB, the slot's buffer 1.5 KB. Built and proven in gate 4: 45 uploads of 700 KB back to back during a soak's charges, each whole by its CRC-32 (progress).
-- **Gate 4: `?wait=s` on the event log,** with the owner's leave (below): an agent waits for `throw finished`, and the portal's charge page for its next event, in place of asking twice a second. Every reply is a whole JSON document, so every client and every agent's tool can use it. ADR-009 then uses the same for a recording's samples.
-
-### What ADR-009 then changes in the API
-
-Only additions: recordings and their columns, marks and summary fields; `recording` in the throw's events and in `last`; `ctl_` columns for its controller; override fields as new parameters come (each also a field of its resource); tuning's own fields; the cup, test throws, motor runs and scale recordings as built here; new `activity` values (test_throw, tuning, motor_run, scale_record); new error codes (`no_cup`, `cup_full`, `cup_changed`); 410 in the status table; `?wait=s` on samples; other formats by `?format=` if measured. No path moves, no field changes its meaning.
+- **Gate 4: `?wait=s` on the event log,** with the owner's leave (below): an agent waits for `throw finished`, and the portal's charge page for its next event, in place of asking twice a second. Every reply is a whole JSON document, so every client and every agent's tool can use it. ADR-016 uses the same for the throws.
 
 **Found while checking** (`wireless.c`, `eeprom.c`): the unit's host name is `opentrickler-` and the first four characters of its id, copied into `char id[4]` with no ending and printed with `%s`. `snprintf` reads on past the four bytes, and only its limit of 18 keeps the name right. Two units match in those four characters about once in 65,536, if the id is random. The bench's Pico W has the id `9CE00000`, its last five characters 0, so how random `rnd()` makes it (`eeprom.c`) is to be read first. For gate 4, where the mDNS announcement changes: the id written with its ending, and enough of it to tell units apart. **Built in gate 4:** the ending (`opentrickler-9CE0`); the name keeps its four characters, as units are known by it today. **Read since:** `rnd()` reads the ring oscillator's random bit 32 times in a row with no wait, and the bench's `9CE00000` ends in five zeros, so the bit did not change between reads: the four characters carry fewer than 16 random bits. A new id from the SDK's `get_rand_32()` is the id's own area's change, not this ADR's (raised with the owner).
 

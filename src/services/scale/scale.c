@@ -105,36 +105,6 @@ scale_driver_t scale_get_running_driver(void) {
 
 
 /*
-    The weight's unit, where the make's frame carries it (ADR-003, gate 4): the A&D's, from its last good frame, in
-    lower case and trimmed ("g", "gn"). Every other make cannot tell.
-*/
-static char scale_unit[4] = "";
-
-
-void scale_publish_unit(const char *unit, size_t len) {
-    char trimmed[4];
-    size_t used = 0;
-    for (size_t idx = 0; idx < len && used < sizeof(trimmed) - 1; idx += 1) {
-        char c = unit[idx];
-        if (c == ' ') {
-            continue;
-        }
-        trimmed[used++] = (c >= 'A' && c <= 'Z') ? (char) (c - 'A' + 'a') : c;
-    }
-    trimmed[used] = '\0';
-    memcpy(scale_unit, trimmed, sizeof(scale_unit));
-}
-
-
-const char *scale_get_unit(void) {
-    if (scale_running_driver != SCALE_DRIVER_AND_FXI || scale_unit[0] == '\0') {
-        return NULL;
-    }
-    return scale_unit;
-}
-
-
-/*
     Each zero asked, at the unit or over the API, counted (gate 4): a charge waiting for zero sees one came, and does
     not take readings from before it, or a zero still to land, for a steady zero
 */

@@ -27,6 +27,7 @@ from typing import NamedTuple
 API = "/api/v1"
 TIMEOUT_S = 5.0
 WAIT_S_MAX = 30         # the event log's longest ?wait (api_v1.md)
+PIN = None              # the web's PIN, sent as the Cookie pin= with every request when set (ADR-016, gate 3)
 EVENT_BASE = {"seq", "at_ms", "source", "kind"}     # what every event carries, beside its kind's own
 COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -194,6 +195,8 @@ class Unit:
         if body is not None:
             data = json.dumps(body).encode()
         request = urllib.request.Request(f"http://{self.host}{full_path(path)}", data=data, method=method)
+        if PIN:
+            request.add_header("Cookie", f"pin={PIN}")
         if data is not None:
             request.add_header("Content-Type", content_type)
         try:
@@ -454,6 +457,62 @@ class Unit:
                 return ([f"carries {sorted(extra)}, not in the schema"] if extra else []) + \
                        ([f"lacks {sorted(missing)}"] if missing else [])
         return [f"{event['source']} {event['kind']} is no kind the schema lists"]
+
+    # --- The throws (ADR-016, gate 1)
+
+    def throws(self, after=0, wait_s=None):
+        """
+        One read of the throws' records, held up to wait_s for a throw after the number given.
+
+        Args:
+            after: the throw's number to read after.
+            wait_s: 1 to 30 to hold the read until one is recorded; None to answer at once.
+
+        Returns:
+            The reply: boot, now_ms, first, newest, throws.
+        """
+        path = f"charge/throws?after={after}" + (f"&wait={min(max(1, int(wait_s)), WAIT_S_MAX)}" if wait_s else "")
+        status, reply = self.request("GET", path, timeout_s=self.timeout_s + (wait_s or 0))
+        if status != 200:
+            raise ApiError("GET", full_path(path), status, reply)
+        return reply
+
+    def throw_problems(self, record):
+        """
+        Whether a throw's record has the fields the schema lists, and its figures agree with each other: the coarse
+        tube's stop before the end, the fine tube's part within the whole, the fall what landed after the fine stop.
+
+        Args:
+            record: one record as read.
+
+        Returns:
+            The problems found; empty when there is none.
+        """
+        names = {field["name"] for field in self.schema["throw"]}
+        found = []
+        if set(record) != names:
+            found.append(f"fields {sorted(set(record) ^ names)} differ from the schema's")
+            return found
+        if record["result"] not in ("good", "under", "over", "none"):
+            found.append(f"result {record['result']}")
+        if (record["result"] == "none") != (record["reason"] != "finished"):
+            found.append(f"result {record['result']} with reason {record['reason']}")
+        elapsed, coarse, fine = record["elapsed_s"], record["coarse_s"], record["fine_s"]
+        if coarse is not None and (record["coarse_stop"] is None or elapsed is None or coarse > elapsed + 0.002):
+            found.append(f"coarse_s {coarse} with coarse_stop {record['coarse_stop']} and elapsed_s {elapsed}")
+        if fine is not None and (coarse is None or record["fine_stop"] is None or coarse + fine > elapsed + 0.002):
+            found.append(f"fine_s {fine} with coarse_s {coarse} and elapsed_s {elapsed}")
+        if record["result"] != "none":
+            stop = record["fine_stop"]
+            if stop is None or stop["weight"] is None or record["fall"] is None:
+                found.append(f"a verdict with fine_stop {stop} and fall {record['fall']}")
+            elif abs(record["weight"] - stop["weight"] - record["fall"]) > 1e-4:
+                found.append(f"fall {record['fall']} is not weight {record['weight']} less {stop['weight']}")
+        elif record["fall"] is not None:
+            found.append(f"fall {record['fall']} without a verdict")
+        if (record["gains"] is None) != (record["fine_threshold"] is None):
+            found.append("gains and thresholds not known together")
+        return found
 
 
 def main():

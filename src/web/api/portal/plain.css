@@ -350,6 +350,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .cup .drop { fill: currentColor; stroke: none; }
 /* Side by side, the safe one first; a pair too long for one row stacks rather than wraps its words */
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.sheet-field { width: 100%; min-height: var(--tap); margin-top: 16px; padding: 0 14px; border: 1px solid var(--edge);
+               border-radius: var(--r-control); background: var(--well); font-size: 1.0625rem; text-align: center; }
 .sheet-actions button { flex: 1 1 auto; width: auto; white-space: nowrap; padding: 0 16px; }
 
 /* A switch for an on or off setting: 52 by 32, its state in the ink, focus drawn round it */

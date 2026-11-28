@@ -307,7 +307,7 @@ async function drawScaleStep(page) {
         silentFor = 0;
     };
     const make = makeField ? control("setup-make", makeField, values.driver, (value) => write("driver", value)) : null;
-    const weight = element("p", {class: "setup-weight"}, element("span", {}, "---"), element("span", {class: "job-unit"}, ""));
+    const weight = element("p", {class: "setup-weight"}, element("span", {}, "---"));
     // The port's speed, drawn again after each choice so its mark follows what the unit holds
     const baudSlot = element("div");
     const drawBaud = () => baudField && baudSlot.replaceChildren(
@@ -324,7 +324,6 @@ async function drawScaleStep(page) {
         const reply = await api("GET", "/api/v1/scale");
         const w = reply.ok ? reply.data.weight : null;
         weight.firstChild.textContent = w === null ? "---" : w.toFixed(2);
-        weight.lastChild.textContent = w === null ? "" : (reply.data.unit || "");
         silentFor = w === null ? silentFor + 1 : 0;
         help.hidden = silentFor < 4;        // about 3 s with no reading before it says so
         setupTimer = setTimeout(read, SETUP_READ_MS);

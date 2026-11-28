@@ -72,7 +72,8 @@ static void api_settings_export(const http_server_request_t *request, http_serve
 
 // The commands' share of the schema, by the settings' numbering of its parts (settings.h)
 static const char *api_settings_schema_extra(unsigned part, size_t idx) {
-    static const api_v1_schema_part_t parts[] = {API_V1_SCHEMA_ACTIONS, API_V1_SCHEMA_STATES, API_V1_SCHEMA_EVENTS};
+    static const api_v1_schema_part_t parts[] = {API_V1_SCHEMA_ACTIONS, API_V1_SCHEMA_STATES, API_V1_SCHEMA_EVENTS,
+                                                  API_V1_SCHEMA_THROW};
     return part < sizeof(parts) / sizeof(parts[0]) ? api_v1_schema_item(parts[part], idx) : NULL;
 }
 

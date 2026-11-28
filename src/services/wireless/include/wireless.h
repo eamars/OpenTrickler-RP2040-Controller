@@ -28,6 +28,9 @@ typedef struct {
     // Wi-Fi resets; a record from before reads it as it was stored there, 0. Not a setting: only POST /api/v1/setup/done
     // sets it, and a factory reset clears it
     bool setup_done;
+    // The web's PIN asked for (ADR-016, gate 3): 0 off, 1 on. A boolean in a word, so it starts past the 108 bytes the
+    // release stored (a byte would lie in their tail padding); a record from before reads it as off
+    uint32_t pin_required;
 } eeprom_wireless_metadata_t;
 
 
@@ -139,6 +142,19 @@ bool wireless_set_up(void);
 // The set-up done, by whom: remembered and stored. Joined, the hotspot stops a moment later; hotspot_stays says
 // whether it stays (not joined: the unit's only network). NULL when done, else why not
 const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays);
+
+/*
+ * The web's PIN (ADR-016, gate 3): a check that whoever changes the unit over the network can read its screen. With
+ * the switch on (settings/wifi pin_required, off by default), every write over the network needs the PIN, 4 digits
+ * made at each start and shown on the Wi-Fi page; a client that reached the unit by its own hotspot needs none.
+ * wireless_pin(): the PIN, its 4 digits. wireless_reached_by_hotspot(): while the hotspot is up, a client's own
+ * address is in its range and the unit's address it reached is the hotspot's, each as its 4 bytes in order.
+ */
+#define WIRELESS_PIN_DIGITS 4
+bool wireless_pin_required(void);
+const char *wireless_pin(void);
+bool wireless_pin_matches(const char *digits);
+bool wireless_reached_by_hotspot(const uint8_t peer[4], const uint8_t reached[4]);
 
 #ifdef __cplusplus
 }

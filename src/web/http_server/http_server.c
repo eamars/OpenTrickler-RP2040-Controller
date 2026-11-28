@@ -110,6 +110,7 @@ typedef struct {
     char content_type[48];
     char if_none_match[48];
     char last_event_id[24];                // "<boot>-<seq>"
+    char pin[12];                          // the Cookie's pin=, as it came, for the write guard (ADR-016, gate 3)
     long content_length;
     bool chunked_request;
     bool expect_continue;
@@ -199,6 +200,7 @@ static volatile bool close_all_asked = false;   // a restart is coming: every co
 static bool closed_for_restart = false;
 static void server_close_all(int *listen_fd);
 static http_server_handler_t usage_handler = NULL;
+static http_server_write_guard_t write_guard = NULL;       // the API's, ADR-016's gate 3: NULL, every write goes
 
 
 static uint32_t now_ms(void) {
@@ -383,6 +385,7 @@ static void slot_reset_request(slot_t *slot) {
     slot->content_type[0] = '\0';
     slot->if_none_match[0] = '\0';
     slot->last_event_id[0] = '\0';
+    slot->pin[0] = '\0';
     slot->content_length = 0;
     slot->chunked_request = false;
     slot->expect_continue = false;
@@ -649,6 +652,11 @@ bool http_server_query_value(const char *query, const char *name, char *out, siz
 }
 
 
+void http_server_set_write_guard(http_server_write_guard_t guard) {
+    write_guard = guard;
+}
+
+
 void http_server_set_usage(http_server_handler_t usage) {
     usage_handler = usage;
 }
@@ -795,14 +803,21 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
 
 
 // A reply the server makes itself, for a request it refuses
-static void slot_refuse(slot_t *slot, int status, const char *code, const char *message) {
+// A refusal, with a Retry-After of retry_after_s (0: none), which the head made in slot_take_reply carries
+static void slot_refuse_after(slot_t *slot, int status, const char *code, const char *message, uint32_t retry_after_s) {
     http_server_reply_t reply;
     reply_init(&reply, slot);
     http_server_reply_error(&reply, status, code, message);
     stats.refused += 1;
     slot->keep_alive = false;   // what is left of the request is not read
     slot->drain = true;
+    slot->retry_after_s = (uint8_t) (retry_after_s < 255 ? retry_after_s : 255);
     slot_take_reply(slot, &reply);
+}
+
+
+static void slot_refuse(slot_t *slot, int status, const char *code, const char *message) {
+    slot_refuse_after(slot, status, code, message, 0);
 }
 
 
@@ -864,6 +879,26 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
             return false;
         }
         request->body_is_json = json;
+        // The web's PIN (ADR-016, gate 3): asked of the guard the API handed over, before the route
+        if (write_guard != NULL) {
+            const char *code = NULL;
+            const char *message = NULL;
+            uint32_t retry_after_s = 0;
+            // The unit's address the client reached: its hotspot's, or its address on the network
+            struct sockaddr_in local;
+            socklen_t local_len = sizeof(local);
+            uint8_t reached[4] = {0, 0, 0, 0};
+            if (lwip_getsockname(slot->fd, (struct sockaddr *) &local, &local_len) == 0) {
+                memcpy(reached, &local.sin_addr.s_addr, sizeof(reached));
+            }
+            uint8_t peer[4];
+            memcpy(peer, &slot->peer, sizeof(peer));
+            int status = write_guard(slot->pin, peer, reached, &code, &message, &retry_after_s);
+            if (status != 0) {
+                slot_refuse_after(slot, status, code, message, retry_after_s);
+                return false;
+            }
+        }
         server_last_write_us = chip_time_us();
     }
     return true;
@@ -1053,6 +1088,19 @@ static void slot_take_header(slot_t *slot) {
     }
     else if (header_is(line, name_len, "Transfer-Encoding")) {
         slot->chunked_request = true;
+    }
+    else if (header_is(line, name_len, "Cookie")) {
+        // Its pin=, the first, up to its ';' (ADR-016, gate 3); a value longer than a PIN is kept cut, and is wrong
+        for (const char *at = value; at != NULL && *at != '\0'; at = strchr(at, ';')) {
+            at = skip_spaces(*at == ';' ? at + 1 : at);
+            if (strncmp(at, "pin=", 4) == 0) {
+                size_t count = strcspn(at + 4, "; \t\r\n");
+                count = count < sizeof(slot->pin) - 1 ? count : sizeof(slot->pin) - 1;
+                memcpy(slot->pin, at + 4, count);
+                slot->pin[count] = '\0';
+                break;
+            }
+        }
     }
 }
 

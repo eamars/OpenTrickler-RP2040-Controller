@@ -158,7 +158,7 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
                        "api/v1/powder_profiles/0"]
 # Routes the index does not list, by name (ADR-008, gate 2): the pages, and the debug routes (not part of v1)
-API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}     # /wizard: a redirect to the set-up
+API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror", "/llms.txt"}   # /wizard: a redirect to the set-up; /llms.txt the agent's guide again
 STREAM_READ_S = 20              # the event stream's read: past its state again after 15 s quiet
 STREAM_KEEP_ALIVE_S = 15        # ADR-008: the state again after this long quiet
 STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it
@@ -187,6 +187,9 @@ SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a s
 # api_check (ADR-003, gate 4): what may move between two reads of the same path with nothing done between them
 API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usual_interval_ms"}
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
+TUNING_CHECK_THROW_S = 120.0    # a throw on the simulated scale, its zero to its verdict (tuning_check)
+TUNING_CHECK_STOP_AFTER_S = 4.0 # the last throw stopped this long after it began (tuning_check)
+PIN_CHECK_LOCK_S = 61.0         # the web PIN's lock after five wrong, and a second (pin_check)
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
 API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
 PULSES_MENU_WAIT_S = 4.0        # the menu's first screen, after a flash, before a motor is taken (pulses)
@@ -369,6 +372,60 @@ class EventFollower(threading.Thread):
         return found
 
 
+class ThrowFollower(threading.Thread):
+    """
+    A client that follows the throws' records with held reads (ADR-016, gate 1), as an agent helping a person tune
+    does. A read that fails is tried again from where it left off; what it saw is judged at the end.
+    """
+
+    def __init__(self, name, host, log):
+        """
+        Args:
+            name: which follower, for the log.
+            host: the unit's address.
+            log: the SessionLog.
+        """
+        super().__init__(daemon=True)
+        self.name, self.log = name, log
+        self.unit = unit_api.Unit(host)
+        self.stop_event = threading.Event()
+        self.records = []
+        self.failed_reads = 0
+        self.after = 0
+
+    def start_following(self):
+        """Leave the records already kept behind: the next read waits for the next throw."""
+        self.after = self.unit.throws()["newest"]
+
+    def run(self):
+        while not self.stop_event.is_set():
+            try:
+                reply = self.unit.throws(after=self.after, wait_s=SOAK_EVENTS_WAIT_S)
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.failed_reads += 1
+                self.log.write("rc", f"soak: {self.name}: {type(error).__name__}: {error}")
+                continue
+            for record in reply["throws"]:
+                self.records.append(record)
+                self.after = record["throw"]
+
+    def problems(self):
+        """
+        What is wrong with what it saw: a throw missed, or a record that is not as the schema says.
+
+        Returns:
+            The problems found; empty when there is none.
+        """
+        found = []
+        numbers = [record["throw"] for record in self.records]
+        gaps = [(a, b) for a, b in zip(numbers, numbers[1:]) if b != a + 1]
+        if gaps:
+            found.append(f"gaps in the throws: {gaps[:5]}")
+        for record in self.records:
+            found.extend(f"throw {record['throw']}: {problem}" for problem in self.unit.throw_problems(record))
+        return found
+
+
 class SessionLog:
     """One session's log: every line, timestamped, to the file and to stdout."""
 
@@ -530,7 +587,10 @@ def http_get(host, path):
     Returns:
         The body, as bytes.
     """
-    with urllib.request.urlopen(f"http://{host}/{path}", timeout=HTTP_TIMEOUT_S) as response:
+    request = urllib.request.Request(f"http://{host}/{path}")
+    if unit_api.PIN:
+        request.add_header("Cookie", f"pin={unit_api.PIN}")
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as response:
         return response.read()
 
 
@@ -737,6 +797,8 @@ def http_call(host, method, path, body=None):
     """
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(f"http://{host}{path}", data=data, method=method)
+    if unit_api.PIN:
+        request.add_header("Cookie", f"pin={unit_api.PIN}")
     if data is not None:
         request.add_header("Content-Type", "application/json")
     try:
@@ -787,6 +849,8 @@ def http_put_bytes(host, path, data, timeout_s):
     """
     request = urllib.request.Request(f"http://{host}{path}", data=data, method="PUT")
     request.add_header("Content-Type", "application/octet-stream")
+    if unit_api.PIN:
+        request.add_header("Cookie", f"pin={unit_api.PIN}")
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as reply:
             status, text = reply.status, reply.read()
@@ -2362,9 +2426,345 @@ class Session:
             return [] if reply["activity"] in unit.states("activity") else [f"activity {reply['activity']}"]
         if name == "events":
             return [problem for event in reply["events"] for problem in unit.event_problems(event)]
+        if name == "charge/throws":
+            return [f"throw {record['throw']}: {problem}" for record in reply["throws"]
+                    for problem in unit.throw_problems(record)]
         if name == "display/frame":
             return [] if isinstance(reply, bytes) and len(reply) == frame_bytes else ["not the display's frame"]
         return []
+
+    def tuning_check(self, host, target):
+        """
+        The throws' record (ADR-016, gate 1) on the simulated scale: a charge of four throws, settings written
+        between them as an agent would. Throw 1 on the settings as found; then the fine stop threshold and the
+        powder's fine kp written live, and throw 2 on them, waited for by a held read; the two put back by their
+        reverts, and throw 3 on what is stored; throw 4 stopped while it runs. Each record checked against the
+        schema and against itself, its gains and threshold what was live when it was thrown; a read from 0 giving
+        every record kept; then a restart, after which none is kept and a read held after the old number is
+        answered at once. The settings are left as they were found, and compared before and after the restart.
+
+        Args:
+            host: the unit's address.
+            target: each throw's weight, written live into the chosen charge profile and put back after.
+        """
+        unit = unit_api.Unit(host)
+        if "throw" not in unit.schema:
+            self.fail("tuning_check: the schema has no throw table")
+            return
+        if unit.read("charge")["state"] != "idle" or unit.read("system")["activity"] != "none":
+            self.fail("tuning_check: the unit is not idle at the menu")
+            return
+        export_before = unit.read("settings")
+        charge_settings = unit.read("settings/charge")
+        powder = unit.read("charge")["powder_profile"]
+        powder_path = f"powder_profiles/{powder}"
+        profile = unit.read(powder_path)
+        found = {"threshold": charge_settings["fine_stop_threshold"], "kp": profile["fine_kp"]}
+        newest_before = unit.throws()["newest"]
+        self.log.write("rc", f"tuning_check: powder {powder}, fine stop threshold {found['threshold']}, fine kp "
+                             f"{found['kp']}; {newest_before} throws recorded since the start")
+
+        def wait_event(source, kind, for_s=TUNING_CHECK_THROW_S):
+            """Follow the log to the next such event; None when it does not come."""
+            for event in unit.follow(wait_s=2, until=lambda e: (e["source"], e["kind"]) == (source, kind),
+                                     for_s=for_s):
+                if (event["source"], event["kind"]) == (source, kind):
+                    self.log.write("rc", f"tuning_check: event {json.dumps(event)}")
+                    return event
+            self.fail(f"tuning_check: no {source} {kind} within {for_s:.0f} s")
+            return None
+
+        def revert(path):
+            status, reply = unit.request("POST", unit.resource(path)["revert"], {})
+            if status != 200:
+                self.fail(f"tuning_check: the revert of {path}: {status} {reply}")
+
+        held = {}
+
+        def held_read(after):
+            # A client waiting for the next throw: answered when it is recorded, not before
+            asked = time.monotonic()
+            held["reply"] = unit_api.Unit(host).throws(after=after, wait_s=unit_api.WAIT_S_MAX)
+            held["answered"] = time.monotonic()
+            held["took_s"] = held["answered"] - asked
+
+        expected = {}       # by throw: (fine stop threshold, fine kp) live when it was thrown
+        numbers = []
+        if self.send("sim on") is None or self.failures:
+            return
+        try:
+            unit.start_following()
+            unit.act("charge/start", target=target)
+            finished = wait_event("throw", "finished")
+            if finished is None:
+                return
+            numbers.append(finished["throw"])
+            expected[finished["throw"]] = (found["threshold"], found["kp"])
+
+            # Between the verdict and the cup's return, as an agent writes: live, not stored
+            threshold_b = round(found["threshold"] + 0.01, 3)
+            kp_b = round(found["kp"] * 0.8, 4) if found["kp"] > 0 else 0.5
+            unit.write("settings/charge", fine_stop_threshold=threshold_b)
+            unit.write(powder_path, fine_kp=kp_b)
+            live = (unit.read("settings/charge")["fine_stop_threshold"], unit.read(powder_path)["fine_kp"])
+            waiter = threading.Thread(target=held_read, args=(finished["throw"],), daemon=True)
+            waiter.start()
+            finished = wait_event("throw", "finished")
+            seen_at = time.monotonic()
+            waiter.join(timeout=unit_api.WAIT_S_MAX + HTTP_TIMEOUT_S)
+            if finished is None:
+                return
+            numbers.append(finished["throw"])
+            expected[finished["throw"]] = live
+            reply = held.get("reply")
+            if reply is None:
+                self.fail("tuning_check: the held read was not answered")
+            else:
+                self.log.write("rc", f"tuning_check: the held read answered after {held['took_s']:.1f} s, "
+                                     f"{held['answered'] - seen_at:+.2f} s from the event's read, newest "
+                                     f"{reply['newest']}")
+                if [record["throw"] for record in reply["throws"]] != [finished["throw"]] or held["took_s"] < 1.0:
+                    self.fail(f"tuning_check: the held read gave {[r['throw'] for r in reply['throws']]} after "
+                              f"{held['took_s']:.1f} s, not throw {finished['throw']} once it was recorded")
+
+            revert("settings/charge")
+            revert(powder_path)
+            finished = wait_event("throw", "finished")
+            if finished is None:
+                return
+            numbers.append(finished["throw"])
+            expected[finished["throw"]] = (found["threshold"], found["kp"])
+
+            # The next throw cut short: stopped while it runs
+            started = wait_event("throw", "started")
+            if started is None:
+                return
+            time.sleep(TUNING_CHECK_STOP_AFTER_S)
+            unit.act("stop")
+            ended = wait_event("throw", "ended")
+            if ended is None:
+                return
+            numbers.append(ended["throw"])
+            deadline = time.monotonic() + API_CHECK_STATE_S
+            while unit.read("charge")["state"] != "idle" and time.monotonic() < deadline:
+                time.sleep(0.2)
+        finally:
+            unit.request("POST", "stop", {})
+            self.send("sim off")
+            self.loads_put_back()
+
+        # Every record kept, read from 0, each as the schema says and as it was thrown
+        reply = unit.throws()
+        kept = [record["throw"] for record in reply["throws"]]
+        self.log.write("rc", f"tuning_check: first {reply['first']}, newest {reply['newest']}, kept {kept}")
+        if kept != list(range(reply["first"], reply["newest"] + 1)) or not set(numbers) <= set(kept) or \
+                reply["newest"] != numbers[-1] or len(kept) != min(reply["newest"], 32):
+            self.fail(f"tuning_check: kept {kept}, first {reply['first']}, newest {reply['newest']}: not every "
+                      f"throw from {reply['first']}, with {numbers}")
+        records = {record["throw"]: record for record in reply["throws"]}
+        for number in numbers:
+            record = records.get(number)
+            if record is None:
+                continue
+            self.log.write("rc", f"tuning_check: {json.dumps(record)}")
+            for problem in unit.throw_problems(record):
+                self.fail(f"tuning_check: throw {number}: {problem}")
+            if not record["simulated"] or record["target"] != target or record["powder_profile"] != powder:
+                self.fail(f"tuning_check: throw {number}: simulated {record['simulated']}, target "
+                          f"{record['target']}, powder {record['powder_profile']}")
+            if number in expected:
+                gains = record["gains"] or {}
+                thrown = (record["fine_threshold"], (gains.get("fine") or {}).get("kp"))
+                if record["result"] == "none" or gains.get("by") != "profile" or thrown != expected[number]:
+                    self.fail(f"tuning_check: throw {number}: {record['result']}, gains by {gains.get('by')}, "
+                              f"threshold and fine kp {thrown}, not as live {expected[number]}")
+            elif (record["result"], record["reason"]) != ("none", "stopped"):
+                self.fail(f"tuning_check: throw {number}, stopped: {record['result']}, {record['reason']}")
+        if unit.read("settings") != export_before:
+            self.fail("tuning_check: the settings differ from those found")
+
+        # A restart begins afresh; a read held after the old number is answered at once, with the new boot
+        boot = unit.index["boot"]
+        unit.request("POST", "system/restart", {})
+        time.sleep(1.5)
+        self.wait_for_console()
+        unit.forget()
+        deadline = time.monotonic() + API_CHECK_BACK_S
+        back = None
+        while back is None and time.monotonic() < deadline:
+            try:
+                back = unit.index
+            except OSError:
+                time.sleep(1.0)
+        if back is None:
+            self.fail(f"tuning_check: the unit did not answer within {API_CHECK_BACK_S:.0f} s of its restart")
+            return
+        asked = time.monotonic()
+        after_restart = unit.throws(after=numbers[-1], wait_s=5)
+        took = time.monotonic() - asked
+        self.log.write("rc", f"tuning_check: after the restart, boot {boot} then {after_restart['boot']}, first "
+                             f"{after_restart['first']}, newest {after_restart['newest']}, answered in {took:.2f} s")
+        if after_restart["boot"] == boot or (after_restart["first"], after_restart["newest"]) != (0, 0) or \
+                after_restart["throws"] or took > 2.0:
+            self.fail("tuning_check: after the restart, not a new boot with no throw kept, answered at once")
+        if unit.read("settings") != export_before:
+            self.fail("tuning_check: the settings differ after the restart")
+
+    def pin_check(self, host):
+        """
+        The web's PIN (ADR-016, gate 3), on a unit whose switch is off. The switch turned on at the screen (Wi-Fi >
+        Options > Web PIN, pressed through the console) and the PIN read off the Wi-Fi page, as a person reads it. Then
+        every read free and every kind of write refused without it (a POST, a PATCH, the hello, an upload's PUT), each
+        before its route, changing nothing; a write with it done; four wrong and the right one goes; five wrong in a row
+        refuse every write for a minute (429 with Retry-After), the right one too, and after it the right one goes; the
+        settings' copy holding no PIN. A restart makes another PIN: the old one refused, the new one taken. Last, the
+        switch turned off at the screen, and a write with none goes. A client on the unit's own hotspot needs none: not
+        reached from here, the PC not on the hotspot.
+
+        Args:
+            host: the unit's address.
+        """
+        def call(method, path, body=None, cookie=None, data=None):
+            request = urllib.request.Request(f"http://{host}{path}", method=method,
+                                             data=data if data is not None else
+                                             (None if body is None else json.dumps(body).encode()))
+            request.add_header("Content-Type", "application/octet-stream" if data is not None else "application/json")
+            if cookie is not None:
+                request.add_header("Cookie", f"pin={cookie}")
+            try:
+                with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+                    text, json_type = reply.read(), reply.headers.get_content_type() == "application/json"
+                    return reply.status, (json.loads(text) if json_type and text else None), reply.headers.get("Retry-After")
+            except urllib.error.HTTPError as error:
+                text = error.read()
+                json_type = error.headers.get_content_type() == "application/json"
+                return error.code, (json.loads(text) if json_type and text else None), error.headers.get("Retry-After")
+
+        def expect(what, got, status, code=None):
+            got_status, reply, _ = got
+            got_code = (reply or {}).get("error", {}).get("code") if isinstance(reply, dict) else None
+            self.log.write("rc", f"pin_check: {what}: {got_status} {got_code or ''}")
+            if got_status != status or (code is not None and got_code != code):
+                self.fail(f"pin_check: {what}: {got_status} {got_code}, not {status} {code or ''}")
+
+        def switch_at_screen():
+            """Wi-Fi > Options > Web PIN, its toggle pressed through the console."""
+            self.send("screen wifi/options")
+            rows = [row["label"] for row in self.screen_now()["rows"]]
+            if "Web PIN" not in rows:
+                self.fail(f"pin_check: Wi-Fi options has no Web PIN: {rows}")
+                return
+            self.send("press ccw 5")
+            self.send(f"press cw {rows.index('Web PIN') + 1}")
+            self.send("press enc 1")
+            time.sleep(0.5)
+            self.send("screen main")
+
+        def pin_on_screen():
+            """The PIN as the Wi-Fi page shows it, or None."""
+            self.send("screen wifi")
+            pin = None
+            for line in self.console.data_lines:
+                found = re.match(r'@line \d+ "Web PIN" value="(\d+)"', line)
+                if found:
+                    pin = found.group(1)
+            self.send("screen main")
+            return pin
+
+        unit = unit_api.Unit(host)
+        if unit.index.get("pin") is not False:
+            self.fail(f"pin_check: the index's pin is {unit.index.get('pin')}, not false: the switch is on already")
+            return
+        export_before = unit.read("settings")
+        charge = unit.read("settings/charge")
+        same = {"fine_stop_threshold": charge["fine_stop_threshold"]}
+        if pin_on_screen() is not None:
+            self.fail("pin_check: the Wi-Fi page shows a PIN with the switch off")
+        try:
+            switch_at_screen()
+            unit.forget()
+            pin = pin_on_screen()
+            self.log.write("rc", f"pin_check: the switch on at the screen; the index's pin {unit.index.get('pin')}, "
+                                 f"the Wi-Fi page's PIN {pin}")
+            if unit.index.get("pin") is not True or pin is None or len(pin) != 4:
+                self.fail("pin_check: the switch on, but the index or the Wi-Fi page does not say so")
+                return
+            # Reads are free
+            for path in ("/api/v1", "/api/v1/charge", "/api/v1/settings", "/api/v1/charge/throws", "/api/v1/agent"):
+                status, _, _ = call("GET", path)
+                if status != 200:
+                    self.fail(f"pin_check: GET {path} without the PIN: {status}")
+            # Every kind of write refused without it, before its route: nothing changes
+            expect("POST stop, no PIN", call("POST", "/api/v1/stop", {}), 401, "pin_required")
+            expect("PATCH settings/charge, no PIN", call("PATCH", "/api/v1/settings/charge", same), 401, "pin_required")
+            expect("POST agent/hello, no PIN", call("POST", "/api/v1/agent/hello", {"name": "pin_check"}), 401,
+                   "pin_required")
+            expect("PUT debug/upload, no PIN", call("PUT", "/api/v1/debug/upload", data=b"x" * 64), 401,
+                   "pin_required")
+            expect("PATCH settings/wifi off, no PIN", call("PATCH", "/api/v1/settings/wifi", {"pin_required": False}),
+                   401, "pin_required")
+            expect("PATCH settings/charge, the PIN", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
+            # Four wrong and one right: the count starts again
+            wrong = f"{(int(pin) + 1) % 10000:04d}"
+            for n in range(1, 5):
+                expect(f"PATCH, wrong PIN {n}", call("PATCH", "/api/v1/settings/charge", same, wrong), 401, "pin_wrong")
+            expect("PATCH, the PIN after four wrong", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
+            # Five wrong in a row: every write refused for a minute, the right one too
+            for n in range(1, 6):
+                expect(f"PATCH, wrong PIN {n} of five", call("PATCH", "/api/v1/settings/charge", same, wrong), 401,
+                       "pin_wrong")
+            locked = call("PATCH", "/api/v1/settings/charge", same, pin)
+            expect("PATCH, the PIN while locked", locked, 429, "pin_locked")
+            self.log.write("rc", f"pin_check: Retry-After {locked[2]}")
+            if locked[2] is None or not 55 <= int(locked[2]) <= 60:
+                self.fail(f"pin_check: Retry-After {locked[2]}, not about 60")
+            status, _, _ = call("GET", "/api/v1/charge")
+            if status != 200:
+                self.fail(f"pin_check: a read while locked: {status}")
+            time.sleep(PIN_CHECK_LOCK_S)
+            expect("PATCH, the PIN after the minute", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
+            # No PIN in the settings' copy
+            if pin in json.dumps(unit.read("settings").get("resources", {}).get("/api/v1/settings/wifi", {})):
+                self.fail("pin_check: the settings' copy holds the PIN")
+            # A restart makes another: the old one refused, the new one taken
+            boot = unit.index["boot"]
+            expect("POST system/restart, the PIN", call("POST", "/api/v1/system/restart", {}, pin), 202)
+            time.sleep(1.5)
+            self.wait_for_console()
+            unit.forget()
+            deadline = time.monotonic() + API_CHECK_BACK_S
+            back = None
+            while back is None and time.monotonic() < deadline:
+                try:
+                    back = unit.index
+                except OSError:
+                    time.sleep(1.0)
+            if back is None or back["boot"] == boot:
+                self.fail("pin_check: the unit not back after its restart")
+                return
+            fresh = pin_on_screen()
+            self.log.write("rc", f"pin_check: after the restart the PIN {fresh}, before it {pin}")
+            if fresh is None or back.get("pin") is not True:
+                self.fail("pin_check: after the restart, the switch is not on or no PIN is shown")
+                return
+            if fresh != pin:
+                expect("PATCH, the old PIN after the restart", call("PATCH", "/api/v1/settings/charge", same, pin), 401,
+                       "pin_wrong")
+            else:
+                self.log.write("rc", "pin_check: the restart made the same PIN (1 in 10,000): the old one not judged")
+            expect("PATCH, the new PIN", call("PATCH", "/api/v1/settings/charge", same, fresh), 200)
+            pin = fresh
+        finally:
+            # Whatever failed, the switch is left off, as found
+            unit.forget()
+            if unit.index.get("pin") is not False:
+                switch_at_screen()
+        unit.forget()
+        if unit.index.get("pin") is not False or pin_on_screen() is not None:
+            self.fail("pin_check: the switch not off at the screen, or the Wi-Fi page still shows a PIN")
+        expect("PATCH settings/charge, no PIN, the switch off", call("PATCH", "/api/v1/settings/charge", same), 200)
+        if unit.read("settings") != export_before:
+            self.fail("pin_check: the settings differ from those found")
 
     def stream_check(self, host):
         """
@@ -2795,7 +3195,7 @@ class Session:
             self.fail("web_robust: the console did not answer at the end")
 
     def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False,
-             stream=False):
+             stream=False, throws=False):
         """
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
@@ -2814,6 +3214,7 @@ class Session:
             load: also a tuning session's load (SOAK_LOAD_*).
             upload: also ADR-004's image, SOAK_UPLOAD_BYTES sent back to back, each checked by its CRC-32.
             stream: each browser follows the event stream (ADR-008, gate 2) in place of polling the charge.
+            throws: a client also follows the throws' records with held reads (ADR-016, gate 1), and sees each.
         """
         page_size = {}
 
@@ -2863,6 +3264,7 @@ class Session:
             pollers.append(WebPoller("upload 700 KB", 0.0, [("", read_upload)], self.log))
 
         followers = [EventFollower(f"events {n}", host, self.log) for n in range(1, SOAK_FOLLOWERS + 1)]
+        throw_followers = [ThrowFollower("throws", host, self.log)] if throws else []
 
         # The first charge after a start creates the charge screen's task, kept for good (charge_mode.c): read
         # quiet before the run, its 1,168 bytes were memory not given back (ADR-003, gate 2). So one charge first
@@ -2881,10 +3283,10 @@ class Session:
         # fails here ends the soak rather than leaving a follower that never began (two did, the first time)
         for follower in followers:
             follower.unit.start_following()
-        for follower in streams:
+        for follower in streams + throw_followers:
             follower.start_following()
         followers += streams
-        for poller in pollers + followers:
+        for poller in pollers + followers + throw_followers:
             poller.start()
         while True:
             self.state()
@@ -2895,11 +3297,11 @@ class Session:
                 break
             self.charge_cycle(target, threshold, timeout_s=120.0)
             cycles += 1
-        for poller in pollers + followers:
+        for poller in pollers + followers + throw_followers:
             poller.stop_event.set()
         for poller in pollers:
             poller.join(timeout=max(HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1), SOAK_UPLOAD_TIMEOUT_S) + 1)
-        for follower in followers:
+        for follower in followers + throw_followers:
             follower.join(timeout=max(2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S, STREAM_KEEP_ALIVE_S + 10))
         time.sleep(SOAK_QUIET_S)
         quiet_end = self.stats()
@@ -2930,6 +3332,14 @@ class Session:
                 self.fail(f"soak: {follower.name} saw {throws} throws finished in {cycles} charges")
         if any(numbers != seen[0] for numbers in seen):
             self.fail("soak: the event followers did not see the same events")
+        for follower in throw_followers:
+            verdicts = sum(1 for record in follower.records if record["result"] != "none")
+            self.log.write("rc", f"soak: {follower.name}: {len(follower.records)} records, {verdicts} with a "
+                                 f"verdict, {follower.failed_reads} reads failed and tried again")
+            for problem in follower.problems():
+                self.fail(f"soak: {follower.name}: {problem}")
+            if verdicts < cycles:
+                self.fail(f"soak: {follower.name} saw {verdicts} throws with a verdict in {cycles} charges")
         net_end = self.net()
         motor_end = self.send("motor")
         late = {}
@@ -4063,6 +4473,8 @@ def main():
     parser = argparse.ArgumentParser(description="Drive a unit through a debug probe (ADR-001).")
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
+    parser.add_argument("--pin", help="the PIN on the unit's Wi-Fi page, sent with every request over the network, "
+                                       "for a unit whose web PIN is on (ADR-016, gate 3); the bench's units have it off")
     parser.add_argument("--most-pour", type=float, help="the most this run may pour, in grains (default: the run's own)")
     parser.add_argument("--cup-emptied", metavar="WORDS",
                         help="the owner's words that the cup was emptied, quoted: the cup's count starts again from the "
@@ -4123,6 +4535,13 @@ def main():
     stream_parser = sub.add_parser("stream_check", help="the event stream's life cycle, stage by stage (ADR-008, "
                                                         "gate 2); restarts the unit")
     stream_parser.add_argument("--host", required=True, help="the unit's address")
+    tuning_parser = sub.add_parser("tuning_check", help="the throws' record: four simulated throws, settings written "
+                                                        "between them, a held read, a restart (ADR-016, gate 1)")
+    tuning_parser.add_argument("--host", required=True, help="the unit's address")
+    tuning_parser.add_argument("--target", type=float, default=10.0)
+    pin_parser = sub.add_parser("pin_check", help="the web's PIN: the switch at the screen, writes refused without "
+                                                  "it, the lockout, a new PIN at a restart (ADR-016, gate 3)")
+    pin_parser.add_argument("--host", required=True, help="the unit's address")
     api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
                                                   "schema; every action called (ADR-003, gate 4); ends with a restart")
     api_parser.add_argument("--host", required=True, help="the unit's address")
@@ -4147,6 +4566,8 @@ def main():
     soak_parser.add_argument("--upload", action="store_true",
                              help="also ADR-004's image: 700 KB sent back to back as a body in pieces, each checked "
                                   "by its CRC-32 (ADR-003, gate 4)")
+    soak_parser.add_argument("--throws", action="store_true",
+                             help="a client also follows the throws' records with held reads (ADR-016, gate 1)")
     soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
                              help="the most misses in a row one poller may have")
     frames_parser = sub.add_parser("scale_frames", help="record the scale's frames through the tap, by phase")
@@ -4169,6 +4590,7 @@ def main():
     fault_parser.add_argument("--want", help="words that must come in the charge's events, in order, comma-separated")
     fault_parser.add_argument("--want-none", action="store_true", help="no pause and no end may come")
     args = parser.parse_args()
+    unit_api.PIN = args.pin
 
     session = Session(args, args.command)
     try:
@@ -4253,6 +4675,8 @@ def cup_most(args):
         return args.target + 40.0       # a charge started and stopped, and a purge
     if command == "settings_roundtrip":
         return args.target + 10.0       # a throw, for the write refused during it
+    if command == "tuning_check":
+        return 4.0 * args.target + 10.0     # three throws, and a fourth stopped
     if command == "soak":
         return math.ceil(args.seconds / 12.0) * args.target
     if command == "charge_fault":
@@ -4347,9 +4771,13 @@ def run_command(session, args):
         session.api_check(args.host, args.target)
     elif args.command == "settings_roundtrip":
         session.settings_roundtrip(args.host, args.target)
+    elif args.command == "pin_check":
+        session.pin_check(args.host)
+    elif args.command == "tuning_check":
+        session.tuning_check(args.host, args.target)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
-                     args.load, args.upload, args.stream)
+                     args.load, args.upload, args.stream, args.throws)
     elif args.command == "scale_frames":
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":

@@ -14,6 +14,7 @@ standard library and the client are used.
 import argparse
 import base64
 import copy
+import http.cookies
 import json
 import sys
 import threading
@@ -28,6 +29,7 @@ import unit_api  # noqa: E402  (the client's folder, put on the path just above)
 from calibration_mock import PATH as CALIBRATION, CalibrationMock  # noqa: E402  (beside this file; ADR-009's mock)
 
 DATA = Path(__file__).resolve().with_name("web_test_data.json")
+STAND_IN_PIN = "1234"               # the web's PIN while settings/wifi's pin_required is on (ADR-016, gate 3)
 MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web/api/portal by scripts/web_build.py
 # The unit's addresses of the portal (rest_endpoints.c), and the wizard's old one, which it redirects to the set-up
 PAGES = {"/", "/mobile", "/display_mirror"}
@@ -335,6 +337,9 @@ class StandIn:
         Returns:
             (status, reply): a dict for JSON, bytes for the frame.
         """
+        if path == "/api/v1":
+            # Whether writes need the PIN, as the Wi-Fi's switch is (ADR-016, gate 3)
+            self.replies[path]["pin"] = bool(self.replies.get("/api/v1/settings/wifi", {}).get("pin_required"))
         if path == EVENTS:
             after = int(query.get("after", "0"))
             return 200, {"boot": self.replies["/api/v1"]["boot"], "now_ms": self.now_ms(), "first": 1,
@@ -555,7 +560,7 @@ class StandIn:
                 self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
                                powder_profile=charge["powder_profile"], charge_profile=self.chosen)
 
-    def write(self, method, path, body):
+    def write(self, method, path, body, pin=""):
         """
         A PATCH or a POST, checked against the schema as the unit checks it.
 
@@ -563,10 +568,19 @@ class StandIn:
             method: "PATCH" or "POST".
             path: the path.
             body: the JSON body.
+            pin: the Cookie's pin=, "" with none.
 
         Returns:
             (status, reply).
         """
+        # The web's PIN (ADR-016, gate 3): while the Wi-Fi's switch is on, every write needs the stand-in's, STAND_IN_PIN
+        # (a unit makes its own at each start and shows it on its Wi-Fi page); no lockout here
+        required = bool(self.replies.get("/api/v1/settings/wifi", {}).get("pin_required"))
+        if required and not pin:
+            return 401, error("pin_required", "this unit asks for the PIN on its Wi-Fi page: send it with the write, "
+                                              "as the Cookie pin=<digits>")
+        if required and pin != STAND_IN_PIN:
+            return 401, error("pin_wrong", "not the PIN on the unit's Wi-Fi page: it is new at each start")
         if path.startswith(CALIBRATION):
             return self.calibration.write(method, path, body)
         if method == "POST" and path in SETUP_PATHS:
@@ -855,7 +869,9 @@ def make_handler(stand_in):
                 self.send(400, error("bad_json", "the body is not JSON"))
                 return
             with stand_in.lock:
-                status, reply = stand_in.write(method, urllib.parse.urlsplit(self.path).path, body)
+                cookie = http.cookies.SimpleCookie(self.headers.get("Cookie", ""))
+                pin = cookie["pin"].value if "pin" in cookie else ""
+                status, reply = stand_in.write(method, urllib.parse.urlsplit(self.path).path, body, pin)
             self.send(status, reply)
 
         def do_PATCH(self):

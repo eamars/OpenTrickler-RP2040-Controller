@@ -8,7 +8,25 @@ const $ = (id) => document.getElementById(id);
 
 // One call to the unit; the link is shown lost when the unit does not answer (web-ui-design, rule 9)
 // limitMs: a read given up after that long, as one not answered (a unit gone without a word leaves it hanging)
+// A change refused for want of the unit's PIN (ADR-016, gate 3) asks for it, keeps it, and is sent again: asked again
+// after a wrong one, until it is right, the person cancels, or the unit refuses every change for a while (429)
 async function api(method, path, body, limitMs) {
+    let reply = await apiOnce(method, path, body, limitMs);
+    for (;;) {
+        const code = reply.data && reply.data.error ? reply.data.error.code : null;
+        if (reply.status !== 401 || (code !== "pin_required" && code !== "pin_wrong")) {
+            return reply;
+        }
+        const digits = await askPin(code === "pin_wrong");
+        if (!digits) {
+            return reply;
+        }
+        setPinCookie(digits);
+        reply = await apiOnce(method, path, body, limitMs);
+    }
+}
+
+async function apiOnce(method, path, body, limitMs) {
     try {
         const binary = body instanceof Blob || body instanceof ArrayBuffer;
         const response = await fetch(path, {
@@ -66,6 +84,33 @@ function confirmAction(title, text, act, keep, loses = false) {
         dialog.showModal();
         $("confirm-keep").focus();
     });
+}
+
+// The web's PIN (ADR-016, gate 3), kept by this browser as the cookie the unit reads, pin=<digits>, sent to the
+// unit's own pages alone (SameSite=Strict), until a change is refused again (the unit restarted: a new PIN)
+function setPinCookie(digits) {
+    document.cookie = `pin=${digits}; path=/; SameSite=Strict`;
+}
+
+// Asked when a change is refused for want of it, in the one confirmation with its field shown: the digits, or null
+// when the person cancels. Enter in the field enters it (the form's first button is the safe one, on the left)
+async function askPin(wrong) {
+    const field = $("confirm-field");
+    field.value = "";
+    field.hidden = false;
+    field.onkeydown = (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            $("confirm").close("act");
+        }
+    };
+    const asked = confirmAction("Enter the unit's PIN", wrong
+        ? "That is not the PIN on the unit's Wi-Fi page: it is new each time the unit starts. Try again."
+        : "The unit asks for the PIN on its Wi-Fi page before it takes a change.", "Enter", "Cancel");
+    field.focus();
+    const entered = await asked;
+    field.hidden = true;
+    return entered && field.value.trim() ? field.value.trim() : null;
 }
 
 // The cup's question before a charge or a purge: a safety step, in the screen's words (rule 8)

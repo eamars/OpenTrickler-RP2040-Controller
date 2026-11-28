@@ -4,6 +4,7 @@
 #include <queue.h>
 
 #include "wireless.h"
+#include "chip.h"
 #include "chip_net.h"
 #include "rtos_port.h"
 #include "eeprom.h"
@@ -76,6 +77,9 @@ const eeprom_wireless_metadata_t default_eeprom_wireless_metadata = {
 
 static QueueHandle_t wireless_ctrl_queue;
 
+// The web's PIN (ADR-016, gate 3): made at the start, in RAM alone; a restart makes another
+static char wireless_pin_digits[WIRELESS_PIN_DIGITS + 1];
+
 // Render task
 const char * wireless_state_strings[] = {
     "Not Initialized",
@@ -116,6 +120,10 @@ static const setting_field_t wifi_fields[] = {
     {.name = "auth", .label = "Security",
      .about = "The network's security",
      .type = SETTING_CHOICE, WIFI_FIELD(auth), SETTING_CHOICES(wifi_auth_choices), .applies = "at_restart"},
+    {.name = "pin_required", .label = "Web PIN",
+     .about = "Every change over the network needs the PIN on the unit's Wi-Fi page, made at each start; a client on "
+              "the unit's own hotspot needs none",
+     .type = SETTING_BOOLEAN, WIFI_FIELD(pin_required), .applies = "now"},
     {.name = "timeout_ms", .label = "Join timeout",
      .about = "How long the unit tries to join before it gives up",
      .type = SETTING_INTEGER, WIFI_FIELD(timeout_ms), .unit = "ms", .min = 1000.0f, .max = 120000.0f,
@@ -180,6 +188,8 @@ bool wireless_init() {
     snprintf(host_name, sizeof(host_name), "opentrickler-%.4s", id);
     // And the access point's key, the unit's own (ADR-008, gate 4)
     access_point_mode_init();
+    // The web's PIN, new at each start (ADR-016, gate 3)
+    snprintf(wireless_pin_digits, sizeof(wireless_pin_digits), "%04lu", (unsigned long) (chip_random32() % 10000u));
 
 
     return is_ok;
@@ -795,6 +805,31 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
         xQueueSend(wireless_ctrl_queue, &ctrl, 0);
     }
     return NULL;
+}
+
+
+bool wireless_pin_required(void) {
+    // Its first byte, as the settings read and write a boolean (the release candidate's review, R3)
+    return *(const uint8_t *) &wireless_config.eeprom_wireless_metadata.pin_required != 0;
+}
+
+
+const char *wireless_pin(void) {
+    return wireless_pin_digits;
+}
+
+
+bool wireless_pin_matches(const char *digits) {
+    return digits != NULL && strcmp(digits, wireless_pin_digits) == 0;
+}
+
+
+bool wireless_reached_by_hotspot(const uint8_t peer[4], const uint8_t reached[4]) {
+    // Both ends: a client of the network that routes to the hotspot's address by way of the unit's own reaches it
+    // too, from an address of the network's (the release candidate's review, R2)
+    static const uint8_t hotspot[4] = {192, 168, 4, 1};     // ACCESS_POINT_MODE_ADDRESS
+    return wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN &&
+           memcmp(reached, hotspot, sizeof(hotspot)) == 0 && memcmp(peer, hotspot, 3) == 0 && peer[3] != hotspot[3];
 }
 
 

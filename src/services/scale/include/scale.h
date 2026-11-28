@@ -141,6 +141,10 @@ void simulated_scale_send_bad(void);
 // A weight published in place of the simulated powder's, until it is switched off (ADR-012); never stored
 void simulated_scale_force_weight(bool forced, float weight);
 void simulated_scale_go_quiet(uint32_t ms);
+// sim lag (ADR-016, gate 2): the powder shows this many ms after it is poured, 0 to 2000, never snapped to the
+// target, so a throw can land over; 0, the default, as before. False if out of range or no room for it
+bool simulated_scale_set_lag(uint32_t ms);
+uint32_t simulated_scale_get_lag(void);
 
 /**
  * @brief Print one frame as "@sf <ms> <value> <bytes>" when the tap is on: the time since boot in ms, the value
@@ -157,9 +161,6 @@ bool scale_reads(void);
 // The name of the driver that runs
 const char * get_scale_driver_string();
 
-// The weight's unit where the make's frame carries it (the A&D's): "g", "gn"; NULL when it cannot tell (gate 4)
-void scale_publish_unit(const char *unit, size_t len);
-const char *scale_get_unit(void);
 // Whether the driver that runs can ask its scale to zero
 bool scale_can_zero(void);
 // Ask the scale to zero, counted: a charge waiting for zero takes no readings from before one (gate 4)

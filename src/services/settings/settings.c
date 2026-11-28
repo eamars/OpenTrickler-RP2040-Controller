@@ -1282,6 +1282,7 @@ static const char *const settings_error_codes[] = {
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
     "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
     "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot", "not_now", "not_filling",
+    "pin_required", "pin_wrong", "pin_locked",
 };
 
 
@@ -1412,11 +1413,11 @@ bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len) {
         schema->field = 0;
         return true;
     }
-    if (schema->phase <= 5) {
-        // The commands' actions, the states, the events (the API's, handed in at the begin), as many items as fit a
-        // chunk
-        static const char *const heads[] = {"", "],\"states\":{", "},\"events\":["};
-        while (schema->phase <= 5) {
+    if (schema->phase <= 6) {
+        // The commands' actions, the states, the events, the throw record's fields (the API's, handed in at the
+        // begin), as many items as fit a chunk
+        static const char *const heads[] = {"", "],\"states\":{", "},\"events\":[", "],\"throw\":["};
+        while (schema->phase <= 6) {
             size_t part = schema->phase - 3;
             const char *item = schema->extra != NULL ? schema->extra((unsigned) part, schema->resource) : NULL;
             size_t mark = *len;

@@ -153,6 +153,16 @@ bool http_server_query_value(const char *query, const char *name, char *out, siz
 // (ADR-008, gate 2). A handler that gives no reply leaves it 405, as before
 void http_server_set_usage(http_server_handler_t usage);
 
+/*
+ * Every write to /api/ (a POST, PUT, PATCH or DELETE) asks the guard first, with the request's Cookie `pin=` value
+ * ("" with none, or a Cookie line too long to keep), the client's address and the unit's address it reached, each
+ * its 4 bytes in order (ADR-016, gate 3). It answers 0 to let it through, or the status to refuse it with, its code and message, and a
+ * Retry-After in seconds or 0. With no guard handed over, every write goes through
+ */
+typedef int (*http_server_write_guard_t)(const char *pin, const uint8_t peer[4], const uint8_t reached[4],
+                                         const char **code, const char **message, uint32_t *retry_after_s);
+void http_server_set_write_guard(http_server_write_guard_t guard);
+
 // The routes, one at a time, for the check that every route is in the index (ADR-008, gate 2). False past the last
 bool http_server_route_at(int idx, http_server_method_t *method, const char **path);
 const char *http_server_method_name(http_server_method_t method);

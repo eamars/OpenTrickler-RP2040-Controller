@@ -48,7 +48,5 @@ const scale_make_t and_fxi_scale_make = {
     .framing = SCALE_FRAME_AT_LF,
     .length = sizeof(scale_standard_data_format_t),
     .parse = and_scale_parse,
-    .unit_at = offsetof(scale_standard_data_format_t, unit),     // the frame carries it (ADR-003, gate 4)
-    .unit_len = sizeof(((scale_standard_data_format_t *) 0)->unit),
     .zero = "Z\r\n",        // the RE-ZERO key
 };
