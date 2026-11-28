@@ -29,7 +29,7 @@ What that session recorded, not checked again since:
 
 ## Gate 1: the throw record
 
-**Built 2026-11-28, not yet run on a unit.** No line of the auto-tuner, its twin, or how the charge drives it was changed.
+**Built 2026-11-28 (`94d13d5`), run on the Pico W the same evening.** No line of the auto-tuner, its twin, or how the charge drives it was changed.
 
 What was built:
 - `src/services/charge/charge_throws.c`: the newest 32 records and the one open, 2,912 bytes (88 a record) taken from the FreeRTOS heap at the first charge and kept, as the controller is; none to have, the charge ends at once, "No memory". The charge's task alone writes; a reader copies a whole record under a critical section. Static RAM: one pointer.
@@ -42,4 +42,10 @@ Measured (Pico W, debug build, `size_report.py`): flash 941.5 KB against main's 
 
 **The budget, ahead:** gate 1 leaves 5.3 KB of the 12 KB for gates 2 and 3, and the README allows the guide up to 6 KB. The schema's throw table already says what each figure is, so the guide need not; a guide of about 3 KB and the PIN would fit. If gate 2's guide comes out larger, it stops there and comes back to the owner, as the README says.
 
-To run on the Pico W: `flash`, `menu_tour --compare`, `charge_cycle`, `api_check`, `tuning_check`, then a soak with `--throws`, the heap read quiet before and after.
+**On the Pico W** (2026-11-28, from 2.0.3-399 to 2.0.3-407, the image of `94d13d5`, flashed by the probe from `build_w`; its settings copied first, `logs/adr016/picow_before_gate1`), each ending `VERDICT PASS`:
+- `flash`; `menu_tour --compare tests/menu_baseline/pico_w`, the inversion off live and put back; `charge_cycle` (30.000 of 30, 16.9 s to the cup prompt);
+- `api_check`, the local OTA server up with `--no-announce`: 47 paths read twice, the throws among them, each answer as the schema says; all 47 actions called;
+- `tuning_check` (`logs/rc/20261128_221700_tuning_check.log`), at 10 gr with powder 1: throw 1 on the stored fine stop threshold 0.03 and fine kp 0.8; throw 2 on 0.04 and 0.64, written live between them, its record given by a read held 24.8 s and answered as it was recorded (0.02 s before the follower read its event); throw 3 on what is stored, after the reverts; throw 4 stopped 1.4 s into its pour, `none`, `stopped`, its stops, times and fall null, its gains known. Read from 0: first 1, newest 4, all four. After the restart none kept, a read held after 4 answered in 0.11 s with the new boot; the settings as found, before and after it. The figures of a finished throw on the simulated scale: coarse stop at 3.1 to 3.2 s at 5.0 to 5.2 gr, the coarse tube at 0.1 rps; fine stop at 10 at 0.08 rps; fall 0, as its powder has no lag.
+- `soak 300 --target 10 --throws` (the hopper empty, the cup read before and after, 0.0 gr): 13 charges in 335 s; 0 of 1,939 web reads missed; both event followers 104 events with 13 throws finished; the throws follower 26 records, every throw with no gap (13 with a verdict, and each charge's next throw stopped by `charge_cycle`), each as the schema says; no late feed of the step pulses; no allocation of lwIP's failed; the FreeRTOS heap 47,992 bytes quiet before and after, 46,072 at its lowest. The throws follower's one read was reset by the unit at the soak's start, as its nine clients opened at once; the console said nothing of it, the follower read again and missed no throw. Seen once, its cause not read.
+
+Gate 1 is done on the Pico W. The Pico 2 W is not run: this gate is the application layer and the heap, proven on the tighter unit (AGENTS.md, "One unit is enough").
