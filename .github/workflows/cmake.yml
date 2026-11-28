@@ -70,7 +70,7 @@ jobs:
         fi
         python3 scripts/build_release.py --out-dir release "${tag[@]}"
 
-    # The stored records against the latest release, the release a unit updates from (tests/release_records.py): found
+    # The stored records against each floor, a release units update from (v1.21, v2.0.0; tests/release_records.py): found
     # by use, each record's release fields first in today's, each stored enum value meaning what it meant (needs the
     # tags, above); and from both images' DWARF, each release field where it lay, no field appended into the release's
     # tail padding, and both compilers' layouts the same (ADR-017, gate 1). pyelftools reads the DWARF
