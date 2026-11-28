@@ -1,6 +1,8 @@
 # ADR-016: an AI agent helps tune a powder's profile, over the API
 
-Status: **Decided** 2026-11-28: approved as written by the owner ("Approve as written"), the evening it was written in full from the owner's answers of that day. **Re-gated later that evening at the owner's word** ("Yes, rewrite it"): the API's three gates as approved, in their order, and the auto-tuner no gate and not touched (below, "The auto-tuner is not touched"); the rewritten text approved by him ("Approve, merge it"). First drafted 2026-11-27 with the use case as the owner and the agent traced it, and PR #113's features folded in as the owner asked. Nothing is built.
+Status: **Built** 2026-11-29, closed at the owner's word ("Skip it, close") on its branch `adr016_gate1`: the three gates built and proven on the Pico W, the whole branch on the Pico 2 W before the close, an assistant agent writing with the PIN among its checks (progress, "Closed"). Not run: a phone on the unit's own hotspot, which the owner skipped. PR #113 stays open for his word ("#113 later").
+
+Before that: **Decided** 2026-11-28: approved as written by the owner ("Approve as written"), the evening it was written in full from the owner's answers of that day. **Re-gated later that evening at the owner's word** ("Yes, rewrite it"): the API's three gates as approved, in their order, and the auto-tuner no gate and not touched (below, "The auto-tuner is not touched"); the rewritten text approved by him ("Approve, merge it"). First drafted 2026-11-27 with the use case as the owner and the agent traced it, and PR #113's features folded in as the owner asked.
 
 ## What we want
 
