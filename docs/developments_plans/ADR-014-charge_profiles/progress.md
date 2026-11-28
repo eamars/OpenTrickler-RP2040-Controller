@@ -2,6 +2,25 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, evening: a v1.21 unit updated to this
+
+The owner: "Test v1.21 update". The README's check: a unit on v1.21 updated to this keeps its eight powders and the one chosen, has "Load 1" on that powder with no target, and charges once a target is set. Run on the Pico W, as ADR-006's gate 10 and ADR-009 ran theirs.
+
+**A real v1.21 unit has never written the loads' slot, nor the spare slot; this one had both**, the owner's loads and the last save. Read at the update, they would have been taken as stored, and the defaults' path never run. So the update was a test build of this branch, `-DRC_TEST_LOADS_BLANK=ON` (`588c9e7`): the first two bytes of the loads' slot and of the spare slot written blank at the loads' start, before they are read. The spare must go too: it held the loads' last save, and the next save would have finished the slot from it. Everything else in the build is the image's.
+
+| Step | Result |
+|---|---|
+| `settings --save logs/adr014/picow_before_v121` | the owner's 25 resources on 2.0.3-395 |
+| v1.21 (1.21.0, `3214c58`, the `OpenTrickler-v1.21` worktree's Pico W image) by openocd's `program`, restarted by the watchdog | it joined the Wi-Fi at the same address, its own defaults where today's records are longer |
+| Values of its own through its `/rest/` paths, stored (`ee=true`) | powder 6 named "V121Other,gr"; powder 3 named "V121Load,gr" with gains and speeds of its own, and chosen |
+| A v1.21 restart through the probe | powder 5, chosen in RAM only before it, gone; powder 3 chosen again, the values kept (`logs/adr014/picow_v121/rest_after_restart.json`) |
+| The test build's full install by the probe, as a user's update by USB | `VERDICT PASS`, 2.0.3-399. Its first start: the scale's record "stored 6 bytes long by an earlier version", the charge's "52 bytes ... read field by field from its layout then", the powders' 516 bytes, each stored at this version's size; the loads' slot made blank, then "0x1800 never written: its defaults stored" |
+| Over the API, against v1.21's values (`check_after_update.txt`) | **`VERDICT PASS`, 32 of 32:** the eight powders' names; powder 3's ten figures; the powder in use 3, "V121Load,gr"; "Load 1" chosen, no target; "Load 1" to "Load 8", each on powder 3, no target, stored |
+| `POST /api/v1/charge/start {}` | refused, 400 `no_target`, "the charge profile has no target set: give one" |
+| `charge_cycle` | `VERDICT PASS`: 29.973 for a target of 30.000, on V121Load's own gains; "Load 1" put back to no target after; the cup 0.0 gr |
+
+**The unit put back:** this branch's image (`rc_run.py flash`, 2.0.3-399, the loads' slot read as stored: v1.21's run made it the defaults), `settings --restore logs/adr014/picow_before_v121`, `VERDICT PASS` with the compare after it; "6.5CM" chosen at 42.50 on AR2209,gr, as the owner left it; `menu_tour --compare tests/menu_baseline/pico_w`, `VERDICT PASS`.
+
 ## 2026-11-28, evening, last: the navigation settled, the web proven on the unit
 
 **The owner on the fifth destination,** explained as the web page's navigation bar, four buttons on main and Loads a fifth on this branch, or loads under Powders behind a switch: "Yes, keep it". Written into the skill `web-ui-design` (rule 1) and the README.
@@ -16,7 +35,7 @@ What was built and measured. The plan is in the [README](README.md).
 ### Left
 
 1. **The Pico 2 W** on the probe: flash, `menu_tour` (its Charge page saved again), `charge_cycle`. The owner puts it on.
-2. **A unit on v1.21 updated to this:** it rewrites the unit's settings, so it waits for the owner's word.
+2. ~~A unit on v1.21 updated to this~~: done, above.
 3. The close (this file, the README, the index) and the PR.
 
 **The README brought up to date** the same evening: the loads in what the unit does, and its two pictures taken again from the Pico W, the screen's Charge page (its snap, three times its size, as before) and the web's Trickler page at 375 x 812 (the browser pane's capture at twice the size, scaled down), both showing the owner's "6.5CM" load. The manuals show neither page and say nothing of the charge: nothing to change there.
