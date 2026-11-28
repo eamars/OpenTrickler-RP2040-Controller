@@ -99,7 +99,7 @@ Three gates, in this order, each approved and built on its own; one may be merge
 
 ### The budget
 
-ADR-016 takes at most **16 KB of flash and 4 KB of RAM** on the Pico W (12 KB until gate 2, when gates 1 and 2 had taken 11.3 KB and the PIN was reckoned at 2.5 to 3.5 KB; the owner, 2026-11-28, chose "Raise it to 16 KB", the option recommended to him), nothing of it static: what it keeps is taken from the heap at its first use and kept, as the charge's controller is. Each gate measures its own (`size_report.py`; `stats`'s `heap_min` and `charge_heap_low` across a charge) and says it in the progress. A gate that would pass the budget stops and comes back to the owner before it is built further.
+ADR-016 takes at most **18 KB of flash and 4 KB of RAM** on the Pico W (16 KB until gate 3, when its firmware had taken ADR-016 to 15.8 KB with the portal's part and the guide's lines to come, about 1.5 KB; the owner, 2026-11-28, chose "Raise it to 18 KB", the option recommended to him. 12 KB until gate 2, when gates 1 and 2 had taken 11.3 KB and the PIN was reckoned at 2.5 to 3.5 KB; the owner, 2026-11-28, chose "Raise it to 16 KB", the option recommended to him), nothing of it static: what it keeps is taken from the heap at its first use and kept, as the charge's controller is. Each gate measures its own (`size_report.py`; `stats`'s `heap_min` and `charge_heap_low` across a charge) and says it in the progress. A gate that would pass the budget stops and comes back to the owner before it is built further.
 
 ### The auto-tuner is not touched
 
