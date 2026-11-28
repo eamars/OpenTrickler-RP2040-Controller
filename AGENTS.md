@@ -2,6 +2,8 @@
 
 Firmware for the OpenTrickler controller: a Raspberry Pi Pico W or Pico 2 W on the motor expansion board, with a mini 12864 display and rotary encoder, two TMC2209 stepper drivers, two servos, LEDs, an EEPROM and a scale on a serial port (see [README](README.md)). The trickler dispenses gunpowder. This page is for anyone, person or agent, about to change the firmware.
 
+**Two kinds of agent** (the owner, 2026-11-28): this page is for the *development agent*, which has the source, the probe and the console. The *assistant agent* is one a person points at a unit by its address to help tune a powder (ADR-016): it has the unit and its API alone, and the unit tells it how to help, in its own guide (`GET /api/v1/agent`, `/llms.txt`; the source is `src/web/api/agent_guide.md`, made into the image as the build configures). A change to what an assistant should do is a change to that guide, rehearsed as ADR-016's gate 2 did: a Haiku agent given only its frame (`docs/developments_plans/ADR-016-agent_tuning/rehearsal_frame.md`), the guide changed where it went wrong, never the frame.
+
 ## Before anything: fetch
 
 Run `git fetch` and compare your `main` with `origin/main` before you read the code as current. A checkout can be months behind. The first plans for this repository were drafted against a `main` that was 11 commits old, and had to be corrected.
