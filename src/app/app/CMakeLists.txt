@@ -1,7 +1,8 @@
 ot_module(SRCS app.c
           INCLUDE_DIRS include
           REQUIRES storage
-          PRIV_REQUIRES activity api board calibration charge cleanup events freertos gate http_server jobs leds
+          PRIV_REQUIRES activity api board calibration charge charge_profiles cleanup events freertos gate http_server
+                        jobs leds
                         menu mini_12864 motors platform profile remote_control scale uc1701 update update_fetch view_12864
                         wireless ${OT_FEATURES_CARRIED})
 

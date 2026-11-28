@@ -20,6 +20,7 @@
 #include "system_control.h"
 #include "calibration.h"
 #include "charge_mode.h"
+#include "charge_profiles.h"
 #include "cleanup_mode.h"
 #include "eeprom.h"
 #include "unit_id.h"
@@ -209,6 +210,7 @@ static void write_charge(char *out, size_t room, size_t *len) {
     charge_status_t charge;
     charge_mode_get_status(&charge);
     uint16_t profile = profile_get_selected_idx();
+    uint8_t charge_profile = charge_profiles_chosen();
     http_json_raw(out, room, len, "{\"state\":");
     http_json_string(out, room, len, charge.state);
     http_json_raw(out, room, len, ",\"in_throw\":");
@@ -217,6 +219,11 @@ static void write_charge(char *out, size_t room, size_t *len) {
     http_json_integer(out, room, len, charge.throw_number);
     http_json_raw(out, room, len, ",\"paused\":");
     http_json_bool(out, room, len, charge.paused);
+    // The chosen charge profile (ADR-014): the target and the powder below are its own
+    http_json_raw(out, room, len, ",\"charge_profile\":");
+    http_json_integer(out, room, len, charge_profile);
+    http_json_raw(out, room, len, ",\"charge_profile_name\":");
+    http_json_string(out, room, len, charge_profiles_get(charge_profile)->name);
     http_json_raw(out, room, len, ",\"target\":");
     if (charge.target > 0.0f) {
         http_json_float(out, room, len, charge.target);
@@ -262,19 +269,34 @@ static void api_v1_get_charge(const http_server_request_t *request, http_server_
 
 
 /*
- * `target` and `powder_profile`, as a PATCH and a start carry them, checked; nothing written. False with the error
- * sent
+ * `charge_profile`, `target` and `powder_profile`, as a PATCH and a start carry them, checked; nothing written.
+ * *charge_profile is -1 when none is given. False with the error sent
  */
 static bool charge_fields(http_server_reply_t *reply, const http_json_member_t *members, size_t count,
-                          bool *has_target, float *target, bool *has_profile, uint16_t *profile) {
-    static const char *const allowed[] = {"target", "powder_profile"};
-    if (!api_only(reply, members, count, allowed, 2)) {
+                          bool *has_target, float *target, bool *has_profile, uint16_t *profile,
+                          int *charge_profile) {
+    static const char *const allowed[] = {"target", "powder_profile", "charge_profile"};
+    if (!api_only(reply, members, count, allowed, ARRAY_COUNT(allowed))) {
         return false;
     }
     const http_json_member_t *target_member = api_member(members, count, "target");
     const http_json_member_t *profile_member = api_member(members, count, "powder_profile");
+    const http_json_member_t *charge_profile_member = api_member(members, count, "charge_profile");
     *has_target = target_member != NULL;
     *has_profile = profile_member != NULL;
+    *charge_profile = -1;
+    if (charge_profile_member != NULL) {
+        double value;
+        if (!http_json_number_value(charge_profile_member, &value) || value != floor(value)) {
+            api_error(reply, 400, "wrong_type", "charge_profile", "charge_profile is a charge profile's id", NULL);
+            return false;
+        }
+        if (value < 0 || value >= CHARGE_PROFILE_COUNT) {
+            api_error(reply, 400, "out_of_range", "charge_profile", "no charge profile has that id", NULL);
+            return false;
+        }
+        *charge_profile = (int) value;
+    }
     if (*has_target) {
         double value;
         if (!http_json_number_value(target_member, &value)) {
@@ -306,7 +328,11 @@ static bool charge_fields(http_server_reply_t *reply, const http_json_member_t *
 }
 
 
-// PATCH /api/v1/charge: what the next throw uses; refused while a throw is under way
+/*
+ * PATCH /api/v1/charge: what the next throw uses; refused while a throw is under way. A charge profile given is
+ * chosen; a target or a powder profile is written into the chosen one, the one given beside them where one is
+ * (ADR-014). Each is live, stored by POST /api/v1/charge_profiles/save
+ */
 static void api_v1_patch_charge(const http_server_request_t *request, http_server_reply_t *reply) {
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
@@ -314,30 +340,40 @@ static void api_v1_patch_charge(const http_server_request_t *request, http_serve
     bool has_profile;
     float target = 0.0f;
     uint16_t profile = 0;
+    int charge_profile;
     if (!api_body(request, reply, members, &count) ||
-        !charge_fields(reply, members, count, &has_target, &target, &has_profile, &profile)) {
+        !charge_fields(reply, members, count, &has_target, &target, &has_profile, &profile, &charge_profile)) {
         return;
     }
+    const char *why = NULL;
     activity_lock();
     bool in_throw = activity_in_throw();
     if (!in_throw) {
-        if (has_target) {
-            charge_mode_set_target(target);
+        if (charge_profile >= 0) {
+            why = charge_profiles_choose((uint8_t) charge_profile);
         }
-        if (has_profile) {
-            profile_select((uint8_t) profile);
+        if (why == NULL && has_target) {
+            why = charge_profiles_set_target(target, ACTIVITY_BY_API);
+        }
+        if (why == NULL && has_profile) {
+            why = charge_profiles_set_powder((uint8_t) profile, ACTIVITY_BY_API);
         }
     }
     activity_unlock();
     if (in_throw) {
-        api_busy(reply, "the charge's target and powder profile are refused while a throw is under way");
+        api_busy(reply, "the charge's profile, target and powder profile are refused while a throw is under way");
+        return;
+    }
+    if (why != NULL) {
+        api_error(reply, 500, "failed", NULL, why, NULL);
         return;
     }
     reply_charge(reply, 200);
 }
 
 
-// POST /api/v1/charge/start: {}, or the target and the powder profile to set first. Refused, it changes nothing
+// POST /api/v1/charge/start: {}, or the charge profile to choose, the target and the powder profile to set first.
+// Refused, it changes nothing
 static void api_v1_charge_start(const http_server_request_t *request, http_server_reply_t *reply) {
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
@@ -345,11 +381,13 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
     bool has_profile;
     float target = 0.0f;
     uint16_t profile = 0;
+    int charge_profile;
     if (!api_body(request, reply, members, &count) ||
-        !charge_fields(reply, members, count, &has_target, &target, &has_profile, &profile)) {
+        !charge_fields(reply, members, count, &has_target, &target, &has_profile, &profile, &charge_profile)) {
         return;
     }
-    switch (charge_mode_request_start(ACTIVITY_BY_API, has_target ? target : NAN, has_profile ? (int) profile : -1)) {
+    switch (charge_mode_request_start(ACTIVITY_BY_API, has_target ? target : NAN, has_profile ? (int) profile : -1,
+                                      charge_profile)) {
         case CHARGE_START_OK:
             reply_charge(reply, 202);
             return;
@@ -357,7 +395,7 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
             api_driver_fault(reply);
             return;
         case CHARGE_START_NO_TARGET:
-            api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
+            api_error(reply, 400, "no_target", "target", "the charge profile has no target set: give one", NULL);
             return;
         case CHARGE_START_NO_SCALE:
             api_no_scale(reply);
@@ -965,6 +1003,7 @@ static uint32_t stream_state_sig(void) {
     hash = stream_mix(hash, (uint32_t) charge.paused | (uint32_t) charge.in_throw << 1);
     hash = stream_mix(hash, stream_float_bits(charge.target));
     hash = stream_mix(hash, (uint32_t) profile_get_selected_idx());
+    hash = stream_mix(hash, (uint32_t) charge_profiles_chosen());
     hash = stream_mix(hash, (uint32_t) charge.last_throw);
     hash = stream_mix(hash, stream_float_bits(scale_get_current_measurement()));
     hash = stream_mix(hash, (uint32_t) (uintptr_t) purge.state);
@@ -2028,23 +2067,27 @@ static void api_v1_setup_done(const http_server_request_t *request, http_server_
     resources' words, and `no_purge_runs` for the cleanup's speed; the zero's rule is in its `about`.
 */
 _Static_assert(MAX_PROFILE_CNT == 8, "the schema below gives the powder profiles' ids as 0 to 7");
+_Static_assert(CHARGE_PROFILE_COUNT == 8, "the schema below gives the charge profiles' ids as 0 to 7");
 
 #define API_V1_SCHEMA_CHARGE_FIELDS \
-    "\"fields\":[{\"name\":\"target\",\"type\":\"number\",\"min\":0.001,\"max\":999.99,\"about\":\"in the scale's " \
+    "\"fields\":[{\"name\":\"charge_profile\",\"type\":\"integer\",\"min\":0,\"max\":7,\"about\":\"a charge " \
+    "profile's id (GET /api/v1/charge_profiles): it is chosen, and brings its target and its powder\"}," \
+    "{\"name\":\"target\",\"type\":\"number\",\"min\":0.001,\"max\":999.99,\"about\":\"in the scale's " \
     "unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three " \
-    "(settings/charge decimal_places)\"},{\"name\":\"powder_profile\",\"type\":\"integer\",\"min\":0,\"max\":7," \
-    "\"about\":\"a powder profile's id (GET /api/v1/powder_profiles)\"}]"
+    "(settings/charge decimal_places). Written into the chosen charge profile\"},{\"name\":\"powder_profile\"," \
+    "\"type\":\"integer\",\"min\":0,\"max\":7,\"about\":\"a powder profile's id (GET /api/v1/powder_profiles). " \
+    "Written into the chosen charge profile\"}]"
 
 static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/agent/hello\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"min_length\":1,\"max_length\":16,\"about\":\"who you are, printable ASCII; without it, Claude-chan\"}],\"refused_while\":\"a_charge_runs\",\"kind\":\"agent\",\"about\":\"an agent says hello: the screen shows Claude-chan rising at its bottom right, a bubble over her saying '<name> is watching ya!', for 2 s. 409 busy while a charge runs: its screen is never covered. It changes nothing else; send it only when no person reads the screen for a test\",\"example\":{\"name\":\"Claude\"}}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/charge\"," API_V1_SCHEMA_CHARGE_FIELDS ",\"refused_while\":\"in_throw\","
-    "\"about\":\"what the next throw uses, either field or both; one target for the unit: the menu's digits show "
-    "it\"}",
+    "\"about\":\"what the next throw uses, any of the fields: the charge profile chosen, and the chosen one's "
+    "target and powder, which the menu shows. Live: POST /api/v1/charge_profiles/save stores them\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/start\"," API_V1_SCHEMA_CHARGE_FIELDS ","
-    "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
-    "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 409 "
-    "no_scale when the stored make of scale is not in this build; 409 no_storage when the settings' EEPROM does not "
-    "answer; 400 no_target when none is set\","
+    "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a charge profile given is chosen, and a "
+    "target or a powder profile written into it, only if the start is taken. 409 busy also while a person has a "
+    "screen open at the unit; 409 driver_fault; 409 no_scale when the stored make of scale is not in this build; 409 "
+    "no_storage when the settings' EEPROM does not answer; 400 no_target when the charge profile has none\","
     "\"example\":{\"target\":30}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
@@ -2273,11 +2316,13 @@ static const char *const api_v1_schema_states[] = {
 };
 
 static const char *const api_v1_schema_events[] = {
-    "{\"source\":\"charge\",\"kind\":\"started\",\"carries\":[\"by\",\"target\",\"powder_profile\"],"
+    "{\"source\":\"charge\",\"kind\":\"started\",\"carries\":[\"by\",\"target\",\"powder_profile\","
+    "\"charge_profile\"],"
     "\"about\":\"by: button, api, console\"}",
     "{\"source\":\"charge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"by: button, api, "
     "console, or unit when it ended itself; reason: stopped, fault\"}",
-    "{\"source\":\"throw\",\"kind\":\"started\",\"carries\":[\"throw\",\"target\",\"powder_profile\"],"
+    "{\"source\":\"throw\",\"kind\":\"started\",\"carries\":[\"throw\",\"target\",\"powder_profile\","
+    "\"charge_profile\"],"
     "\"about\":\"throw: its number, from 1 at each start of the unit\"}",
     "{\"source\":\"throw\",\"kind\":\"paused\",\"carries\":[\"throw\",\"pause\"],\"about\":\"no reading for 3 of the "
     "scale's intervals; pause: its number in the throw\"}",

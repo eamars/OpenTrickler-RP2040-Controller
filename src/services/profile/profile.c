@@ -10,6 +10,8 @@
 
 
 eeprom_profile_data_t profile_data;
+// The powder in use: the chosen charge profile's (ADR-014), in RAM. The record's current_profile_idx stays as stored
+static uint16_t profile_in_use = 0;
 
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
@@ -109,8 +111,8 @@ bool profile_data_is_saved(void) {
 
 /*
     A powder profile's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/powder_profiles/{id}). The
-    eight are one block in the EEPROM, the one chosen with them, so they share a save. Today's rev and compatibility
-    are used by nothing, and are not in the API.
+    eight are one block in the EEPROM, so they share a save. Today's rev and compatibility are used by nothing, and
+    are not in the API; nor is current_profile_idx, the choice a version before ADR-014 stored there.
 */
 #define PROFILE_FIELD(member) SETTING_AT(profile_t, member)
 #define PROFILE_GAIN(field_name, field_label, member, field_about) \
@@ -181,7 +183,7 @@ static const char *profile_settings_check(const void *proposed, int32_t id, cons
 
 // The profile in use is read by the throw: not written while one is under way. The others are free
 static const char *profile_settings_refuse(int32_t id) {
-    if (activity_in_throw() && id == profile_data.current_profile_idx) {
+    if (activity_in_throw() && id == profile_in_use) {
         return "the profile in use is refused while a throw is under way";
     }
     return NULL;
@@ -230,14 +232,22 @@ bool profile_data_init() {
     load_config_layout(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data,
                        sizeof(eeprom_profile_data_t), &layout);
 
+    // Until the charge profiles start (charge_profiles_init), the powder the unit had chosen
+    profile_in_use = profile_get_stored_choice();
+
     settings_register(&profile_settings);
 
     return true;
 }
 
 
+uint16_t profile_get_stored_choice(void) {
+    return profile_data.current_profile_idx < MAX_PROFILE_CNT ? profile_data.current_profile_idx : 0;
+}
+
+
 uint16_t profile_get_selected_idx() {
-    return profile_data.current_profile_idx;
+    return profile_in_use;
 }
 
 
@@ -252,9 +262,11 @@ profile_t * profile_get(uint16_t idx) {
 
 
 profile_t * profile_select(uint8_t idx) {
-    profile_data.current_profile_idx = idx;
+    if (idx < MAX_PROFILE_CNT) {
+        profile_in_use = idx;
+    }
 
-    return profile_get_selected(idx);
+    return profile_get_selected();
 }
 
 

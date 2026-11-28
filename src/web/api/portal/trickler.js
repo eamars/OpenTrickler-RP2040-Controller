@@ -173,7 +173,11 @@ async function stopCharge() {
 }
 
 async function choosePowder() {
-    const reply = await api("PATCH", "/api/v1/charge", {powder_profile: Number($("powder").value)});
+    let reply = await api("PATCH", "/api/v1/charge", {powder_profile: Number($("powder").value)});
+    if (reply.ok) {
+        // The powder is the chosen charge profile's (ADR-014): stored with the charge profiles
+        reply = await api("POST", "/api/v1/charge_profiles/save", {});
+    }
     reply.ok ? say("") : refusal(reply, "Powder not changed");
     poll();
 }

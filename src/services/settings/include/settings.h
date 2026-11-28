@@ -96,6 +96,9 @@ typedef struct {
     void (*apply)(const void *before, int32_t id);
     // A refusal of its own, under the activity lock (the profile in use, during a throw): NULL when none, else why
     const char *(*refuse)(int32_t id);
+    // What its block holds beside its parts (the charge profiles' choice), for a revert: asked first with write
+    // false, NULL when it may be put back, else why it is refused; then with write true, to put it back. NULL: none
+    const char *(*revert_rest)(bool write);
     bool (*save)(void);
     bool (*is_saved)(void);
 } settings_resource_t;

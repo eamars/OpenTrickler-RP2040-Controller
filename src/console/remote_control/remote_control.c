@@ -18,6 +18,7 @@
 #include "remote_control.h"
 #include "system_control.h"
 #include "charge_mode.h"
+#include "common.h"
 #include "scale.h"
 #include "profile.h"
 #include "eeprom.h"
@@ -125,7 +126,7 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
     charge_cost_t cost;
     charge_mode_get_cost(&cost);
     snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u bad_frames=%lu "
-             "charge_tick_us=%lu/%lu charge_reading_us=%lu/%lu charge_heap_low=%lu",
+             "charge_tick_us=%lu/%lu charge_reading_us=%lu/%lu charge_heap_low=%lu eeprom_kb=%u",
              (unsigned) xPortGetFreeHeapSize(),
              (unsigned) xPortGetMinimumEverFreeHeapSize(),
              (unsigned) task_count,
@@ -134,7 +135,7 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
              (unsigned long) scale_get_bad_frames(),
              (unsigned long) cost.tick_most_us, (unsigned long) cost.tick_mean_us,
              (unsigned long) cost.reading_most_us, (unsigned long) cost.reading_mean_us,
-             (unsigned long) cost.heap_low);
+             (unsigned long) cost.heap_low, (unsigned) config_eeprom_kb());
     return true;
 }
 
@@ -421,7 +422,7 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         snprintf(reply, reply_size, "@err %.3f is not a target the menu's digits can show", target);
         return false;
     }
-    switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1)) {
+    switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1, -1)) {
         case CHARGE_START_OK:
             break;
         case CHARGE_START_DRIVER_FAULT:

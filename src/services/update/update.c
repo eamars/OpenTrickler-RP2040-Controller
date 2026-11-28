@@ -250,6 +250,7 @@ static const struct {
     {EEPROM_PROFILE_DATA_BASE_ADDR, "powder_profiles"},
     {EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, "gate"},
     {EEPROM_UPDATE_CONFIG_BASE_ADDR, "update"},
+    {EEPROM_CHARGE_PROFILES_BASE_ADDR, "charge_profiles"},    // appended (ADR-014): the others keep their bits
 };
 
 

@@ -87,7 +87,7 @@ typedef struct {
     uint16_t throw_number;
     uint8_t number;         // a pause's number in its throw; a powder profile's id; a motor (motor_select_t); a
                             // setting's resource's id, in place of its path's {id}
-    uint8_t result;         // event_result_t
+    uint8_t result;         // event_result_t; a charge profile's id, in a charge's and a throw's started (ADR-014)
     float value;            // a target, a weight
     float value2;           // a throw's seconds
     const char *text;       // a driver's fault ("short"), the firmware's version, a setting's path: a string that

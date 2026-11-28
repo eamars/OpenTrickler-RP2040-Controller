@@ -23,6 +23,7 @@
 #include "display.h"
 #include "calibration.h"
 #include "charge_mode.h"
+#include "charge_profiles.h"
 #include "cleanup_mode.h"
 #include "rest_endpoints.h"
 #include "wireless.h"
@@ -121,6 +122,10 @@ int main()
 
     // Initialize profile data
     profile_data_init();
+
+    // The charge profiles (ADR-014), after the powders: their defaults take the powders' stored choice, and the
+    // chosen one's powder is the powder in use
+    charge_profiles_init();
 
     // The servo gate, where the build carries it, handed to all that ask for a gate (ADR-006, gate 9): charge mode,
     // the cleanup, the menu and the API. This is the one place that asks whether it is in the build

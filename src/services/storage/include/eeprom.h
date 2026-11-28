@@ -14,7 +14,9 @@
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR        2 * 1024       // 2K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR           4 * 1024       // 4K
 #define EEPROM_CHARGE_MODE_BASE_ADDR            5 * 1024       // 5K
-#define EEPROM_APP_CONFIG_BASE_ADDR             6 * 1024       // 6k
+#define EEPROM_CHARGE_PROFILES_BASE_ADDR        6 * 1024       // 6k: the charge profiles (ADR-014). The slot was
+                                                               // named for an app's record since v1 and no
+                                                               // firmware ever read or wrote it
 #define EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR    7 * 1024       // 7k
 #define EEPROM_MINI_12864_CONFIG_BASE_ADDR      8 * 1024       // 8k 
 #define EEPROM_PROFILE_DATA_BASE_ADDR           9 * 1024       // 9k
@@ -26,6 +28,10 @@
                                                                // each powder's calibration and the unit's record of
                                                                // its scale there, and a bench unit may still hold
                                                                // them: a module given these slots clears them first
+                                                               // 15k: kept empty for good (ADR-014). A 128 kbit
+                                                               // chip of this family looks at 14 address bits, so
+                                                               // the spare slot at 31k would lie at 15k there.
+                                                               // Unproven: no such board was at hand to try
 #define EEPROM_SPARE_BASE_ADDR                 31 * 1024       // 31k: the spare slot, where a save writes its record
                                                                // first (ADR-017, gate 1; common.c). No firmware
                                                                // wrote here before

@@ -4,8 +4,10 @@
  */
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "charge_mode.h"
+#include "charge_profiles.h"
 #include "common.h"
 #include "eeprom.h"
 #include "settings.h"
@@ -43,8 +45,8 @@ static const setting_field_t charge_fields[] = {
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_mean_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
     {.name = "decimal_places", .label = "Decimal places", .group = "Display", .short_label = "Decimals",
-     .about = "Decimals of the weight and of the target on the screen. A change keeps the target as a weight, and "
-              "is refused when the target cannot be shown at the new decimals",
+     .about = "Decimals of the weight and of the target on the screen. A change keeps each load's target as a "
+              "weight, and is refused when one of them cannot be shown at the new decimals",
      .type = SETTING_CHOICE, CHARGE_FIELD(decimal_places), SETTING_CHOICES(decimal_places_choices),
      .applies = "now"},
     {.name = "coarse_stop_gate_ratio", .label = "Gate at the coarse stop", .group = "Coarse stop",
@@ -120,9 +122,9 @@ static bool charge_settings_is_saved(void) {
 
 
 /*
-    The decimals are the target's view (charge_mode.c): a change of them keeps the target's weight, and is refused
-    when that weight cannot be shown at the new decimals (review D2, 2026-11-16). Before, 9.875 at three decimals
-    read 98.75 at two, and a start threw that
+    The decimals are a target's view (charge_mode.c): a change of them keeps every charge profile's weight, and is
+    refused when one of the eight cannot be shown at the new decimals, named so it can be set (review D2, 2026-11-16;
+    ADR-014). Before, 9.875 at three decimals read 98.75 at two, and a start threw that
 */
 static const char *charge_settings_check(const void *proposed, int32_t id, const char **field) {
     (void) id;
@@ -131,21 +133,17 @@ static const char *charge_settings_check(const void *proposed, int32_t id, const
     if (next->decimal_places == now) {
         return NULL;
     }
-    float target = charge_mode_target_at(now);
-    if (target > 0.0f && !charge_mode_target_fits_at(target, next->decimal_places)) {
-        *field = "decimal_places";
-        return "the charge's target cannot be shown at those decimals: set one that can be first";
+    static char why[96];    // read under the activity lock a write holds
+    for (uint8_t idx = 0; idx < CHARGE_PROFILE_COUNT; idx += 1) {
+        const charge_profile_t *profile = charge_profiles_get(idx);
+        if (profile->target > 0.0f && !charge_mode_target_fits_at(profile->target, next->decimal_places)) {
+            *field = "decimal_places";
+            snprintf(why, sizeof(why), "%s: its target cannot be shown at those decimals; set one that can be first",
+                     profile->name);
+            return why;
+        }
     }
     return NULL;
-}
-
-
-static void charge_settings_apply(const void *before, int32_t id) {
-    (void) id;
-    const eeprom_charge_mode_data_t *was = before;
-    if (was->decimal_places != charge_mode_config.eeprom_charge_mode_data.decimal_places) {
-        charge_mode_keep_target(was->decimal_places);
-    }
 }
 
 
@@ -161,7 +159,6 @@ static const settings_resource_t charge_settings = {
     .size = sizeof(eeprom_charge_mode_data_t),
     .live = charge_settings_live,
     .check = charge_settings_check,
-    .apply = charge_settings_apply,
     .save = charge_mode_config_save,
     .is_saved = charge_settings_is_saved,
 };

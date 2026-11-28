@@ -1,6 +1,7 @@
 ot_module(SRCS api_v1.c api_v1_commands.c api_v1_settings.c rest_endpoints.c
           INCLUDE_DIRS include
-          PRIV_REQUIRES activity calibration charge cleanup events features freertos gate http_json http_server leds lwip
+          PRIV_REQUIRES activity calibration charge charge_profiles cleanup events features freertos gate http_json
+                        http_server leds lwip
                         motors platform profile scale settings storage system update update_fetch version
                         wireless)
 

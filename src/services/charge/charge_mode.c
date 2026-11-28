@@ -14,6 +14,7 @@
 #include "scale.h"
 #include "motors.h"
 #include "charge_mode.h"
+#include "charge_profiles.h"
 #include "eeprom.h"
 #include "neopixel_led.h"
 #include "profile.h"
@@ -25,8 +26,6 @@
 #include "charge_tuner.h"
 #include "chip.h"
 
-
-uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
 
 charge_mode_config_t charge_mode_config;
 
@@ -977,16 +976,18 @@ uint8_t charge_mode_menu(void) {
 
     // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile. Its
     // start is logged with who asked (gate 4)
-    // One target for the unit (ADR-003, gate 4): the menu's weight digits, which the API sets too. Copied as the job
-    // begins, under the lock the API writes the target under (review D2)
+    // One target for the unit: the chosen charge profile's (ADR-014). Read as the job begins, under the lock it is
+    // written under (review D2); each throw takes its own as it begins
     activity_lock();
     charge_mode_config.target_charge_weight = charge_mode_get_target();
+    uint8_t charge_profile = charge_profiles_chosen();
+    uint8_t powder_profile = (uint8_t) profile_get_selected_idx();
     activity_job_begin(ACTIVITY_CHARGE);
     activity_unlock();
     charge_end_by = ACTIVITY_BY_BUTTON;
     charge_stop_logged = false;
     event_t started = {.source = EVENT_SOURCE_CHARGE, .kind = EVENT_STARTED, .by = (uint8_t) activity_job_by(),
-                       .number = (uint8_t) profile_get_selected_idx(),
+                       .number = powder_profile, .result = charge_profile,
                        .value = charge_mode_config.target_charge_weight};
     events_add(&started);
 
@@ -1015,14 +1016,30 @@ uint8_t charge_mode_menu(void) {
     while (quit == false) {
         switch (charge_mode_config.charge_mode_state) {
             case CHARGE_MODE_WAIT_FOR_ZERO: {
-                // A throw from its zeroing to its verdict: what it reads is not written meanwhile (gate 3). Each is
-                // numbered and logged (gate 4)
-                activity_throw_begin();
+                // A throw from its zeroing to its verdict: what it reads is not written meanwhile (gate 3). Its
+                // target and powder are the chosen charge profile's as it begins (ADR-014), taken under the lock they
+                // are written under. Each is numbered and logged (gate 4)
+                activity_lock();
+                float throw_target = charge_mode_get_target();
+                uint8_t throw_charge_profile = charge_profiles_chosen();
+                uint8_t throw_powder_profile = (uint8_t) profile_get_selected_idx();
+                bool has_target = charge_mode_target_fits(throw_target);
+                if (has_target) {
+                    charge_mode_config.target_charge_weight = throw_target;
+                    activity_throw_begin();
+                }
+                activity_unlock();
+                if (!has_target) {
+                    // Another charge profile chosen between throws, its target not set: the unit never throws a
+                    // weight nobody set
+                    charge_mode_scale_fault("No target", EVENT_REASON_FAULT, 0, NULL);
+                    break;
+                }
                 charge_throw_number += 1;
                 charge_paused = false;
                 event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
                                          .throw_number = charge_throw_number,
-                                         .number = (uint8_t) profile_get_selected_idx(),
+                                         .number = throw_powder_profile, .result = throw_charge_profile,
                                          .value = charge_mode_config.target_charge_weight};
                 events_add(&throw_started);
                 charge_mode_wait_for_zero();
@@ -1074,6 +1091,8 @@ bool charge_mode_config_init(void) {
                        &default_charge_mode_data, sizeof(eeprom_charge_mode_data_t), &charge_mode_layout);
 
     charge_mode_settings_register();
+    // What a charge profile's target must pass beside its table's limits: what the digits show at these decimals
+    charge_profiles_set_target_check(charge_mode_target_fits);
 
     return true;
 }
@@ -1086,22 +1105,12 @@ bool charge_mode_config_save(void) {
 
 
 /*
-    One target for the unit (ADR-003, gate 4): the menu's five weight digits, two or three of them decimals, show it
-    and set it, and the API reads and writes the same. 0 when every digit is. The target is a weight: the digits are
-    its view at the decimals the screen shows, and a change of the decimals over the API or the console keeps the
-    weight (charge_mode_settings.c; review D2, 2026-11-16).
+    One target for the unit: the chosen charge profile's (ADR-014), a weight, 0 when not set. The menu's five digits,
+    two or three of them decimals, are its view at the decimals the screen shows, and a target is one they can show;
+    a change of the decimals keeps every profile's weight (charge_mode_settings.c; review D2, 2026-11-16).
 */
 static uint32_t charge_mode_digits_scale(decimal_places_t places) {
     return places == DP_3 ? 1000 : 100;
-}
-
-
-float charge_mode_target_at(decimal_places_t places) {
-    uint32_t value = 0;
-    for (int idx = 4; idx >= 0; idx -= 1) {
-        value = value * 10 + charge_weight_digits[idx];
-    }
-    return (float) value / (float) charge_mode_digits_scale(places);
 }
 
 
@@ -1121,7 +1130,7 @@ const eeprom_charge_mode_data_t *charge_mode_get_stored(void) {
 
 
 float charge_mode_get_target(void) {
-    return charge_mode_target_at(charge_mode_config.eeprom_charge_mode_data.decimal_places);
+    return charge_profiles_target();
 }
 
 
@@ -1138,40 +1147,8 @@ bool charge_mode_target_fits(float target) {
 }
 
 
-static void charge_mode_write_digits(float target, decimal_places_t places) {
-    uint32_t value = (uint32_t) round((double) target * charge_mode_digits_scale(places));
-    for (int idx = 0; idx < 5; idx += 1) {
-        charge_weight_digits[idx] = (uint8_t) (value % 10);
-        value /= 10;
-    }
-}
-
-
-bool charge_mode_set_target(float target) {
-    if (!charge_mode_target_fits(target)) {
-        return false;
-    }
-    activity_lock();
-    charge_mode_write_digits(target, charge_mode_config.eeprom_charge_mode_data.decimal_places);
-    // A charge that runs throws it from its next throw on. Its own copy is taken under this lock as it begins
-    // (charge_mode_menu), so a target written as a charge starts is never left out of it (review D2)
-    if (activity_get() == ACTIVITY_CHARGE) {
-        charge_mode_config.target_charge_weight = charge_mode_get_target();
-    }
-    activity_unlock();
-    return true;
-}
-
-
-void charge_mode_keep_target(decimal_places_t before) {
-    float target = charge_mode_target_at(before);
-    if (target > 0.0f) {
-        charge_mode_write_digits(target, charge_mode_config.eeprom_charge_mode_data.decimal_places);
-    }
-}
-
-
-charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile) {
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile,
+                                                int charge_profile) {
     // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over
     activity_t asked_before;
     if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
@@ -1189,18 +1166,27 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     if (!eeprom_reachable()) {
         return CHARGE_START_NO_STORAGE;
     }
-    if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
+    // The target it would throw: the one given, else the asked charge profile's, else the chosen one's
+    const charge_profile_t *asked_profile = charge_profile >= 0 ? charge_profiles_get((uint8_t) charge_profile) : NULL;
+    float would_throw = !isnan(target) ? target :
+                        (asked_profile != NULL ? asked_profile->target : charge_mode_get_target());
+    if (!charge_mode_target_fits(would_throw)) {
         return CHARGE_START_NO_TARGET;
     }
-    // The menu takes a start under the activity lock, so the target and the profile are in before it can
+    // The menu takes a start under the activity lock, so the charge profile, its target and its powder are in before
+    // it can. A target or a powder given is written into the charge profile the charge then uses (ADR-014)
     activity_lock();
     bool asked = activity_request_start(ACTIVITY_CHARGE, by);
     if (asked) {
-        if (!isnan(target)) {
-            charge_mode_set_target(target);
+        const char * why = charge_profile >= 0 ? charge_profiles_choose((uint8_t) charge_profile) : NULL;
+        if (why == NULL && !isnan(target)) {
+            why = charge_profiles_set_target(target, by);
         }
-        if (powder_profile >= 0) {
-            profile_select((uint8_t) powder_profile);
+        if (why == NULL && powder_profile >= 0) {
+            why = charge_profiles_set_powder((uint8_t) powder_profile, by);
+        }
+        if (why != NULL) {
+            printf("Charge: a start's charge profile not written, %s\n", why);
         }
     }
     activity_unlock();

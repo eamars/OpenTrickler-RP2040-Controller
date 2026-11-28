@@ -59,14 +59,19 @@ extern "C" {
 bool profile_data_init(void);
 bool profile_data_save();
 
+// The powder in use, kept in RAM: the chosen charge profile's (ADR-014), set at the start and at each choice. It is
+// stored with the charge profiles, no longer in the powders' record
 profile_t * profile_select(uint8_t idx);
 profile_t * profile_get_selected();
+// The powder the unit had chosen, as the powders' record stores it (current_profile_idx): read for the charge
+// profiles' defaults, and written by no version since ADR-014
+uint16_t profile_get_stored_choice(void);
 // A profile by its index, the selection left as it is; NULL for no such profile
 profile_t * profile_get(uint16_t idx);
 uint16_t profile_get_selected_idx();
 // A profile's name, ended even when it was stored with none; NULL for no such profile. Good until the next call
 const char *profile_get_name(uint16_t idx);
-// The profiles in RAM as stored, the one chosen with them (ADR-003, gate 3: `saved`)
+// The profiles in RAM as stored (ADR-003, gate 3: `saved`)
 bool profile_data_is_saved(void);
 
 // REST interface
