@@ -1,18 +1,81 @@
 # ADR-016: the release candidate's review
 
-An independent final check of `adr016_gate1` at `e34116e6` (v2.0.3-418) against `origin/main` (`7b64c05`), 2026-11-29, before ADR-016 is closed. Read by one session, with no subagents. No unit was touched: nothing here was seen on hardware. No source was changed.
+An independent final check of `adr016_gate1` against `origin/main` (`7b64c05`), 2026-11-29, before ADR-016 is closed: first at `e34116e6` (v2.0.3-418), then, gate 3 having been redone at the owner's word, at `a1c193d0` (v2.0.3-421), in "Gate 3 as redone, reviewed again". Read by one session, with no subagents. No unit was touched: nothing here was seen on hardware. No source was changed.
 
 ## Verdict
 
 **Ready for the release candidate.** Nothing found must be fixed before it.
 
-- No write gets past the PIN's guard, the stored records keep the EEPROM's rules, the layers hold, and both boards build within their room.
+- At both commits: no write gets past the PIN's guard, the stored records keep the EEPROM's rules, the layers hold, and both boards build within their room.
 - Two small faults in the throw record are worth their one-line fixes before the tag (findings 1 and 2). Neither changes what a throw does; each can put a wrong figure in a record.
 - The reset of a held read at a soak's start is **acceptable, and is not what the progress says it is** (finding 3): it is lwIP's accept mailbox, 8 long, refusing the ninth connection of nine that arrive together. It comes from ADR-003's settings, not from the throws, the six slots or the two held reads.
-- Three statements in `progress.md` are not true as written (finding 6). They should be put right before the close.
+- Two statements in `progress.md` are still not true as written (finding 6, and R6 for where they now are). They should be put right before the close.
+- Gate 3 as redone leaves one decision with the owner, the PIN read through the mirror (R1), and one check with a phone on the hotspot (R2).
 - The Pico 2 W has not run this branch. Its build passes here; a flash, a tour and a charge cycle on it before the tag are worth their few minutes (finding 7).
 
-## What was done
+## Gate 3 as redone, reviewed again
+
+Gate 3 was redone at the owner's word after the review above (`09ea236c`, `a1c193d0`): the stored PIN, its action, Settings › PIN and Clear PIN are gone, and the PIN is 4 digits made at each start, shown on the unit's Wi-Fi page, behind a switch. This part reviews the branch at `a1c193d0` (v2.0.3-421), the same day, the same way: read here, no unit touched, no source changed.
+
+**The verdict stands: ready for the release candidate, nothing must be fixed first.** One decision is the owner's (R1), and one check with a phone is worth making before the tag (R2).
+
+| Check at `a1c193d0` | Result |
+|---|---|
+| Pico W build, clean tree | flash 949.2 KB of 1,016 KB, RAM at link time 253.0 KB of 256 KB |
+| Pico 2 W build | flash 935.2 KB of 1,792 KB, RAM 285.9 KB of 512 KB |
+| `tests/release_records.py --elf` on both images | `VERDICT PASS`; the Wi-Fi record 112 bytes, `setup_done` at 105 in its known filler, `pin_required` at 108 |
+| `tools/module_graph.py`, `tests/host_test.py` | `VERDICT PASS`, both |
+| Our own code's compiler warnings | the same six, none in this change |
+
+**What of the review above it overtakes:** finding 6's line on the factory reset (the progress now says it ran, with the first build); finding 8's notes on a PIN set during a trial and on a PIN too long; and in "Looked for, and found sound", the PIN's two stored fields, `saved` after a PIN is set, and the portal's upload after its PIN part. **What still stands at `a1c193d0`:** findings 1 and 2 (the charge's code is untouched), 3, 4, 5 and 7, and of finding 6 the two lines named in R6.
+
+### R1. The PIN on the Wi-Fi page can be read over the network, through the mirror (should: the owner's decision; read)
+
+`src/web/api/api_v1.c:95` (`GET /api/v1/display/frame`); `src/ui/menu/menu_nav.c:1312`.
+
+- **What happens.** The frame's read copies the screen whole and, as every read, needs no PIN. While the unit's screen is on its Wi-Fi page with the switch on, anyone on the network who opens the mirror (`/display_mirror`) sees the four digits.
+- **Its bound.** Only while a person has that page open at the unit: no write turns a page (every write is guarded, and the API has no press).
+- **Against the purpose.** The README: "a check that whoever changes the unit over the network can read its screen, or is told what it shows by the person who can". The mirror is a third way.
+- **Not new in kind:** the same page shows the hotspot's password while the unit is its own hotspot (`:1308`), and the mirror has always copied it.
+- **The choice.** Accept it, written into the README and api_v1.md (recommended for the beta: it takes a person holding that page open, and the PIN is not security); or the frame is not given while that page shows the PIN, which is a new rule for the mirror.
+
+### R2. A client on the hotspot was never tried, and the test it stands on is wider than the progress says (should, a phone before the tag; note for the test itself; read)
+
+`src/web/http_server/http_server.c:891`; `src/services/wireless/wireless.c:826`; `library/pico-sdk/lib/lwip/src/core/ipv4/ip4.c:588`.
+
+- **Not run.** The exemption is the one new piece of network logic no unit has shown: `lwip_getsockname` giving 192.168.4.1 for a hotspot's client. If it gave anything else, a phone's captive sheet, which keeps no cookie, would be asked for the PIN at every write of the set-up. It fails closed, so nothing is unsafe; one phone on the hotspot with the switch on, writing a setting, shows it.
+- **The test is the address reached, with the hotspot up.** The progress: "the address reached is 192.168.4.1 only through the hotspot". lwIP takes a packet for one interface's address that arrives on another (`ip4.c:588` to `:597`), and the hotspot and the station are both up from a set-up's join until its Done (`wireless.c:744`, `:802`). In that window a client on the network that sends to 192.168.4.1 by way of the unit's own address is let through with no PIN. It takes a route set by hand, so it is no mistake's doing.
+- **A narrower test at the same cost:** the client's own address, which the slot keeps (`peer`), in the hotspot's 192.168.4.x. A reply to such an address leaves by the hotspot alone, so no client of the network can hold a connection from one.
+
+### R3. The switch is read two ways (note; read)
+
+`src/services/wireless/wireless.c:812`; `src/services/settings/settings.c:255`, `:524`.
+
+- The guard asks whether the word is not 0. The settings read and write its first byte alone.
+- They differ only with a byte above the first not 0. No release's record and no write of this firmware makes one: a record from before reads the word as 0. Only a 116-byte record of the first build with a PIN set would, on a bench unit.
+- Then the settings would say off, stay off after a write of false, and the guard would still ask for the PIN. One test for both, the first byte, ends it.
+
+### R4. Smaller notes (read)
+
+- **Anyone on the network can turn the switch on** while it is off (a PATCH, live, not stored). Every write then needs the PIN from the unit's screen, until someone reads it there or the unit restarts. In keeping with what the PIN is for.
+- **A cookie from before a restart counts as a wrong PIN.** Five clients each holding the old one, or one that repeats it, refuse every write for a minute. The guide says to ask again, and the portal asks.
+- **The index's `pin` is true for a client on the hotspot too,** which needs none: an agent there would ask for a PIN it does not need.
+- **The hotspot's address is written twice** (`wireless.c:827` and `access_point_mode.h:23`). Changed in one place only, the exemption stops, which fails closed.
+
+### R5. Looked for in the redesign, and found sound
+
+- **The record:** `pin_required` is a `uint32_t` at 108, past the release's 108 bytes and its tail padding; 112 bytes with no padding after it (read from the image, and `release_records.py`). A v1.21 or v2.0.x record reads it as off.
+- **The PIN is in no reply:** `wireless_pin()` is read by the Wi-Fi page's row alone (`menu_nav.c:634`). Before it is made, or with no cookie, the guard refuses: an empty PIN never matches.
+- **The guard:** unchanged in where it sits; the address reached is read only for a write. A stop, the switch's own write, its save and its revert all pass it.
+- **Nothing is left of the stored PIN** in `src/`, `tests/`, `tools/` or AGENTS.md: no `/api/v1/pin`, no Clear PIN, no `pin_code`.
+- **The words against the code:** the guide's step 0, api_v1.md's rows and AGENTS.md's lines say what the code does.
+
+### R6. Still not true in `progress.md`
+
+- **Line 91,** "about 80 bytes static, the six slots' cookie buffers (72)": the slots are taken from the FreeRTOS heap (`http_server.c:1887`), so the 72 bytes are heap.
+- **Line 113,** the reset's cause as the six slots and the two held reads: finding 3.
+
+## What was done, at `e34116e6`
 
 | Check | Result |
 |---|---|
@@ -27,7 +90,7 @@ An independent final check of `adr016_gate1` at `e34116e6` (v2.0.3-418) against 
 
 **How far the reading went.** ADR-016's own change was read closely, with what it calls into: the charge's states and its pour loop, the server from a request's first byte to its reply, the settings' storage (load, save, the trial's held writes), the controller's stop. The rest of the firmware was judged by the builds and the three PC checks above, not read again line by line. Not read at all: the auto-tuner and how the charge drives it (the owner's rule). The tools (`rc_run.py`, `unit_api.py`) were read only where a finding needed them.
 
-## Findings
+## Findings, at `e34116e6`
 
 Weights: **must** (before the release candidate), **should**, **note**. Sure: **read** (confirmed by reading the code), **built** (confirmed by a build or a check), **likely** (read, and fits what a log shows, not proven on a unit).
 
