@@ -24,6 +24,11 @@ void http_json_float(char *out, size_t room, size_t *len, float value);
 void http_json_integer(char *out, size_t room, size_t *len, long value);
 // A 32-bit number with no sign (the boot's id): a long is 32 bits here, and would print the top half negative
 void http_json_unsigned(char *out, size_t room, size_t *len, uint32_t value);
+// A 64-bit number with no sign (the unit's clock in ms, past 32 bits after 49 days), written here, not by the SDK's
+// printf
+void http_json_u64(char *out, size_t room, size_t *len, uint64_t value);
+// The next member's name, after a member before it: ,"name":
+void http_json_member(char *out, size_t room, size_t *len, const char *name);
 void http_json_bool(char *out, size_t room, size_t *len, bool value);
 // True when the buffer was not filled
 bool http_json_fits(size_t room, size_t len);

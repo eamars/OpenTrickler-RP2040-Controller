@@ -93,26 +93,24 @@ function setPinCookie(digits) {
                              : "pin=; path=/; SameSite=Strict; max-age=0";
 }
 
-// Asked when a change is refused for want of it: the digits, or null when the person cancels. Enter in the field
-// enters it (the form's first button is Cancel, the safe one on the left)
-function askPin(wrong) {
-    return new Promise((resolve) => {
-        const dialog = $("pin");
-        const input = $("pin-input");
-        $("pin-text").textContent = wrong ? "That is not this unit's PIN. Try again."
-                                          : "This unit asks for its PIN before it takes a change.";
-        input.value = "";
-        input.onkeydown = (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                dialog.close("yes");
-            }
-        };
-        dialog.returnValue = "";
-        dialog.onclose = () => resolve(dialog.returnValue === "yes" && input.value.trim() ? input.value.trim() : null);
-        dialog.showModal();
-        input.focus();
-    });
+// Asked when a change is refused for want of it, in the one confirmation with its field shown: the digits, or null
+// when the person cancels. Enter in the field enters it (the form's first button is the safe one, on the left)
+async function askPin(wrong) {
+    const field = $("confirm-field");
+    field.value = "";
+    field.hidden = false;
+    field.onkeydown = (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            $("confirm").close("act");
+        }
+    };
+    const asked = confirmAction("Enter the unit's PIN", wrong ? "That is not this unit's PIN. Try again."
+                                : "This unit asks for its PIN before it takes a change.", "Enter", "Cancel");
+    field.focus();
+    const entered = await asked;
+    field.hidden = true;
+    return entered && field.value.trim() ? field.value.trim() : null;
 }
 
 // The cup's question before a charge or a purge: a safety step, in the screen's words (rule 8)

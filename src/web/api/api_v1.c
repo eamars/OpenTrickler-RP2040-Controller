@@ -379,8 +379,8 @@ static const api_v1_resource_t api_v1_resources[] = {
      "starts a charge: {}, or the charge profile to choose, the target and the powder profile to set first"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
     {"/api/v1/charge/throws", "[\"GET\"]",
-     "each throw's record after a number (?after=N), the newest 32 since the start, held until one is recorded with "
-     "?wait=s: what it was thrown on and what it did (the schema's throw)"},
+     "each throw's record after a number (?after=N, ?wait=s as the events), the newest 32: what it was thrown on "
+     "and what it did (the schema's throw)"},
     {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
      "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
     {"/api/v1/purge/start", "[\"POST\"]", "starts a purge, at speed 0"},
@@ -394,7 +394,7 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/calibration/save", "[\"POST\"]", "keeps and stores the records the calibration found"},
     {"/api/v1/calibration/stop", "[\"POST\"]", "stops the calibration, discarding what it found; never fails"},
     {"/api/v1/pin", "[\"POST\"]",
-     "sets the web's PIN, or clears it: with one set (pin, above), every write needs it as the Cookie pin=<digits>"},
+     "sets or clears the web's PIN: with one set (pin), every write needs it"},
     {"/api/v1/agent/hello", "[\"POST\"]",
      "for agents: say hello, and the screen shows who is watching for 2 s; never over a charge"},
     {"/api/v1/events", "[\"GET\"]",

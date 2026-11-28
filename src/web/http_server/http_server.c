@@ -803,14 +803,21 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
 
 
 // A reply the server makes itself, for a request it refuses
-static void slot_refuse(slot_t *slot, int status, const char *code, const char *message) {
+// A refusal, with a Retry-After of retry_after_s (0: none), which the head made in slot_take_reply carries
+static void slot_refuse_after(slot_t *slot, int status, const char *code, const char *message, uint32_t retry_after_s) {
     http_server_reply_t reply;
     reply_init(&reply, slot);
     http_server_reply_error(&reply, status, code, message);
     stats.refused += 1;
     slot->keep_alive = false;   // what is left of the request is not read
     slot->drain = true;
+    slot->retry_after_s = (uint8_t) (retry_after_s < 255 ? retry_after_s : 255);
     slot_take_reply(slot, &reply);
+}
+
+
+static void slot_refuse(slot_t *slot, int status, const char *code, const char *message) {
+    slot_refuse_after(slot, status, code, message, 0);
 }
 
 
@@ -879,15 +886,7 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
             uint32_t retry_after_s = 0;
             int status = write_guard(slot->pin, &code, &message, &retry_after_s);
             if (status != 0) {
-                // slot_refuse's, with its Retry-After, which the head made in slot_take_reply carries
-                http_server_reply_t refused;
-                reply_init(&refused, slot);
-                http_server_reply_error(&refused, status, code, message);
-                stats.refused += 1;
-                slot->keep_alive = false;
-                slot->drain = true;
-                slot->retry_after_s = (uint8_t) (retry_after_s < 255 ? retry_after_s : 255);
-                slot_take_reply(slot, &refused);
+                slot_refuse_after(slot, status, code, message, retry_after_s);
                 return false;
             }
         }

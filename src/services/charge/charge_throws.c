@@ -115,22 +115,15 @@ bool charge_throws_get(uint16_t number, charge_throw_t *record) {
 }
 
 
-static void write_member(char *out, size_t room, size_t *len, const char *name) {
-    http_json_raw(out, room, len, ",\"");
-    http_json_raw(out, room, len, name);
-    http_json_raw(out, room, len, "\":");
-}
-
-
 static void write_float_member(char *out, size_t room, size_t *len, const char *name, float value) {
-    write_member(out, room, len, name);
+    http_json_member(out, room, len, name);
     http_json_float(out, room, len, value);
 }
 
 
 // A tube's stop: its reading and its speed, or null when the throw did not reach it
 static void write_stop(char *out, size_t room, size_t *len, const char *name, bool reached, float weight, float rps) {
-    write_member(out, room, len, name);
+    http_json_member(out, room, len, name);
     if (!reached) {
         http_json_raw(out, room, len, "null");
         return;
@@ -144,7 +137,7 @@ static void write_stop(char *out, size_t room, size_t *len, const char *name, bo
 
 // A switch it was thrown on, or null when it never reached its pour
 static void write_switch(char *out, size_t room, size_t *len, const char *name, bool known, bool on) {
-    write_member(out, room, len, name);
+    http_json_member(out, room, len, name);
     if (known) {
         http_json_bool(out, room, len, on);
     }
@@ -157,27 +150,18 @@ static void write_switch(char *out, size_t room, size_t *len, const char *name, 
 void charge_throws_write_json(const charge_throw_t *record, char *out, size_t room, size_t *len) {
     http_json_raw(out, room, len, "{\"throw\":");
     http_json_integer(out, room, len, (long) record->number);
-    write_member(out, room, len, "at_ms");
-    // A 64-bit clock, past 32 bits after 49 days: its digits written here, not by the SDK's printf (as events.c)
-    char digits[24];
-    size_t pos = sizeof(digits) - 1;
-    digits[pos] = '\0';
-    uint64_t at_ms = record->at_ms;
-    do {
-        digits[--pos] = (char) ('0' + at_ms % 10);
-        at_ms /= 10;
-    } while (at_ms > 0 && pos > 0);
-    http_json_raw(out, room, len, digits + pos);
-    write_member(out, room, len, "simulated");
+    http_json_member(out, room, len, "at_ms");
+    http_json_u64(out, room, len, record->at_ms);
+    http_json_member(out, room, len, "simulated");
     http_json_bool(out, room, len, record->simulated);
-    write_member(out, room, len, "charge_profile");
+    http_json_member(out, room, len, "charge_profile");
     http_json_integer(out, room, len, record->charge_profile);
-    write_member(out, room, len, "powder_profile");
+    http_json_member(out, room, len, "powder_profile");
     http_json_integer(out, room, len, record->powder_profile);
     write_float_member(out, room, len, "target", record->target);
-    write_member(out, room, len, "result");
+    http_json_member(out, room, len, "result");
     http_json_string(out, room, len, events_result_name((event_result_t) record->result));
-    write_member(out, room, len, "reason");
+    http_json_member(out, room, len, "reason");
     http_json_string(out, room, len, events_reason_name((event_reason_t) record->reason));
     write_float_member(out, room, len, "weight", record->weight);
     write_float_member(out, room, len, "elapsed_s", record->elapsed_s);
@@ -191,9 +175,9 @@ void charge_throws_write_json(const charge_throw_t *record, char *out, size_t ro
     // What landed after the fine stop: only for a throw given its verdict
     bool verdict = record->result != (uint8_t) EVENT_RESULT_NONE;
     write_float_member(out, room, len, "fall", verdict ? record->weight - record->fine_stop_weight : NAN);
-    write_member(out, room, len, "pauses");
+    http_json_member(out, room, len, "pauses");
     http_json_integer(out, room, len, record->pauses);
-    write_member(out, room, len, "gains");
+    http_json_member(out, room, len, "gains");
     if (record->configured) {
         http_json_raw(out, room, len, "{\"coarse\":{\"kp\":");
         http_json_float(out, room, len, record->coarse_kp);

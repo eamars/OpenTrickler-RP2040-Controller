@@ -120,13 +120,6 @@ const char *events_result_name(event_result_t result) {
 }
 
 
-static void write_member(char *out, size_t room, size_t *len, const char *name) {
-    http_json_raw(out, room, len, ",\"");
-    http_json_raw(out, room, len, name);
-    http_json_raw(out, room, len, "\":");
-}
-
-
 static const char *motor_name(uint8_t motor) {
     return motor == 0 ? "coarse" : "fine";
 }
@@ -135,109 +128,100 @@ static const char *motor_name(uint8_t motor) {
 void events_write_json(const event_t *event, char *out, size_t room, size_t *len) {
     http_json_raw(out, room, len, "{\"seq\":");
     http_json_integer(out, room, len, (long) event->seq);
-    write_member(out, room, len, "at_ms");
-    // A 64-bit clock, past 32 bits after 49 days; its digits written here, not by the SDK's printf
-    char digits[24];
-    size_t pos = sizeof(digits) - 1;
-    digits[pos] = '\0';
-    uint64_t at_ms = event->at_ms;
-    do {
-        digits[--pos] = (char) ('0' + at_ms % 10);
-        at_ms /= 10;
-    } while (at_ms > 0 && pos > 0);
-    http_json_raw(out, room, len, digits + pos);
-    write_member(out, room, len, "source");
+    http_json_member(out, room, len, "at_ms");
+    http_json_u64(out, room, len, event->at_ms);
+    http_json_member(out, room, len, "source");
     http_json_string(out, room, len, source_name(event->source));
-    write_member(out, room, len, "kind");
+    http_json_member(out, room, len, "kind");
     http_json_string(out, room, len, kind_name(event->kind));
 
     // What each kind carries (api_v1.md, the kinds' table)
     switch (event->source) {
         case EVENT_SOURCE_CHARGE:
         case EVENT_SOURCE_CLEANUP:
-            write_member(out, room, len, "by");
+            http_json_member(out, room, len, "by");
             http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
             if (event->kind == EVENT_STARTED && event->source == EVENT_SOURCE_CHARGE) {
-                write_member(out, room, len, "target");
+                http_json_member(out, room, len, "target");
                 http_json_float(out, room, len, event->value);
-                write_member(out, room, len, "powder_profile");
+                http_json_member(out, room, len, "powder_profile");
                 http_json_integer(out, room, len, event->number);
-                write_member(out, room, len, "charge_profile");
+                http_json_member(out, room, len, "charge_profile");
                 http_json_integer(out, room, len, event->result);
             }
             if (event->kind == EVENT_STOPPED) {
-                write_member(out, room, len, "reason");
+                http_json_member(out, room, len, "reason");
                 http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
             }
             break;
         case EVENT_SOURCE_THROW:
-            write_member(out, room, len, "throw");
+            http_json_member(out, room, len, "throw");
             http_json_integer(out, room, len, event->throw_number);
             if (event->kind == EVENT_STARTED) {
-                write_member(out, room, len, "target");
+                http_json_member(out, room, len, "target");
                 http_json_float(out, room, len, event->value);
-                write_member(out, room, len, "powder_profile");
+                http_json_member(out, room, len, "powder_profile");
                 http_json_integer(out, room, len, event->number);
-                write_member(out, room, len, "charge_profile");
+                http_json_member(out, room, len, "charge_profile");
                 http_json_integer(out, room, len, event->result);
             }
             else if (event->kind == EVENT_PAUSED) {
-                write_member(out, room, len, "pause");
+                http_json_member(out, room, len, "pause");
                 http_json_integer(out, room, len, event->number);
             }
             else if (event->kind == EVENT_RESUMED) {
-                write_member(out, room, len, "weight");
+                http_json_member(out, room, len, "weight");
                 http_json_float(out, room, len, event->value);
             }
             else if (event->kind == EVENT_FINISHED) {
-                write_member(out, room, len, "result");
+                http_json_member(out, room, len, "result");
                 http_json_string(out, room, len, events_result_name((event_result_t) event->result));
-                write_member(out, room, len, "weight");
+                http_json_member(out, room, len, "weight");
                 http_json_float(out, room, len, event->value);
-                write_member(out, room, len, "elapsed_s");
+                http_json_member(out, room, len, "elapsed_s");
                 http_json_float(out, room, len, event->value2);
             }
             else if (event->kind == EVENT_ENDED) {
-                write_member(out, room, len, "reason");
+                http_json_member(out, room, len, "reason");
                 http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
                 if (event->reason == EVENT_REASON_DRIVER_FAULT) {
-                    write_member(out, room, len, "motor");
+                    http_json_member(out, room, len, "motor");
                     http_json_string(out, room, len, motor_name(event->number));
-                    write_member(out, room, len, "fault");
+                    http_json_member(out, room, len, "fault");
                     http_json_string(out, room, len, event->text != NULL ? event->text : "fault");
                 }
             }
             break;
         case EVENT_SOURCE_CALIBRATION:
             // Its part; who started or stopped it, and why it stopped
-            write_member(out, room, len, "part");
+            http_json_member(out, room, len, "part");
             http_json_string(out, room, len, event->text != NULL ? event->text : "none");
             if (event->kind == EVENT_STARTED || event->kind == EVENT_STOPPED) {
-                write_member(out, room, len, "by");
+                http_json_member(out, room, len, "by");
                 http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
             }
             if (event->kind == EVENT_STOPPED) {
-                write_member(out, room, len, "reason");
+                http_json_member(out, room, len, "reason");
                 http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
             }
             break;
         case EVENT_SOURCE_MOTORS:
-            write_member(out, room, len, "motor");
+            http_json_member(out, room, len, "motor");
             http_json_string(out, room, len, motor_name(event->number));
-            write_member(out, room, len, "fault");
+            http_json_member(out, room, len, "fault");
             http_json_string(out, room, len, event->text != NULL ? event->text : "fault");
             break;
         case EVENT_SOURCE_UPDATE:
             // started and stopped: who; a stop's reason, and a refusal's code. The others: the version tried
             if (event->kind == EVENT_STARTED || event->kind == EVENT_STOPPED) {
-                write_member(out, room, len, "by");
+                http_json_member(out, room, len, "by");
                 http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
             }
             if (event->kind == EVENT_STOPPED) {
-                write_member(out, room, len, "reason");
+                http_json_member(out, room, len, "reason");
                 http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
                 if (event->reason == EVENT_REASON_REFUSED) {
-                    write_member(out, room, len, "code");
+                    http_json_member(out, room, len, "code");
                     http_json_string(out, room, len, event->text != NULL ? event->text : "");
                 }
             } else if (event->kind != EVENT_STARTED) {
@@ -245,15 +229,15 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 if (event->version != 0 && events_update_texts != NULL) {
                     events_update_texts->version_text(event->version, version, sizeof(version));
                 }
-                write_member(out, room, len, "version");
+                http_json_member(out, room, len, "version");
                 http_json_string(out, room, len, version);
                 if (event->kind == EVENT_BACK) {
-                    write_member(out, room, len, "reason");
+                    http_json_member(out, room, len, "reason");
                     http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
                 }
                 if (event->kind == EVENT_CONFIRMED) {
                     // The settings the update reset, by name (ADR-008, gate 2): a stored layout that changed
-                    write_member(out, room, len, "reset");
+                    http_json_member(out, room, len, "reset");
                     if (events_update_texts != NULL) {
                         events_update_texts->write_reset(event->throw_number, out, room, len);
                     }
@@ -265,7 +249,7 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
             break;
         case EVENT_SOURCE_SETTING: {
             // Who wrote it, and the resource's path, or the save's for a store: a page reads that resource again
-            write_member(out, room, len, "by");
+            http_json_member(out, room, len, "by");
             http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
             char path[72];
             const char *template = event->text != NULL ? event->text : "";
@@ -276,25 +260,25 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
             else {
                 snprintf(path, sizeof(path), "%s", template);
             }
-            write_member(out, room, len, "path");
+            http_json_member(out, room, len, "path");
             http_json_string(out, room, len, path);
             break;
         }
         case EVENT_SOURCE_SYSTEM:
-            write_member(out, room, len, "firmware");
+            http_json_member(out, room, len, "firmware");
             http_json_string(out, room, len, event->text != NULL ? event->text : "");
             break;
         case EVENT_SOURCE_SETUP:
             // The step it went on to, and who asked: a page and the menu read GET /api/v1/setup again
-            write_member(out, room, len, "step");
+            http_json_member(out, room, len, "step");
             http_json_string(out, room, len, event->text != NULL ? event->text : "");
-            write_member(out, room, len, "by");
+            http_json_member(out, room, len, "by");
             http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
             break;
         case EVENT_SOURCE_WIFI:
             // The network is in GET /api/v1/network's station: a name is not a string the log may keep
             if (event->kind == EVENT_NOT_JOINED) {
-                write_member(out, room, len, "reason");
+                http_json_member(out, room, len, "reason");
                 http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
             }
             break;

@@ -193,18 +193,6 @@ static void api_send(http_server_reply_t *reply, int status, size_t room, size_t
 }
 
 
-static void write_u64(char *out, size_t room, size_t *len, uint64_t value) {
-    char digits[24];
-    size_t pos = sizeof(digits) - 1;
-    digits[pos] = '\0';
-    do {
-        digits[--pos] = (char) ('0' + value % 10);
-        value /= 10;
-    } while (value > 0 && pos > 0);
-    http_json_raw(out, room, len, digits + pos);
-}
-
-
 // --- The charge
 
 static void write_charge(char *out, size_t room, size_t *len) {
@@ -840,56 +828,71 @@ static void api_v1_stop(const http_server_request_t *request, http_server_reply_
 }
 
 
-// --- The event log
+// --- A numbered log read from where a client left off: the event log, and the throws (ADR-016, gate 1)
+
+// A log: its list's name in the reply, its newest's name ("next" for the events, as v1 named it), its numbers, and
+// one item written by its number (false when it is no longer kept)
+typedef struct {
+    const char *items;
+    const char *newest_name;
+    uint32_t (*first)(void);
+    uint32_t (*newest)(void);
+    bool (*write)(uint32_t number, char *out, size_t room, size_t *len);
+} api_v1_log_t;
 
 typedef struct {
+    const api_v1_log_t *log;
     uint32_t after;     // asked after this number
     uint32_t cursor;    // the next to write
     uint32_t last;      // the newest when the reply began
-    uint8_t phase;      // 0 the head, 1 the events, 2 the end
-    bool wrote_one;     // an event is out: the next takes a comma
-} api_v1_events_t;
+    uint8_t phase;      // 0 the head, 1 the items, 2 the end
+    bool wrote_one;     // an item is out: the next takes a comma
+} api_v1_log_reply_t;
+
+_Static_assert(sizeof(api_v1_log_reply_t) <= HTTP_SERVER_CONTEXT_MAX, "a log's reply lives in its slot");
 
 
-static bool api_v1_events_more(void *ctx, char *buf, size_t room, size_t *len) {
-    api_v1_events_t *events = ctx;
+static bool api_v1_log_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_log_reply_t *reading = ctx;
+    const api_v1_log_t *log = reading->log;
     *len = 0;
-    if (events->phase == 0) {
-        uint32_t first = events_first_seq();
+    if (reading->phase == 0) {
+        uint32_t first = log->first();
         http_json_raw(buf, room, len, "{\"boot\":");
         http_json_unsigned(buf, room, len, api_v1_boot_id());
-        http_json_raw(buf, room, len, ",\"now_ms\":");
-        write_u64(buf, room, len, chip_time_us() / 1000u);
-        http_json_raw(buf, room, len, ",\"first\":");
-        http_json_integer(buf, room, len, (long) first);
-        http_json_raw(buf, room, len, ",\"next\":");
-        http_json_integer(buf, room, len, (long) events->last);
-        http_json_raw(buf, room, len, ",\"events\":[");
-        events->cursor = events->after + 1 > first ? events->after + 1 : first;
-        events->phase = 1;
+        http_json_member(buf, room, len, "now_ms");
+        http_json_u64(buf, room, len, chip_time_us() / 1000u);
+        http_json_member(buf, room, len, "first");
+        http_json_unsigned(buf, room, len, first);
+        http_json_member(buf, room, len, log->newest_name);
+        http_json_unsigned(buf, room, len, reading->last);
+        http_json_member(buf, room, len, log->items);
+        http_json_raw(buf, room, len, "[");
+        reading->cursor = reading->after + 1 > first ? reading->after + 1 : first;
+        reading->phase = 1;
         return true;
     }
-    if (events->phase == 1) {
-        while (events->cursor <= events->last) {
-            event_t event;
-            if (!events_get(events->cursor, &event)) {
-                events->cursor += 1;    // gone while the reply was made: the client sees the gap
-                continue;
-            }
+    if (reading->phase == 1) {
+        while (reading->cursor >= 1 && reading->cursor <= reading->last) {
             size_t mark = *len;
-            if (events->wrote_one) {
+            if (reading->wrote_one) {
                 http_json_raw(buf, room, len, ",");
             }
-            events_write_json(&event, buf, room, len);
+            if (!log->write(reading->cursor, buf, room, len)) {
+                *len = mark;
+                buf[mark] = '\0';
+                reading->cursor += 1;   // gone while the reply was made: the client sees the gap
+                continue;
+            }
             if (!http_json_fits(room, *len)) {
-                *len = mark;    // the next chunk begins with it
+                *len = mark;            // the next chunk begins with it
                 buf[mark] = '\0';
                 return true;
             }
-            events->wrote_one = true;
-            events->cursor += 1;
+            reading->wrote_one = true;
+            reading->cursor += 1;
         }
-        events->phase = 2;
+        reading->phase = 2;
         return true;
     }
     http_json_raw(buf, room, len, "]}");
@@ -897,39 +900,51 @@ static bool api_v1_events_more(void *ctx, char *buf, size_t room, size_t *len) {
 }
 
 
-static void api_v1_events_reply(http_server_reply_t *reply, uint32_t after) {
-    api_v1_events_t *events = http_server_reply_context(reply, sizeof(api_v1_events_t));
-    memset(events, 0, sizeof(*events));
-    events->after = after;
-    events->last = events_latest_seq();
-    http_server_reply_stream(reply, 200, "application/json", api_v1_events_more, events);
+static void api_v1_log_reply(const api_v1_log_t *log, http_server_reply_t *reply, uint32_t after) {
+    api_v1_log_reply_t *reading = http_server_reply_context(reply, sizeof(api_v1_log_reply_t));
+    memset(reading, 0, sizeof(*reading));
+    reading->log = log;
+    reading->after = after;
+    reading->last = log->newest();
+    http_server_reply_stream(reply, 200, "application/json", api_v1_log_more, reading);
 }
 
 
-static bool api_v1_events_ready(void *ctx) {
-    return events_latest_seq() > *(uint32_t *) ctx;
+// A held read's log and the number it was held after
+typedef struct {
+    const api_v1_log_t *log;
+    uint32_t after;
+} api_v1_log_held_t;
+
+
+static bool api_v1_log_ready(void *ctx) {
+    const api_v1_log_held_t *held = ctx;
+    return held->log->newest() != held->after;
 }
 
 
-static void api_v1_events_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+// A held read resumed: its after read again from its query (a parked request keeps its request)
+static void api_v1_log_resume(const api_v1_log_t *log, const http_server_request_t *request,
+                              http_server_reply_t *reply) {
     char value[16];
     uint32_t after = 0;
     if (http_server_query_value(request->query, "after", value, sizeof(value))) {
         after = (uint32_t) strtoul(value, NULL, 10);
     }
-    api_v1_events_reply(reply, after);
+    api_v1_log_reply(log, reply, after);
 }
 
 
-// GET /api/v1/events?after=N[&wait=s]: the events after N; with wait, held until there is one or the time is out
-static void api_v1_get_events(const http_server_request_t *request, http_server_reply_t *reply) {
+// GET of a log ?after=N[&wait=s]: the items after N; with wait, held until there is one after N or the time is out
+static void api_v1_log_get(const api_v1_log_t *log, http_server_handler_t resume, const http_server_request_t *request,
+                           http_server_reply_t *reply) {
     char value[16];
     uint32_t after = 0;
     if (http_server_query_value(request->query, "after", value, sizeof(value))) {
         char *end;
         unsigned long parsed = strtoul(value, &end, 10);
         if (end == value || *end != '\0') {
-            api_error(reply, 400, "wrong_type", "after", "after is an event's number", NULL);
+            api_error(reply, 400, "wrong_type", "after", "after is a number of the list's", NULL);
             return;
         }
         after = (uint32_t) parsed;
@@ -942,128 +957,76 @@ static void api_v1_get_events(const http_server_request_t *request, http_server_
         }
         // Held only when the client is up to date. After a number above the newest it read before a restart: answered
         // at once, so it sees the new boot now, not when its hold ends (review Q2)
-        if (events_latest_seq() == after) {
-            uint32_t *held_after = http_server_reply_context(reply, sizeof(uint32_t));
-            *held_after = after;
-            http_server_reply_park(reply, api_v1_events_ready, held_after, (uint32_t) wait_s * 1000,
-                                   api_v1_events_resume);
+        if (log->newest() == after) {
+            api_v1_log_held_t *held = http_server_reply_context(reply, sizeof(api_v1_log_held_t));
+            held->log = log;
+            held->after = after;
+            http_server_reply_park(reply, api_v1_log_ready, held, (uint32_t) wait_s * 1000, resume);
             return;
         }
     }
-    api_v1_events_reply(reply, after);
+    api_v1_log_reply(log, reply, after);
 }
 
-// --- The throws (ADR-016, gate 1): each throw's record, read as the event log is
 
-typedef struct {
-    uint16_t after;     // asked after this number
-    uint16_t cursor;    // the next to write
-    uint16_t last;      // the newest when the reply began
-    uint8_t phase;      // 0 the head, 1 the records, 2 the end
-    bool wrote_one;     // a record is out: the next takes a comma
-} api_v1_throws_t;
-
-
-static bool api_v1_throws_more(void *ctx, char *buf, size_t room, size_t *len) {
-    api_v1_throws_t *throws = ctx;
-    *len = 0;
-    if (throws->phase == 0) {
-        uint16_t first = charge_throws_first();
-        http_json_raw(buf, room, len, "{\"boot\":");
-        http_json_unsigned(buf, room, len, api_v1_boot_id());
-        http_json_raw(buf, room, len, ",\"now_ms\":");
-        write_u64(buf, room, len, chip_time_us() / 1000u);
-        http_json_raw(buf, room, len, ",\"first\":");
-        http_json_integer(buf, room, len, (long) first);
-        http_json_raw(buf, room, len, ",\"newest\":");
-        http_json_integer(buf, room, len, (long) throws->last);
-        http_json_raw(buf, room, len, ",\"throws\":[");
-        throws->cursor = throws->after + 1 > first ? (uint16_t) (throws->after + 1) : first;
-        throws->phase = 1;
-        return true;
+static bool api_v1_event_write(uint32_t number, char *out, size_t room, size_t *len) {
+    event_t event;
+    if (!events_get(number, &event)) {
+        return false;
     }
-    if (throws->phase == 1) {
-        while (throws->cursor >= 1 && throws->cursor <= throws->last) {
-            charge_throw_t record;
-            if (!charge_throws_get(throws->cursor, &record)) {
-                throws->cursor += 1;    // gone while the reply was made: the client sees the gap
-                continue;
-            }
-            size_t mark = *len;
-            if (throws->wrote_one) {
-                http_json_raw(buf, room, len, ",");
-            }
-            charge_throws_write_json(&record, buf, room, len);
-            if (!http_json_fits(room, *len)) {
-                *len = mark;    // the next chunk begins with it
-                buf[mark] = '\0';
-                return true;
-            }
-            throws->wrote_one = true;
-            throws->cursor += 1;
-        }
-        throws->phase = 2;
-        return true;
+    events_write_json(&event, out, room, len);
+    return true;
+}
+
+
+static const api_v1_log_t api_v1_events_log = {.items = "events", .newest_name = "next", .first = events_first_seq,
+                                               .newest = events_latest_seq, .write = api_v1_event_write};
+
+
+static void api_v1_events_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_log_resume(&api_v1_events_log, request, reply);
+}
+
+
+// GET /api/v1/events?after=N[&wait=s]
+static void api_v1_get_events(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_log_get(&api_v1_events_log, api_v1_events_resume, request, reply);
+}
+
+
+static uint32_t api_v1_throws_first(void) {
+    return charge_throws_first();
+}
+
+
+static uint32_t api_v1_throws_newest(void) {
+    return charge_throws_newest();
+}
+
+
+static bool api_v1_throw_write(uint32_t number, char *out, size_t room, size_t *len) {
+    charge_throw_t record;
+    if (number > UINT16_MAX || !charge_throws_get((uint16_t) number, &record)) {
+        return false;
     }
-    http_json_raw(buf, room, len, "]}");
-    return false;
+    charge_throws_write_json(&record, out, room, len);
+    return true;
 }
 
 
-static void api_v1_throws_reply(http_server_reply_t *reply, uint16_t after) {
-    api_v1_throws_t *throws = http_server_reply_context(reply, sizeof(api_v1_throws_t));
-    memset(throws, 0, sizeof(*throws));
-    throws->after = after;
-    throws->last = charge_throws_newest();
-    http_server_reply_stream(reply, 200, "application/json", api_v1_throws_more, throws);
-}
-
-
-static bool api_v1_throws_ready(void *ctx) {
-    return charge_throws_newest() != *(uint16_t *) ctx;
-}
+static const api_v1_log_t api_v1_throws_log = {.items = "throws", .newest_name = "newest",
+                                               .first = api_v1_throws_first, .newest = api_v1_throws_newest,
+                                               .write = api_v1_throw_write};
 
 
 static void api_v1_throws_resume(const http_server_request_t *request, http_server_reply_t *reply) {
-    char value[16];
-    uint16_t after = 0;
-    if (http_server_query_value(request->query, "after", value, sizeof(value))) {
-        after = (uint16_t) strtoul(value, NULL, 10);
-    }
-    api_v1_throws_reply(reply, after);
+    api_v1_log_resume(&api_v1_throws_log, request, reply);
 }
 
 
-// GET /api/v1/charge/throws?after=N[&wait=s]: the throws' records after N; with wait, held until one is recorded
+// GET /api/v1/charge/throws?after=N[&wait=s] (ADR-016, gate 1): each throw's record, read as the event log is
 static void api_v1_get_throws(const http_server_request_t *request, http_server_reply_t *reply) {
-    char value[16];
-    uint16_t after = 0;
-    if (http_server_query_value(request->query, "after", value, sizeof(value))) {
-        char *end;
-        unsigned long parsed = strtoul(value, &end, 10);
-        if (end == value || *end != '\0' || parsed > UINT16_MAX) {
-            api_error(reply, 400, "wrong_type", "after", "after is a throw's number", NULL);
-            return;
-        }
-        after = (uint16_t) parsed;
-    }
-    if (http_server_query_value(request->query, "wait", value, sizeof(value))) {
-        long wait_s = strtol(value, NULL, 10);
-        if (wait_s < 1 || wait_s > API_V1_EVENTS_WAIT_S_MAX) {
-            api_error(reply, 400, "out_of_range", "wait", "wait is 1 to 30 s", "\"min\":1,\"max\":30");
-            return;
-        }
-        // Held only when the client is up to date; after a number past the newest (read before a restart) answered
-        // at once, as the event log is
-        if (charge_throws_newest() == after) {
-            uint16_t *held_newest = http_server_reply_context(reply, sizeof(uint16_t));
-            *held_newest = after;
-            http_server_reply_park(reply, api_v1_throws_ready, held_newest, (uint32_t) wait_s * 1000,
-                                   api_v1_throws_resume);
-            return;
-        }
-    }
-    api_v1_throws_reply(reply, after);
+    api_v1_log_get(&api_v1_throws_log, api_v1_throws_resume, request, reply);
 }
 
 // --- The event stream (ADR-008, gate 2): the event log as it happens, as server-sent events
@@ -2282,10 +2245,9 @@ _Static_assert(CHARGE_PROFILE_COUNT == 8, "the schema below gives the charge pro
 static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/pin\",\"fields\":[{\"name\":\"pin\",\"type\":\"string\","
     "\"required\":true,\"about\":\"4 to 8 digits; \\\"\\\" for none\"}],\"refused_while\":\"never\",\"about\":\"sets "
-    "the web's PIN, stored at once (ADR-016): with one set (the index's pin), every write needs it, sent as the "
-    "Cookie pin=<digits>: 401 pin_required without it, 401 pin_wrong, five wrong in a row 429 pin_locked for a "
-    "minute. Every read is free. A lock against mistakes and meddling, not security: a forgotten PIN is cleared at "
-    "the unit (Settings, Clear PIN) or by a factory reset\",\"example\":{\"pin\":\"1234\"}}",
+    "the web's PIN, stored at once: with one set (the index's pin), every write needs it as the Cookie "
+    "pin=<digits> (401 pin_required, pin_wrong; five wrong, 429 pin_locked for a minute). Forgotten, it is cleared "
+    "at the unit or by a factory reset\",\"example\":{\"pin\":\"1234\"}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/agent/hello\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"min_length\":1,\"max_length\":16,\"about\":\"who you are, printable ASCII; without it, Claude-chan\"}],\"refused_while\":\"a_charge_runs\",\"kind\":\"agent\",\"about\":\"an agent says hello: the screen shows Claude-chan rising at its bottom right, a bubble over her saying '<name> is watching ya!', for 2 s. 409 busy while a charge runs: its screen is never covered. It changes nothing else; send it only when no person reads the screen for a test\",\"example\":{\"name\":\"Claude\"}}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/charge\"," API_V1_SCHEMA_CHARGE_FIELDS ",\"refused_while\":\"in_throw\","
     "\"about\":\"what the next throw uses, any of the fields: the charge profile chosen, and the chosen one's "
