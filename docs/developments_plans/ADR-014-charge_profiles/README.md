@@ -24,6 +24,7 @@ Status: **Open** 2026-11-28: approved by the owner as written, its firmware buil
 - **2026-11-28, on the bench's Pico W reporting a 16 KB EEPROM:** "So yes this MIGHT be my home build, for which ran 128Kbit EEPROM. The production units on Pico 2W should be 256Kbit so we don't need to worry that much rightn ow, but in the future." Read here as: nothing more is built for the smaller chip in this ADR; what was found is written where a later ADR giving out a slot meets it (`eeprom.h`, AGENTS.md).
 - **2026-11-28, the park:** "Can you write down the progress and park the action for now? And perhaps leave for later implementation this afternoon."
 - **2026-11-28, evening, at the unit and the web's mock:** "I like how web UI and front display is designed. The only comment is I'd keep the "Load" under the charge, and display maixmum number of X characters that doesn't overlaps with the key (load), and the right arrow showing this is a submenu." Read here as: the Charge page's row is "Load" and the name, cut at a whole character where it does not fit, with ">"; this replaces the name as the row, chosen at the mock that morning.
+- **2026-11-28, evening, the web's navigation:** asked whether Loads stays a destination of its own, a fifth beside the four of 2026-11-18, or goes under Powders behind a switch: "Yes, keep it".
 - 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append. 2026-11-28: an upgrade is from a release to a release; the floor is v1.21.
 
 ## Why here
@@ -109,7 +110,7 @@ Charge
 ### The web
 
 - **The Trickler page:** a picker above Target and Powder. The page stores what it changes, so a weight set there is kept.
-- **A page for the eight,** beside Powders: name, weight and powder, its form drawn from the schema, the powder chosen by name.
+- **A page for the eight,** Loads, a destination of the navigation beside Powders (the owner, "Yes, keep it"): name, weight and powder, its form drawn from the schema, the powder chosen by name.
 - A mock on the stand-in first (`tests/web_test.py`).
 
 ### Each value's life

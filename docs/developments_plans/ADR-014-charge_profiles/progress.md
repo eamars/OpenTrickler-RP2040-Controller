@@ -2,6 +2,23 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, evening, last: the navigation settled, the web proven on the unit
+
+**The owner on the fifth destination,** explained as the web page's navigation bar, four buttons on main and Loads a fifth on this branch, or loads under Powders behind a switch: "Yes, keep it". Written into the skill `web-ui-design` (rule 1) and the README.
+
+**The README's check, from the Trickler page** (the Pico W on 2.0.3-395, its settings copied first to `logs/adr014/picow_before_webcheck`): Load 2 chosen and 30 typed on the unit's own Trickler page, stored at once (`saved` true); `rc_run.py reset`; the page loaded again on the new boot showed Load 2 at 30.00 on AR2208,gr. Then put back through the pages: the owner's "6.5CM" chosen on the Trickler, Load 2's target emptied on the Loads page and stored ("Stored."). `settings --compare` with the copy: `VERDICT PASS`, the 25 resources as before.
+
+| Check | Result |
+|---|---|
+| `charge_cycle` | `VERDICT PASS`: 30.000 for a target of 30.000; the load put back after; the cup 0.0 gr before and after |
+| `build_pico_2w.ps1` | links. Flash 921.2 KB of 1,792 (919.6 at `4043b28`); RAM at link time 285.9 KB, unchanged |
+
+### Left
+
+1. **The Pico 2 W** on the probe: flash, `menu_tour` (its Charge page saved again), `charge_cycle`. The owner puts it on.
+2. **A unit on v1.21 updated to this:** it rewrites the unit's settings, so it waits for the owner's word.
+3. **The README and the manuals** where they show the Charge page and the web's pages; then the close (this file, the README, the index) and the PR.
+
 ## 2026-11-28, evening, later: "Load" and its name, at the owner's word
 
 The owner tried the web's pages and the screen on the unit: "I like how web UI and front display is designed. The only comment is I'd keep the "Load" under the charge, and display maixmum number of X characters that doesn't overlaps with the key (load), and the right arrow showing this is a submenu." The fifth destination was not understood as asked; it is explained to the owner, its answer still open.
