@@ -23,6 +23,7 @@ Status: **Open** 2026-11-28: approved by the owner as written, its firmware buil
 - **2026-11-28, at the screen's mock:** the profile's name as the row itself; the word "Load"; the charge's line as today.
 - **2026-11-28, on the bench's Pico W reporting a 16 KB EEPROM:** "So yes this MIGHT be my home build, for which ran 128Kbit EEPROM. The production units on Pico 2W should be 256Kbit so we don't need to worry that much rightn ow, but in the future." Read here as: nothing more is built for the smaller chip in this ADR; what was found is written where a later ADR giving out a slot meets it (`eeprom.h`, AGENTS.md).
 - **2026-11-28, the park:** "Can you write down the progress and park the action for now? And perhaps leave for later implementation this afternoon."
+- **2026-11-28, evening, at the unit and the web's mock:** "I like how web UI and front display is designed. The only comment is I'd keep the "Load" under the charge, and display maixmum number of X characters that doesn't overlaps with the key (load), and the right arrow showing this is a submenu." Read here as: the Charge page's row is "Load" and the name, cut at a whole character where it does not fit, with ">"; this replaces the name as the row, chosen at the mock that morning.
 - 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append. 2026-11-28: an upgrade is from a release to a release; the floor is v1.21.
 
 ## Why here
@@ -83,12 +84,12 @@ typedef struct {
 ```
 Charge
   Start
-  308 match ›             the chosen one's name, with no word before it
+  Load   308 match ›      the chosen one's name
   Target   44.00 gr ›     its weight
   Powder   AR2208,gr ›    its powder
 ```
 
-- **The name is the row** (the owner at the mock, 2026-11-28). A name of 15 characters does not fit beside a label: 3 px too wide beside "Load", 14 beside "Charge". Alone on its row it fits whole.
+- **"Load" and the name** (the owner at the unit, 2026-11-28, evening). A name of 15 characters is 3 px too wide beside "Load": it is cut at a whole character, as many as fit, the key kept whole ("Load 6.5CM 140 ELD- ›"). The same holds for every choice's name beside its key (a powder's too); a number is never cut. The name as the row, chosen at the mock that morning, was dropped for it.
 - A click opens the choice's own page, titled **Load**: the eight by name, the chosen one checked.
 - **The word is "Load"** (the owner, the same day): the page's title, the names never set ("Load 3") and the web's page. "Charge" stays the job and its page.
 - The same three rows on the Change page a charge opens between throws.
@@ -184,5 +185,5 @@ Each was put with the agent's recommendation, and the owner approved the ADR as 
 1. **The slot: 6 KB.** Blank on every unit, and inside a 128 kbit chip. The other free slots each hold something on some unit.
 2. **The powders' `current_profile_idx` is kept and no longer written.** One truth for the powder in use. Said here as a stored field's use ending, not its layout changing. (The proposal of this morning said it would go on being written; that would store two records at every choice of powder.)
 3. **`api_v1.md`'s line is changed before anything is built on it.** It says a target given beside a charge profile "overrides it for that charge", which needs a second target. Here it writes the profile. With that, the powder's choice is stored by `charge_profiles/save`, no longer by `powder_profiles/save`: a change to an API called stable, made while v2 has only candidates and no release.
-4. **The word on the screen and the web.** "Charge" is already the job and the page, so a "Charge" row on the Charge page reads twice. Recommended: **Load**, a reloader's own word for a calibre's recipe ("Load: 308 match", "Load 1" to "Load 8"), the API's name staying `charge_profiles`. The owner chooses at the mock. **Chosen 2026-11-28:** "Load", and on the Charge page no word at all, the name being the row ("The screen").
+4. **The word on the screen and the web.** "Charge" is already the job and the page, so a "Charge" row on the Charge page reads twice. Recommended: **Load**, a reloader's own word for a calibre's recipe ("Load: 308 match", "Load 1" to "Load 8"), the API's name staying `charge_profiles`. The owner chooses at the mock. **Chosen 2026-11-28:** "Load", and on the Charge page no word at all, the name being the row; that evening, at the unit, "Load" as the row's key and the name beside it, cut to fit ("The screen").
 5. **Whether the unit says its EEPROM's size** (a suggestion, not in the scope above). It can tell without writing: the same bytes read at 1 KB and at 17 KB are one chip of 16 KB. Shown in `GET /api/v1/debug` and on the console, a user with such a board could then tell us what the owner cannot try. Recommended: yes, as it is a few lines and the only proof within reach; left out if the owner would rather not grow the PR.

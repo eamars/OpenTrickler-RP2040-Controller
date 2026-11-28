@@ -79,7 +79,7 @@ Main menu                        title: OpenTrickler, or the motor driver that i
 ├─ Update available ›            only while the poll knows of a newer release; "Important update" when critical
 ├─ Charge ›
 │  ├─ Start                      → "Put the empty cup on the scale" → the charge screen; with no target, the editor first
-│  ├─ 308 match ›                the chosen load (ADR-014), its name the row itself; its own page, titled Load: the 8 by name, the chosen one checked
+│  ├─ Load    308 match ›        the chosen load (ADR-014), its name cut short of its key; its own page, titled Load: the 8 by name, the chosen one checked
 │  ├─ Target        24.35 ›      the chosen load's weight: the editor, digit by digit
 │  └─ Powder        AR2208 ›     the chosen load's powder; its own page: the 8 powder profiles, the current one checked
 ├─ Cleanup                       → "Put the cup on the scale to catch the powder" → the cleanup's screen
@@ -137,8 +137,8 @@ On the charge and cleanup rows, a motor driver that is not OK opens the fault pa
 - **Fault page:** names the driver and says charge and cleanup cannot start. Enter or Back leaves it.
 - **Later (ADR-009):** the cup's ask ("put an empty cup on the pan, and press") and test throws, as screens of the same kind.
 
-**The load** (ADR-014, built; the owner at its mock, 2026-11-28). The unit always has one charge profile chosen, a "Load" on the screen, and the Charge page's Target and Powder are its own:
-- **Its name is the row,** with no word before it, between Start and Target: a name of 15 characters fits whole only alone on its row. Until named they are "Load 1" to "Load 8"; names are typed on the web, as the powders'.
+**The load** (ADR-014, built; the owner at its mock and then at the unit, 2026-11-28). The unit always has one charge profile chosen, a "Load" on the screen, and the Charge page's Target and Powder are its own:
+- **Its row is "Load" and its name,** between Start and Target, with ">" for its page. A name too long to fit beside the key is cut at a whole character, as many as fit (the owner: "display maximum number of X characters that doesn't overlaps with the key"): the longest, 15 characters, loses one. Until named they are "Load 1" to "Load 8"; names are typed on the web, as the powders'.
 - **A click opens its choice's page, titled Load:** the eight by name, the chosen one checked. Choosing one brings its target and its powder.
 - **Each change is stored when it is confirmed** (rule 5): a load chosen, a target set, a powder chosen. So the weight is there after a power cycle.
 - **The same three rows on Change,** between throws. A load chosen there with no target ends the charge at its next throw, on "No target": the unit never throws a weight nobody set.

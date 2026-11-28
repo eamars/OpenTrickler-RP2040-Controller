@@ -2,6 +2,32 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, evening, later: "Load" and its name, at the owner's word
+
+The owner tried the web's pages and the screen on the unit: "I like how web UI and front display is designed. The only comment is I'd keep the "Load" under the charge, and display maixmum number of X characters that doesn't overlaps with the key (load), and the right arrow showing this is a submenu." The fifth destination was not understood as asked; it is explained to the owner, its answer still open.
+
+### What changed (`27d35c7`)
+
+- **The Charge page's row is "Load" and the name,** with ">" (`menu_nav.c`: the row's label "Load", the name its value; `choice_title`, made for the name as the row, is gone, the choice's page titled by the row's label as before).
+- **A chosen name is cut short of its key** (`menu_view_12864.c`): a choice row's value, marked in the screen model (`row_name`), is cut at a whole character to fit 3 px after its label, with no space left at its end; the label is whole. Every choice row takes it (a powder's name beside "Powder" too). Any other value is laid out as before, its label clipped as the safety net: a number is never cut, since a cut figure is a false one. The console's `screen` still gives the whole name.
+- **The mock** (`tools/ui_mock/charge_profiles_12864.py`) cuts the name by the same sum; the sheet's "Load" row draws it, "6.5CM 140 ELD-".
+- The skill `embedded-ui-design` (rule 9) and `menu_design.md` say so, with the owner's words.
+
+### Measured
+
+| Check | Result |
+|---|---|
+| `build_pico_w.ps1` | links. RAM at link time 36 bytes more (the mark per row) |
+| `flash` | `VERDICT PASS`: 2.0.3-395 at `27d35c7` |
+| `snap`, Load 1 named "6.5CM 140 ELD-M" live | "Load 6.5CM 140 ELD- >", as the mock; the name put back by `POST /api/v1/charge_profiles/revert` |
+| `menu_tour --compare tests/menu_baseline/pico_w`, the inversion off live | every judged page as its baseline but two: Charge, changed as meant, and Settings › Calibration › Powder, whose list opens on the powder in use. The owner, trying the unit, stored Load 1 as "6.5CM" at 42.50 on AR2209: both pages show it. Both saved again from this tour. (A first tour also differed on the main page: it began with the screen left on the Charge page by the snap) |
+
+| The longest name, cut | Load 1 as the owner stored it |
+|---|---|
+| ![](screens/charge_load_cut.png) | ![](screens/charge_load.png) |
+
+**These two pages of the baseline follow the stored load:** a tour after Load 1 is changed again, or another load chosen, differs on them, as the Charge page has since the target was stored.
+
 ## 2026-11-28, evening: the web's part, a mock for the owner
 
 Taken over from the parked session at the owner's word. The bench open again, the hopper empty ("Open, hopper empty"). Built in `ba863a8`, on the stand-in first, then put on the Pico W.
