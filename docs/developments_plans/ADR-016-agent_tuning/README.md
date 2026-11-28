@@ -1,6 +1,6 @@
 # ADR-016: an AI agent helps tune a powder's profile, over the API
 
-Status: **Decided** 2026-11-28: approved as written by the owner ("Approve as written"), the evening it was written in full from the owner's answers of that day; gate 1 first. First drafted 2026-11-27 with the use case as the owner and the agent traced it, and PR #113's features folded in as the owner asked. Nothing is built.
+Status: **Decided** 2026-11-28: approved as written by the owner ("Approve as written"), the evening it was written in full from the owner's answers of that day. **Re-gated later that evening at the owner's word** ("Yes, rewrite it"): the API's three gates as approved, in their order, and the auto-tuner no gate and not touched (below, "The auto-tuner is not touched"); the rewritten text approved by him ("Approve, merge it"). First drafted 2026-11-27 with the use case as the owner and the agent traced it, and PR #113's features folded in as the owner asked. Nothing is built.
 
 ## What we want
 
@@ -25,17 +25,20 @@ A person at the unit, loading real rounds, gets each powder thrown well. The uni
 - **Two roles:** "There are two roles: Development agent and assistant agent. You are the development agent in this role, and the assistant agent role will be the one ADR-016 talks about. The development agent will have access to all source code and auto tuner, while the assistant agent will by exposed with the unit and its API first. And call hello on first connection."
 - **Room:** "The RAM and FLASH can be a constraint. I need you to plan ahead wisely."
 - **The auto-tuner first:** "If you found any issue with auto tuner, or the auto tuner should be improved during the development, you shall prioritize on fixing the auto tuner. The AI assistant agent will be the last resort when the code is deployed to the users."
-- **The tuner across sessions:** "It was discard by design. The setup property drifts across sessions, that you should read previous session records in ADR. I do not intent to keep auto tuner across session, but 50 might be too much." Asked for a goal, the owner chose its first better gains within 25 throws of a sitting.
+- **The tuner across sessions:** "It was discard by design. The setup property drifts across sessions, that you should read previous session records in ADR. I do not intent to keep auto tuner across session, but 50 might be too much." Asked for a goal, the owner chose "Within 25 throws", the option recommended to him; set aside by the re-gating (below).
 - **The PIN:** "Read only. And the PIN should be carried by cookie?" Read here as: without the PIN, the network reads and nothing else, a stop and a hello included. The cookie was checked and taken: a browser sends it by itself, an agent sends it as a header, so it is one way for both (below).
 - **What the assistant may do:** "It should prompt the assistant agent to ask for permission. But once the permission is granted the agent can do anything. Note, this should be encouraged by the agent, not to be stopped by the mechanism." Read here as: the guide tells the assistant to ask the person once; nothing in the firmware checks it.
 - **Its place:** next, before ADR-007.
+- **The rehearsal:** "Before the powder test, I'd like you to spawn a haiku subagent that navigate through the unit mimicking an average agent helping the power tuning, without the context. Then you shall be responsible to monitor the haiku behavior, then tune the prompt/instructions accordingly." (gate 2, below).
+- **Re-gated,** that evening, after the first gate 1 had taken some two hours of the auto-tuner's simulation and no line of the API was written: "The ADR-016 is supposed to be a API heavy change, for which allowing external AI agent to help with tuning. But it looks like the execution agent turned this into another optimization nightmare." Asked whether to rewrite it with the API's gates first and the tuner no longer a gate, or to keep 25 throws as a gate: "Yes, rewrite it". Read here as: the owner's word on the auto-tuner (above) was no order to go and improve the tuner, and "50 might be too much" was a remark, not a requirement.
+- **The tuner is not touched** (a requirement; it narrows "the auto-tuner first", above): "this ADR is never a tuning session and will never be. The agent may propose something new but no tuner should be touched unless a better algorithm is determined. I spent a long time deriving the current tuner, and any ad-hoc research recommendation to the tuner is likely caused by the drift of the setup. I'm over it, and unless there is justification to support, I will not allow the agent trying to improve the tuner, at all."
 
 ## Two roles
 
 - **The development agent** builds the firmware: it has the source, `AGENTS.md`, the probe and the console, the twin and the auto-tuner's code. It builds this ADR.
 - **The assistant agent** is this ADR's user: an agent a person points at a unit by its address, with the unit and its API first. It learns from the unit alone what it is, what it may do and how to help, and says hello when it first connects.
 
-A finding of the development agent's in the auto-tuner is fixed in the auto-tuner, before anything is given to the assistant: the assistant is the last resort, once the firmware is with the users.
+The assistant is the last resort, once the firmware is with the users: the unit's auto-tuner comes first. The development agent does not change the auto-tuner; what it finds there it proposes to the owner ("The auto-tuner is not touched", below).
 
 ## The use cases, as traced (2026-11-27)
 
@@ -65,8 +68,8 @@ PR #113 ("Add powder analysis", by DevDaniel1408, open since 2026-10-26) tunes a
 
 | Of PR #113 | In this ADR |
 |---|---|
-| What a throw reports | Gate 2's throw record, its figures and more |
-| The procedure, its start values, the threshold recommendation | Gate 3's guide: what the assistant follows for what the auto-tuner does not move. No firmware |
+| What a throw reports | Gate 1's throw record, its figures and more |
+| The procedure, its start values, the threshold recommendation | Gate 2's guide: what the assistant follows for what the auto-tuner does not move. No firmware |
 | A trial on settings that are not the stored profile; a coarse-only throw | Not taken: a setting tried between real throws, and the record gives the coarse tube's time and overshoot from a full throw |
 | The session on the 12864, its web page with a chart and CSV, its manuals | Not ported: the Pico W's room, and a tuning session on the unit is what ADR-009 chose not to have |
 | Its tests on a PC against a simulated powder | Ours exist (`tests/step2_sim.py`, the twin) |
@@ -92,25 +95,22 @@ The owner placed it next, before ADR-007 (2026-11-28): it is the current Pico pl
 
 ## What we do
 
-Four gates, in this order, each approved and built on its own; one may be merged by a PR of its own. Gate 1 is the auto-tuner's: the owner's priority. Every figure an assistant reads comes in gate 2, its guide in gate 3, the PIN in gate 4.
+Three gates, in this order, each approved and built on its own; one may be merged by a PR of its own. Every figure an assistant reads comes in gate 1, its guide in gate 2, the PIN in gate 3. The auto-tuner is no gate and is not touched.
 
 ### The budget
 
 ADR-016 takes at most **12 KB of flash and 4 KB of RAM** on the Pico W, nothing of it static: what it keeps is taken from the heap at its first use and kept, as the charge's controller is. Each gate measures its own (`size_report.py`; `stats`'s `heap_min` and `charge_heap_low` across a charge) and says it in the progress. A gate that would pass the budget stops and comes back to the owner before it is built further.
 
-### Gate 1: the auto-tuner's first better gains within 25 throws
+### The auto-tuner is not touched
 
-The tuner still begins afresh each sitting (the owner: the rig drifts). What changes is how soon it acts within one:
-- **A window may end early.** The baseline window and each trial end as soon as their difference is clear by the tuner's own noise test, the one it judges a full window by; 25 throws stays the most a window takes. Gains far from good, the case a person meets first, show their difference within a few throws; near-good gains still take the full window, which costs little because they are near good.
-- **The twin first:** `tools/charge_sim/step2_tuner.py` and `charge_tuner.c` change together, and `tests/step2_sim.py` still runs them call for call.
-- **Judged on the twin** from the starts ADR-009 used (a quarter of the owner's kp, four times it, the bench's stored gains) and from the owner's tuned gains:
-  - from each untuned start, better gains stored within 25 throws in at least 8 of 10 sessions;
-  - from the tuned gains, over 300 throws, the last 100 no wider and no slower than today's tuner's, within the noise of four sessions;
-  - wrong keeps (a trial kept that is truly worse) no more often than today's tuner.
-- What else the development agent finds wrong in the tuner on the way is fixed in this gate, named in its progress, and comes to the owner first when it changes what the tuner moves or what it aims at.
-- No new field: what it keeps is the window it has.
+A requirement of the owner's (2026-11-28, above). For whoever builds this ADR:
+- **No change to the tuner:** `charge_tuner.c`, its twin `step2_tuner.py`, and how the charge mode drives it and stores what it keeps. No gate of this ADR changes them.
+- **No study of the tuner,** on the twin or on a unit. Building this ADR is never a tuning session.
+- **An agent may propose.** A proposal is a note in the progress, with its justification, put to the owner; nothing is built on it before his word. Figures from a few sessions on the twin or the bench are not a justification by themselves: the rig drifts by about 4 good throws of 20 and 1 s within an hour (ADR-009, "Traps on record"), and the owner derived the tuner against that.
+- **One proposal on record, not taken: kept gains that are not stored.** The unit stores the tuner's kept gains only when a window closes with the step `kept` (`charge_step2_at_rest`, `charge_mode.c`). A keep whose next trial cannot move the gains closes as another step, so those gains reach no profile. Read in the code on main; in the twin's sessions already on disk, 11 of the tuner's 545 keeps closed that way (`logs/adr016/early_study_today.json`). It changes nothing the tuner decides: the profile would hold what the tuner kept. The fix as written is a commit of its own (`6685961`, on `adr016_tuner_early`), never run on a unit.
+- **Not this ADR's: a window closed early.** This ADR's first gate 1, an ad-hoc change of the kind the owner rules out. Kept, not judged, on the local branch `adr016_tuner_early` (`ba847b9`); nothing in this ADR waits on it, and it is deleted at the owner's word.
 
-### Gate 2: the throw record
+### Gate 1: the throw record
 
 Every throw, finished or ended short, leaves one record. The newest 32 are kept in RAM, about 85 bytes each (2.7 KB, from the heap at the first charge), until the unit restarts, numbered as the throws are (from 1 at each start).
 
@@ -131,7 +131,7 @@ Every throw, finished or ended short, leaves one record. The newest 32 are kept 
 
 An agent then tells an over from the coarse tube (the fine tube's part near nothing) from one of the fine tube (a large fall, a high speed at the fine stop), and sees what the auto-tuner is trying. The figures a throw does not reach are `null`.
 
-### Gate 3: the assistant's guide, served by the unit
+### Gate 2: the assistant's guide, served by the unit
 
 - **Found from the address alone:**
   - the portal's page names it in its head (a link of `rel="help"`) and in a line a reader without scripts sees;
@@ -149,7 +149,7 @@ An agent then tells an over from the coarse tube (the fine tube's part near noth
   - **what a PIN is:** a lock against mistakes and meddling, not security.
 - **AGENTS.md** says the development agent is the one it is for, and points to the guide's source.
 
-### Gate 4: the PIN
+### Gate 3: the PIN
 
 - **Off by default.** A person sets one on the web (Settings), 4 to 8 digits. Without it, the network reads: every GET, the event log and its stream. Every write needs it: a setting, a store, a start, a stop and a hello included. A stop is always at the unit itself, by its button.
 - **Carried by a cookie,** `pin=<digits>`. The portal sets it when the person enters the PIN, marked `SameSite=Strict` so no other site's page can use it, and asks again when a write is refused. An agent sends the same as a header, `Cookie: pin=<digits>`. A write without it is refused (401, `pin_required`); five wrong in a row refuse every write for a minute (`pin_locked`).
@@ -160,22 +160,23 @@ An agent then tells an over from the coarse tube (the fine tube's part near noth
 
 ### What api_v1.md loses and gains
 
-- "Experiments and recordings, for ADR-009 (reserved)" is replaced by "The throws" (gate 2). The test throw, the declared cup, the recordings and their samples are dropped: a setting is tried between real throws, which a person loads, and the unit has no room for samples beside the throw's own (a throw's samples were 24 KB as floats). Samples come back as a gate of an ADR of their own only if a real session meets a miss the record cannot explain.
-- The password's row becomes the PIN, by cookie (gate 4).
+- "Experiments and recordings, for ADR-009 (reserved)" is replaced by "The throws" (gate 1). The test throw, the declared cup, the recordings and their samples are dropped: a setting is tried between real throws, which a person loads, and the unit has no room for samples beside the throw's own (a throw's samples were 24 KB as floats). Samples come back as a gate of an ADR of their own only if a real session meets a miss the record cannot explain.
+- The password's row becomes the PIN, by cookie (gate 3).
 
 ## How the unit shows it works
 
-Each gate on the Pico W, the tighter in RAM and the one whose memory is judged; the auto-tuner and the guide are the application's, and the PIN touches the network and the EEPROM. Every gate also runs the usual proof: `rc_run.py flash`, `menu_tour --compare`, `charge_cycle`, and `api_check` where the API changed. Each gate's figures are in its progress, its budget measured.
+Each gate on the Pico W, the tighter in RAM and the one whose memory is judged: the record takes heap and a route, the guide flash, and the PIN touches the network and the EEPROM. Every gate also runs the usual proof: `rc_run.py flash`, `menu_tour --compare`, `charge_cycle`, and `api_check` where the API changed. Each gate's figures are in its progress, its budget measured.
 
-- **Gate 1:** the twin's figures above, `tests/step2_sim.py` and `host_test.py` ending `VERDICT PASS`. Then real throws with the tuner on, the owner at the cup, as ADR-009 has owed since its review: a sitting of 25 throws from a fine kp set off on purpose (a quarter of the stored), better gains stored within it, and the stored gains put back after. The owner may waive it.
-- **Gate 2:** a new `rc_run.py tuning_check --host <address>`, on the simulated scale, its cup checked by its most pour as every motor command's is: a charge, settings written between throws; each record's gains and thresholds what was live when it was thrown, its figures in order (coarse before fine, the fall the weight less the fine stop's reading); a read from 0 that gives every record kept; a `?wait` answered at the next throw; a restart that begins afresh; the settings left as they were found. Then a soak with a client following the throws, the heap read quiet before and after.
-- **Gate 3:** a fresh agent with no source and no repository, given only "My OpenTrickler is at <address>; help me tune my powder", finds the guide from the address alone, says hello, asks for permission, reads the throws, and gives its reason for a change from the record's figures. First on the simulated scale, for the mechanics; then with the owner at the cup and real powder, which is the use case. At the end nothing is live that is not stored, unless the person chose it.
-- **Gate 4:** with a PIN set: every write refused without it and done with it, every read free; five wrong refuse writes for a minute; the portal asks once and works after; the PIN cleared at the screen (pressed through the console) and by a factory reset; a settings copy holds no PIN; `tests/release_records.py` passes.
+- **Gate 1:** a new `rc_run.py tuning_check --host <address>`, on the simulated scale, its cup checked by its most pour as every motor command's is: a charge, settings written between throws; each record's gains and thresholds what was live when it was thrown, its figures in order (coarse before fine, the fall the weight less the fine stop's reading); a read from 0 that gives every record kept; a `?wait` answered at the next throw; a restart that begins afresh; the settings left as they were found. Then a soak with a client following the throws, the heap read quiet before and after.- **Gate 2:** a fresh agent with no source and no repository, given only "My OpenTrickler is at <address>; help me tune my powder", finds the guide from the address alone, says hello, asks for permission, reads the throws, and gives its reason for a change from the record's figures. At the end nothing is live that is not stored, unless the person chose it.
+  - **Before any powder, an average agent rehearses it** (the owner, 2026-11-28: "Before the powder test, I'd like you to spawn a haiku subagent that navigate through the unit mimicking an average agent helping the power tuning, without the context. Then you shall be responsible to monitor the haiku behavior, then tune the prompt/instructions accordingly."). A Haiku subagent is given only the person's words and the unit's address, with the simulated scale on. The development agent watches what it does, from the unit's side (`net log on`, the event log) and from its transcript, and changes the guide where it went wrong, never the subagent's prompt, then runs a new one; until one finds the guide, says hello, asks permission, and reasons from the record. A first run against the unit as it is, before the guide is written, shows what an agent does with none.
+  - Then with the owner at the cup and real powder, which is the use case.
+- **Gate 3:** with a PIN set: every write refused without it and done with it, every read free; five wrong refuse writes for a minute; the portal asks once and works after; the PIN cleared at the screen (pressed through the console) and by a factory reset; a settings copy holds no PIN; `tests/release_records.py` passes.
 - **At the close:** PR #113 closed with its note, at the owner's word.
 
 ## Not in this ADR
 
 - **The auto-tuner kept across sittings:** by design it begins afresh (the owner: the rig drifts).
+- **Any change to the auto-tuner, and any study of it:** this ADR is never a tuning session (the owner; "The auto-tuner is not touched").
 - **A tuning session on the unit's screen, and PR #113's web page:** the Pico W has no room for the module as written, and ADR-009 chose a tuner with no session.
 - **A test throw, a declared cup, recordings, a throw's samples on the unit:** dropped (above).
 - **A script that tunes with no AI:** the auto-tuner is that path; a script would be a second copy of the guide's steps to keep in step, and the simulated scale could not show it tunes.
