@@ -158,7 +158,7 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
                        "api/v1/powder_profiles/0"]
 # Routes the index does not list, by name (ADR-008, gate 2): the pages, and the debug routes (not part of v1)
-API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}     # /wizard: a redirect to the set-up
+API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror", "/llms.txt"}   # /wizard: a redirect to the set-up; /llms.txt the agent's guide again
 STREAM_READ_S = 20              # the event stream's read: past its state again after 15 s quiet
 STREAM_KEEP_ALIVE_S = 15        # ADR-008: the state again after this long quiet
 STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it

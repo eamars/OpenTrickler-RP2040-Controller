@@ -9,9 +9,12 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317191c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z'/%3E%3C/svg%3E">
 <link rel="service-doc" href="/api/v1">
 <link rel="service-desc" href="/api/v1/schema">
+<link rel="help" href="/api/v1/agent" type="text/markdown">
 <style>/*STYLE*/</style>
 </head>
 <body>
+<!-- For a reader without scripts, an AI agent's fetch most of all (ADR-016, gate 2) -->
+<noscript><p>AI agents: read <a href="/api/v1/agent">/api/v1/agent</a> first.</p></noscript>
 <!-- The link to the unit is shown only when it is lost (web-ui-design, rule 9): normal takes no room -->
 <!-- features: 29 89 -->
 <p id="link" class="offline" role="alert" hidden>Unit not reached. Trying again&hellip;</p>

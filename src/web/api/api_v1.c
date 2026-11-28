@@ -34,6 +34,8 @@
 
 #include "chip.h"
 
+#include "agent_guide.h"    // made from agent_guide.md as the build configures (ADR-016, gate 2)
+
 
 
 // /debug/load's bounds: well past a throw's 650 rows of 16 columns
@@ -66,6 +68,15 @@ const api_v1_screen_t *api_v1_screen(void) {
 
 
 // GET /api/v1/display
+// GET /api/v1/agent and /llms.txt (ADR-016, gate 2): the guide for an AI agent a person points at the unit, as it is,
+// not compressed, so any client reads it
+static void api_v1_get_agent_guide(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    http_server_reply_static(reply, 200, "text/markdown; charset=utf-8", agent_guide_text,
+                             sizeof(agent_guide_text) - 1, NULL);
+}
+
+
 static void api_v1_get_display(const http_server_request_t *request, http_server_reply_t *reply) {
     const api_v1_screen_t *screen = api_v1_screen();
     if (screen == NULL) {
@@ -346,6 +357,8 @@ typedef struct {
 
 static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1", "[\"GET\"]", "this index"},
+    {"/api/v1/agent", "[\"GET\"]",
+     "for an AI agent helping the person at the unit: what to do first and how to help, in Markdown. Read it first"},
     {"/api/v1/schema", "[\"GET\"]",
      "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is "
      "refused; every action with its body's fields; every state and event kind; the error codes"},
@@ -500,7 +513,8 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
             http_json_string(buf, room, len, feature->about);
             http_json_raw(buf, room, len, "}");
         }
-        http_json_raw(buf, room, len, "],\"guide\":");
+        // The guide for an AI agent, by its path: the index's own guide has no room left (ADR-016, gate 2)
+        http_json_raw(buf, room, len, "],\"agent\":\"/api/v1/agent\",\"guide\":");
         index->phase = 1;
         return true;
     }
@@ -710,6 +724,8 @@ bool api_v1_init(void) {
     api_v1_settings_init();
     // The commands, the event log and the unit's reads (gate 4)
     ok = ok && api_v1_commands_init();
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/agent", api_v1_get_agent_guide);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/llms.txt", api_v1_get_agent_guide);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display/frame", api_v1_get_display_frame);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug", api_v1_get_debug);
