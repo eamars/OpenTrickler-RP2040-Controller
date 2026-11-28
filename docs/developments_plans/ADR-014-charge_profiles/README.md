@@ -1,6 +1,6 @@
 # ADR-014: a charge profile beside the powder profile
 
-Status: **Decided** 2026-11-28, approved by the owner as written. First drafted 2026-11-15 to hold the owner's idea; written in full on 2026-11-28 from the issues and PRs, the code on main (391a90e) and the owner's four answers of that day. Nothing is built.
+Status: **Open** 2026-11-28: approved by the owner as written, its firmware built and proven on the Pico W the same day ([progress](progress.md)), then parked by the owner until the afternoon with the web's part and the close left ("Left", in progress). First drafted 2026-11-15 to hold the owner's idea; written in full on 2026-11-28 from the issues and PRs, the code on main (391a90e) and the owner's four answers of that day.
 
 ## What we want
 
@@ -21,6 +21,8 @@ Status: **Decided** 2026-11-28, approved by the owner as written. First drafted 
 - 2026-11-28: "I don't have the 128kbit board."
 - **2026-11-28, the approval:** "Approve as written". Read here as: the ADR as it stands, and each of the five items under "Settled at the approval" as recommended there; the word of item 4 is still the owner's to choose at the mock.
 - **2026-11-28, at the screen's mock:** the profile's name as the row itself; the word "Load"; the charge's line as today.
+- **2026-11-28, on the bench's Pico W reporting a 16 KB EEPROM:** "So yes this MIGHT be my home build, for which ran 128Kbit EEPROM. The production units on Pico 2W should be 256Kbit so we don't need to worry that much rightn ow, but in the future." Read here as: nothing more is built for the smaller chip in this ADR; what was found is written where a later ADR giving out a slot meets it (`eeprom.h`, AGENTS.md).
+- **2026-11-28, the park:** "Can you write down the progress and park the action for now? And perhaps leave for later implementation this afternoon."
 - 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append. 2026-11-28: an upgrade is from a release to a release; the floor is v1.21.
 
 ## Why here

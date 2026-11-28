@@ -2,6 +2,24 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, early afternoon: parked by the owner
+
+The owner: "Can you write down the progress and park the action for now? And perhaps leave for later implementation this afternoon." Nothing runs: the build's session is idle, the unit is left as below ("How the unit was left"), and the branch `adr014_charge_profiles` holds the work in this checkout, not pushed.
+
+**The EEPROM's size, answered by the owner:** "So yes this MIGHT be my home build, for which ran 128Kbit EEPROM. The production units on Pico 2W should be 256Kbit so we don't need to worry that much rightn ow, but in the future." So the bench's Pico W is very likely the board the README could not try, and nothing more is built for the smaller chip here. What it leaves behind, where a later ADR meets it: 15 KB kept empty for good and the slots left on such a chip (`eeprom.h`, AGENTS.md), and the unit's own `eeprom_kb`. The chip's marking is still not read; reading it would make "very likely" certain, and nothing waits on it.
+
+**Checked by the session that started the build's,** beside the build's own report: the whole diff read; `host_test.py` and `module_graph.py` run again, `VERDICT PASS` each; the unit read over the network (2.0.3-390 at `4043b28`, `eeprom_kb` 16, "Load 1" chosen, no target, the loads stored); the bench sessions' verdicts in `logs/rc` and the cup's ledger read; the three screens looked at against the mock. The bench's checks and the two firmware builds were not run a second time.
+
+### Left
+
+The ADR is Open until each is done; the park itself ends at the owner's word.
+
+1. **The web's part:** a mock on the stand-in for the owner to click through, then the Trickler page's picker and the Loads page, the page storing what it changes. Until then a target typed on the Trickler page is written live and not stored, and the stand-in has no `/api/v1/charge_profiles/save`, which the page's powder choice now posts. The stand-in's recording comes with it (`tests/web_test.py --record`).
+2. **The Pico 2 W:** its baseline's Charge page saved again, with the unit on the probe (`menu_tour` now judges that page).
+3. **A unit on v1.21 updated to this:** it rewrites the unit's settings, so it waits for the owner's word.
+4. **The choices the README did not settle** (below): each is as built until the owner says otherwise. None was objected to when reported.
+5. **The README and the manuals** where they show the Charge page; then the close (this file, the README, the index) and the PR.
+
 ## 2026-11-28, later: proven on the Pico W
 
 The owner opened the bench for one unit: "A pico w unit is connected, but no powder in the hopper for your disposal." The Pico W on the probe (opentrickler-4A82, unit 4A821948, 192.168.2.100, on 2.0.3-374 before), its scale reading 0.00, the hopper empty. Every run that turned a motor went through `rc_run.py`'s cup check: 0.00 gr before and after each. The Pico 2 W was not touched.
