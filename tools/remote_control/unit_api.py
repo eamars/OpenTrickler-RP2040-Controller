@@ -27,6 +27,7 @@ from typing import NamedTuple
 API = "/api/v1"
 TIMEOUT_S = 5.0
 WAIT_S_MAX = 30         # the event log's longest ?wait (api_v1.md)
+PIN = None              # the web's PIN, sent as the Cookie pin= with every request when set (ADR-016, gate 3)
 EVENT_BASE = {"seq", "at_ms", "source", "kind"}     # what every event carries, beside its kind's own
 COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -194,6 +195,8 @@ class Unit:
         if body is not None:
             data = json.dumps(body).encode()
         request = urllib.request.Request(f"http://{self.host}{full_path(path)}", data=data, method=method)
+        if PIN:
+            request.add_header("Cookie", f"pin={PIN}")
         if data is not None:
             request.add_header("Content-Type", content_type)
         try:

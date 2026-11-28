@@ -17,7 +17,46 @@ const SETTINGS_PARTS = [
     {key: "display", label: "Display", paths: ["/api/v1/settings/display"]},            // features: 59 N4
     {key: "wifi", label: "Wi-Fi", paths: ["/api/v1/settings/wifi"]},                    // features: 53
     {key: "update", label: "Updates", paths: ["/api/v1/settings/update"]},              // features: N3
+    {key: "pin", label: "PIN", paths: [], api: "/api/v1/pin"},                          // ADR-016, gate 3
 ];
+
+// The web's PIN (ADR-016, gate 3): set, changed or cleared, stored at once. This browser keeps the one it set
+async function drawPin(hooks) {
+    const index = await api("GET", "/api/v1");
+    const set = index.ok && index.data.pin === true;
+    const input = element("input", {type: "password", id: "f-pin", inputmode: "numeric", autocomplete: "new-password",
+                                    maxlength: 8});
+    const error = element("p", {class: "field-error", hidden: true});
+    const send = async (digits) => {
+        const reply = await api("POST", "/api/v1/pin", {pin: digits});
+        if (!reply.ok) {
+            error.textContent = refusalText(reply);
+            error.hidden = false;
+            return;
+        }
+        setPinCookie(digits);
+        hooks.reload();      // drawn again first: a page drawn clears the message line
+        say(digits ? "PIN set. This browser keeps it." : "PIN cleared.", "good");
+    };
+    const store = element("button", {class: "action go small", type: "button"}, set ? "Change PIN" : "Set PIN");
+    store.onclick = () => send(input.value.trim());
+    const clear = set ? element("button", {class: "ghost", type: "button"}, "Clear PIN") : null;
+    if (clear) {
+        clear.onclick = () => send("");
+    }
+    return element("div", {class: "form"},
+                   element("div", {class: "fields"},
+                           element("p", {class: "field-help"}, set
+                               ? "A PIN is set: every change from the web needs it. Reading needs none."
+                               : "No PIN: anyone on the network can change the unit."),
+                           element("div", {class: "field"},
+                                   element("label", {for: "f-pin"}, set ? "New PIN" : "PIN"), input,
+                                   element("p", {class: "field-help"}, "4 to 8 digits. It guards against mistakes "
+                                           + "and meddling; it is not security. Forgotten, it is cleared at the unit: "
+                                           + "Settings › Clear PIN."),
+                                   error),
+                           element("div", {class: "store-actions"}, clear, store)));
+}
 
 // Which of a part's resources is shown, by the switch at its top (the motors: Coarse or Fine), kept across a redraw
 const partShown = {};
@@ -513,6 +552,10 @@ async function drawSettingsPart(key, hooks) {
                          element("h2", {}, part.label));
     // The calibration read with the forms and shown with them, never filled in after them (what is under it would move)
     const calibration = key === "calibration" ? drawCalibration() : null;
+    if (key === "pin") {
+        pane.append(await drawPin(hooks));
+        return pane;
+    }
     const forms = [];
     let failed = false;
     for (const path of part.paths) {

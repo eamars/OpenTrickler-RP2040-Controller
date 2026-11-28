@@ -798,6 +798,66 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
 }
 
 
+// The web's PIN (ADR-016, gate 3): its digits as a number and their count
+static bool wireless_pin_parse(const char *digits, uint32_t *code, uint8_t *length) {
+    size_t count = strlen(digits);
+    if (count < WIRELESS_PIN_DIGITS_MIN || count > WIRELESS_PIN_DIGITS_MAX) {
+        return false;
+    }
+    uint32_t value = 0;
+    for (size_t i = 0; i < count; i++) {
+        if (digits[i] < '0' || digits[i] > '9') {
+            return false;
+        }
+        value = value * 10u + (uint32_t) (digits[i] - '0');
+    }
+    *code = value;
+    *length = (uint8_t) count;
+    return true;
+}
+
+
+bool wireless_pin_is_set(void) {
+    return wireless_config.eeprom_wireless_metadata.pin_length != 0;
+}
+
+
+bool wireless_pin_matches(const char *digits) {
+    uint32_t code;
+    uint8_t length;
+    const eeprom_wireless_metadata_t *stored = &wireless_config.eeprom_wireless_metadata;
+    return digits != NULL && wireless_pin_parse(digits, &code, &length) && length == stored->pin_length &&
+           code == stored->pin_code;
+}
+
+
+wireless_pin_outcome_t wireless_pin_set(const char *digits, activity_by_t by) {
+    uint32_t code = 0;
+    uint8_t length = 0;
+    if (digits[0] != '\0' && !wireless_pin_parse(digits, &code, &length)) {
+        return WIRELESS_PIN_NOT_DIGITS;
+    }
+    // Stored from what is stored of the record, so a Wi-Fi setting written and not stored stays not stored; with no
+    // record to read, the one in use
+    eeprom_wireless_metadata_t record;
+    if (!config_read_stored(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &record, sizeof(eeprom_wireless_metadata_t))) {
+        record = wireless_config.eeprom_wireless_metadata;
+    }
+    record.pin_code = code;
+    record.pin_length = length;
+    if (!save_config(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &record, sizeof(eeprom_wireless_metadata_t))) {
+        return WIRELESS_PIN_NOT_STORED;
+    }
+    wireless_config.eeprom_wireless_metadata.pin_code = code;
+    wireless_config.eeprom_wireless_metadata.pin_length = length;
+    event_t changed = {.source = EVENT_SOURCE_SETTING, .kind = EVENT_CHANGED, .by = (uint8_t) by,
+                       .text = "/api/v1/pin"};
+    events_add(&changed);
+    printf("Wi-Fi: the web's PIN %s\n", length ? "set" : "cleared");
+    return WIRELESS_PIN_STORED;
+}
+
+
 static void wireless_setup_end(void) {
     vTaskDelay(pdMS_TO_TICKS(WIRELESS_SETUP_END_MS));
     if (!chip_net_joined()) {

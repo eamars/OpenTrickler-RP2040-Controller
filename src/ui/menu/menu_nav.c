@@ -1527,6 +1527,24 @@ static const menu_page_t page_calibration_discard = {.kind = PAGE_DIALOG, .id = 
                                                      .row_count = ROW_COUNT(rows_calibration_discard),
                                                      .cancel_first = true};
 
+// The web's PIN cleared at the unit, for one forgotten (ADR-016, gate 3): the row only while one is set
+static void act_clear_pin(const menu_row_t *row) {
+    (void) row;
+    pop();
+    if (wireless_pin_set("", ACTIVITY_BY_BUTTON) != WIRELESS_PIN_STORED) {
+        push_message("Clear PIN", "The settings memory", "did not take it");
+    }
+}
+
+static const menu_row_t rows_clear_pin[] = {
+    {.label = "Clear the web's PIN?", .kind = ROW_INFO},
+    {.label = "The web is then open", .kind = ROW_INFO},
+    {.label = "Clear", .kind = ROW_ACTION, .act = act_clear_pin},
+};
+static const menu_page_t page_clear_pin = {.kind = PAGE_DIALOG, .id = "settings/clear_pin", .title = "Clear PIN",
+                                           .rows = rows_clear_pin, .row_count = ROW_COUNT(rows_clear_pin),
+                                           .cancel_first = true};
+
 static const menu_row_t rows_settings[] = {
     {.label = "Calibration", .kind = ROW_PAGE, .page = &page_calibration},
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
@@ -1536,6 +1554,7 @@ static const menu_row_t rows_settings[] = {
     {.label = "Motors", .kind = ROW_PAGE, .page = &page_motors},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
+    {.label = "Clear PIN", .kind = ROW_PAGE, .page = &page_clear_pin, .shown = wireless_pin_is_set},
     {.label = "Factory reset", .kind = ROW_PAGE, .page = &page_factory_reset},
 };
 static const menu_page_t page_settings = {.id = "settings", .title = "Settings", .rows = rows_settings,
@@ -1648,7 +1667,7 @@ static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_calibration_powder, &page_scale, &page_charge_settings,
     &page_display, &page_gate, &page_motors, &page_firmware,
     &page_factory_reset, &page_calibration_discard, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
-    &page_start_faults,
+    &page_start_faults, &page_clear_pin,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 

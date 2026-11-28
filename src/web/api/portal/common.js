@@ -8,7 +8,21 @@ const $ = (id) => document.getElementById(id);
 
 // One call to the unit; the link is shown lost when the unit does not answer (web-ui-design, rule 9)
 // limitMs: a read given up after that long, as one not answered (a unit gone without a word leaves it hanging)
-async function api(method, path, body, limitMs) {
+// A change refused for want of the unit's PIN (ADR-016, gate 3) asks for it once, keeps it, and is sent again
+async function api(method, path, body, limitMs, again = false) {
+    const reply = await apiOnce(method, path, body, limitMs);
+    const code = reply.data && reply.data.error ? reply.data.error.code : null;
+    if (reply.status === 401 && !again && (code === "pin_required" || code === "pin_wrong")) {
+        const digits = await askPin(code === "pin_wrong");
+        if (digits) {
+            setPinCookie(digits);
+            return api(method, path, body, limitMs, true);
+        }
+    }
+    return reply;
+}
+
+async function apiOnce(method, path, body, limitMs) {
     try {
         const binary = body instanceof Blob || body instanceof ArrayBuffer;
         const response = await fetch(path, {
@@ -65,6 +79,35 @@ function confirmAction(title, text, act, keep, loses = false) {
         dialog.onclose = () => resolve(dialog.returnValue === "act");
         dialog.showModal();
         $("confirm-keep").focus();
+    });
+}
+
+// The web's PIN (ADR-016, gate 3), kept by this browser as the cookie the unit reads, pin=<digits>, sent to the
+// unit's own pages alone (SameSite=Strict); "" forgets it
+function setPinCookie(digits) {
+    document.cookie = digits ? `pin=${digits}; path=/; SameSite=Strict; max-age=31536000`
+                             : "pin=; path=/; SameSite=Strict; max-age=0";
+}
+
+// Asked when a change is refused for want of it: the digits, or null when the person cancels. Enter in the field
+// enters it (the form's first button is Cancel, the safe one on the left)
+function askPin(wrong) {
+    return new Promise((resolve) => {
+        const dialog = $("pin");
+        const input = $("pin-input");
+        $("pin-text").textContent = wrong ? "That is not this unit's PIN. Try again."
+                                          : "This unit asks for its PIN before it takes a change.";
+        input.value = "";
+        input.onkeydown = (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                dialog.close("yes");
+            }
+        };
+        dialog.returnValue = "";
+        dialog.onclose = () => resolve(dialog.returnValue === "yes" && input.value.trim() ? input.value.trim() : null);
+        dialog.showModal();
+        input.focus();
     });
 }
 

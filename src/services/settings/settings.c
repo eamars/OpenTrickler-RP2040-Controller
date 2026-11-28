@@ -1282,6 +1282,7 @@ static const char *const settings_error_codes[] = {
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
     "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
     "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot", "not_now", "not_filling",
+    "pin_required", "pin_wrong", "pin_locked",
 };
 
 

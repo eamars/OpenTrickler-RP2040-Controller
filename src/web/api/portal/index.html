@@ -139,6 +139,20 @@
   </form>
 </dialog>
 
+<!-- The web's PIN, asked when a change is refused for want of it (ADR-016, gate 3) -->
+<dialog id="pin" class="sheet">
+  <form method="dialog">
+    <h3>Enter the unit's PIN</h3>
+    <p id="pin-text"></p>
+    <input id="pin-input" class="sheet-field" type="password" inputmode="numeric" autocomplete="off" maxlength="8"
+           aria-label="PIN">
+    <div class="sheet-actions">
+      <button class="ghost" value="no">Cancel</button>
+      <button class="action go" value="yes">Enter</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="confirm" class="sheet">
   <form method="dialog">
     <h3 id="confirm-title"></h3>

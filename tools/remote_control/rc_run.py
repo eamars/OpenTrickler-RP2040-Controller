@@ -189,6 +189,7 @@ API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usu
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
 TUNING_CHECK_THROW_S = 120.0    # a throw on the simulated scale, its zero to its verdict (tuning_check)
 TUNING_CHECK_STOP_AFTER_S = 4.0 # the last throw stopped this long after it began (tuning_check)
+PIN_CHECK_LOCK_S = 61.0         # the web PIN's lock after five wrong, and a second (pin_check)
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
 API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
 PULSES_MENU_WAIT_S = 4.0        # the menu's first screen, after a flash, before a motor is taken (pulses)
@@ -586,7 +587,10 @@ def http_get(host, path):
     Returns:
         The body, as bytes.
     """
-    with urllib.request.urlopen(f"http://{host}/{path}", timeout=HTTP_TIMEOUT_S) as response:
+    request = urllib.request.Request(f"http://{host}/{path}")
+    if unit_api.PIN:
+        request.add_header("Cookie", f"pin={unit_api.PIN}")
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as response:
         return response.read()
 
 
@@ -793,6 +797,8 @@ def http_call(host, method, path, body=None):
     """
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(f"http://{host}{path}", data=data, method=method)
+    if unit_api.PIN:
+        request.add_header("Cookie", f"pin={unit_api.PIN}")
     if data is not None:
         request.add_header("Content-Type", "application/json")
     try:
@@ -843,6 +849,8 @@ def http_put_bytes(host, path, data, timeout_s):
     """
     request = urllib.request.Request(f"http://{host}{path}", data=data, method="PUT")
     request.add_header("Content-Type", "application/octet-stream")
+    if unit_api.PIN:
+        request.add_header("Cookie", f"pin={unit_api.PIN}")
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as reply:
             status, text = reply.status, reply.read()
@@ -2165,6 +2173,8 @@ class Session:
                 self.fail("api_check: the revert did not put back the charge profile's target, not set")
         expect("PATCH", "purge", {"speed_rps": 1}, 409, "not_running")
         expect("POST", "system/factory_reset", {}, 400, "confirm_missing")
+        # The web's PIN (ADR-016, gate 3): refused, as not 4 to 8 digits, so none is set; pin_check sets one
+        expect("POST", "pin", {"pin": "12"}, 400, "out_of_range")
         # The gate, where the build carries it (ADR-008, gate 2: the index's features); without it, its paths are gone
         carries = {feature["name"]: feature["present"] for feature in index.get("features", [])}
         if carries.get("servo_gate", True):
@@ -2601,6 +2611,118 @@ class Session:
             self.fail("tuning_check: after the restart, not a new boot with no throw kept, answered at once")
         if unit.read("settings") != export_before:
             self.fail("tuning_check: the settings differ after the restart")
+
+    def pin_check(self, host, pin):
+        """
+        The web's PIN (ADR-016, gate 3), on a unit that has none. Set over the API; then every read free and every
+        kind of write refused without it (a POST, a PATCH, an upload's PUT, the PIN's own action), each refused
+        before its route, changing nothing; a write with it done; four wrong and one right go through, five wrong in
+        a row refuse every write for a minute (429 with Retry-After), the right one too, and after it the right one
+        goes; the settings' copy the same with the PIN set, no PIN in it. Last, the PIN cleared at the screen,
+        Settings › Clear PIN pressed through the console, and the row gone with it.
+
+        Args:
+            host: the unit's address.
+            pin: the PIN set for the check.
+        """
+        def call(method, path, body=None, cookie=None, data=None):
+            request = urllib.request.Request(f"http://{host}{path}", method=method,
+                                             data=data if data is not None else
+                                             (None if body is None else json.dumps(body).encode()))
+            request.add_header("Content-Type", "application/octet-stream" if data is not None else "application/json")
+            if cookie is not None:
+                request.add_header("Cookie", f"pin={cookie}")
+            try:
+                with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+                    return reply.status, json.loads(reply.read() or b"null"), reply.headers.get("Retry-After")
+            except urllib.error.HTTPError as error:
+                text = error.read()
+                return error.code, (json.loads(text) if text else None), error.headers.get("Retry-After")
+
+        def expect(what, got, status, code=None):
+            got_status, reply, _ = got
+            got_code = (reply or {}).get("error", {}).get("code") if isinstance(reply, dict) else None
+            self.log.write("rc", f"pin_check: {what}: {got_status} {got_code or ''}")
+            if got_status != status or (code is not None and got_code != code):
+                self.fail(f"pin_check: {what}: {got_status} {got_code}, not {status} {code or ''}")
+
+        unit = unit_api.Unit(host)
+        if unit.index.get("pin") is not False:
+            self.fail(f"pin_check: the index's pin is {unit.index.get('pin')}, not false: the unit has a PIN already")
+            return
+        export_before = unit.read("settings")
+        charge = unit.read("settings/charge")
+        try:
+            expect("the PIN set, none before", call("POST", "/api/v1/pin", {"pin": pin}), 200)
+            unit.forget()
+            if unit.index.get("pin") is not True:
+                self.fail("pin_check: the index's pin is not true with a PIN set")
+            # Reads are free
+            for path in ("/api/v1", "/api/v1/charge", "/api/v1/settings", "/api/v1/charge/throws", "/api/v1/agent"):
+                status, _, _ = call("GET", path)
+                if status != 200:
+                    self.fail(f"pin_check: GET {path} without the PIN: {status}")
+            # Every kind of write refused without it, before its route: nothing changes
+            same = {"fine_stop_threshold": charge["fine_stop_threshold"]}
+            expect("POST stop, no PIN", call("POST", "/api/v1/stop", {}), 401, "pin_required")
+            expect("PATCH settings/charge, no PIN", call("PATCH", "/api/v1/settings/charge", same), 401, "pin_required")
+            expect("POST agent/hello, no PIN", call("POST", "/api/v1/agent/hello", {"name": "pin_check"}), 401,
+                   "pin_required")
+            expect("PUT debug/upload, no PIN", call("PUT", "/api/v1/debug/upload", data=b"x" * 64), 401,
+                   "pin_required")
+            expect("POST pin, no PIN", call("POST", "/api/v1/pin", {"pin": ""}), 401, "pin_required")
+            if unit.index.get("pin") is not True:
+                self.fail("pin_check: the PIN changed by a write without it")
+            expect("PATCH settings/charge, the PIN", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
+            # Four wrong and one right: the count starts again
+            wrong = pin[::-1] if pin[::-1] != pin else ("1" + pin)[:len(pin)]
+            for n in range(1, 5):
+                expect(f"PATCH, wrong PIN {n}", call("PATCH", "/api/v1/settings/charge", same, wrong), 401, "pin_wrong")
+            expect("PATCH, the PIN after four wrong", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
+            # Five wrong in a row: every write refused for a minute, the right one too
+            for n in range(1, 6):
+                expect(f"PATCH, wrong PIN {n} of five", call("PATCH", "/api/v1/settings/charge", same, wrong), 401,
+                       "pin_wrong")
+            locked = call("PATCH", "/api/v1/settings/charge", same, pin)
+            expect("PATCH, the PIN while locked", locked, 429, "pin_locked")
+            self.log.write("rc", f"pin_check: Retry-After {locked[2]}")
+            if locked[2] is None or not 55 <= int(locked[2]) <= 60:
+                self.fail(f"pin_check: Retry-After {locked[2]}, not about 60")
+            status, _, _ = call("GET", "/api/v1/charge")
+            if status != 200:
+                self.fail(f"pin_check: a read while locked: {status}")
+            time.sleep(PIN_CHECK_LOCK_S)
+            expect("PATCH, the PIN after the minute", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
+            # No PIN in the settings' copy: the same as before it was set
+            export_now = unit.read("settings")
+            if export_now != export_before or pin in json.dumps(export_now):
+                self.fail("pin_check: the settings' copy differs with the PIN set, or holds it")
+            # Cleared at the screen: Settings > Clear PIN, its dialog's Clear
+            self.send("screen settings")
+            rows = [row["label"] for row in self.screen_now()["rows"]]
+            if "Clear PIN" not in rows:
+                self.fail(f"pin_check: Settings shows no Clear PIN with a PIN set: {rows}")
+            self.send("screen settings/clear_pin")
+            self.send("press cw 1")
+            self.send("press enc 1")
+            time.sleep(0.5)
+            unit.forget()
+            if unit.index.get("pin") is not False:
+                self.fail("pin_check: the PIN not cleared by the screen's Clear")
+            self.send("screen settings")
+            rows = [row["label"] for row in self.screen_now()["rows"]]
+            if "Clear PIN" in rows:
+                self.fail(f"pin_check: Settings still shows Clear PIN with none set: {rows}")
+            self.send("screen main")
+            expect("PATCH settings/charge, no PIN, none set", call("PATCH", "/api/v1/settings/charge", same), 200)
+        finally:
+            # Whatever failed, the unit is left with no PIN
+            unit.forget()
+            if unit.index.get("pin") is not False:
+                time.sleep(PIN_CHECK_LOCK_S)
+                call("POST", "/api/v1/pin", {"pin": ""}, pin)
+        if unit.read("settings") != export_before:
+            self.fail("pin_check: the settings differ from those found")
 
     def stream_check(self, host):
         """
@@ -4309,6 +4431,8 @@ def main():
     parser = argparse.ArgumentParser(description="Drive a unit through a debug probe (ADR-001).")
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
+    parser.add_argument("--pin", help="the unit's web PIN, sent with every request over the network (ADR-016, "
+                                       "gate 3); the bench's units have none")
     parser.add_argument("--most-pour", type=float, help="the most this run may pour, in grains (default: the run's own)")
     parser.add_argument("--cup-emptied", metavar="WORDS",
                         help="the owner's words that the cup was emptied, quoted: the cup's count starts again from the "
@@ -4373,6 +4497,10 @@ def main():
                                                         "between them, a held read, a restart (ADR-016, gate 1)")
     tuning_parser.add_argument("--host", required=True, help="the unit's address")
     tuning_parser.add_argument("--target", type=float, default=10.0)
+    pin_parser = sub.add_parser("pin_check", help="the web's PIN: writes refused without it, the lockout, the "
+                                                  "screen's Clear PIN (ADR-016, gate 3)")
+    pin_parser.add_argument("--host", required=True, help="the unit's address")
+    pin_parser.add_argument("--set", default="4821", help="the PIN set for the check")
     api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
                                                   "schema; every action called (ADR-003, gate 4); ends with a restart")
     api_parser.add_argument("--host", required=True, help="the unit's address")
@@ -4421,6 +4549,7 @@ def main():
     fault_parser.add_argument("--want", help="words that must come in the charge's events, in order, comma-separated")
     fault_parser.add_argument("--want-none", action="store_true", help="no pause and no end may come")
     args = parser.parse_args()
+    unit_api.PIN = args.pin
 
     session = Session(args, args.command)
     try:
@@ -4601,6 +4730,8 @@ def run_command(session, args):
         session.api_check(args.host, args.target)
     elif args.command == "settings_roundtrip":
         session.settings_roundtrip(args.host, args.target)
+    elif args.command == "pin_check":
+        session.pin_check(args.host, args.set)
     elif args.command == "tuning_check":
         session.tuning_check(args.host, args.target)
     elif args.command == "soak":

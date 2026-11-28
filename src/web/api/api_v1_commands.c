@@ -1838,6 +1838,93 @@ static void api_v1_agent_hello(const http_server_request_t *request, http_server
 }
 
 
+// --- The web's PIN (ADR-016, gate 3): a lock against mistakes and meddling, not security
+
+#define API_V1_PIN_WRONG_MOST 5             // wrong in a row, and every write is refused for a while
+#define API_V1_PIN_LOCKED_MS 60000
+
+static uint8_t api_v1_pin_wrong = 0;
+static bool api_v1_pin_locked = false;
+static uint32_t api_v1_pin_locked_at_ms = 0;
+
+
+// The server's guard: with a PIN set, every write needs it, by the Cookie pin=; five wrong in a row lock every write
+// for a minute. A write with no PIN is refused, and not counted as wrong
+static int api_v1_pin_guard(const char *pin, const char **code, const char **message, uint32_t *retry_after_s) {
+    if (!wireless_pin_is_set()) {
+        return 0;
+    }
+    uint32_t now_ms = (uint32_t) (chip_time_us() / 1000u);
+    if (api_v1_pin_locked) {
+        uint32_t past_ms = now_ms - api_v1_pin_locked_at_ms;
+        if (past_ms < API_V1_PIN_LOCKED_MS) {
+            *code = "pin_locked";
+            *message = "five wrong PINs in a row: every write is refused for a minute";
+            *retry_after_s = (API_V1_PIN_LOCKED_MS - past_ms + 999u) / 1000u;
+            return 429;
+        }
+        api_v1_pin_locked = false;
+    }
+    if (pin[0] == '\0') {
+        *code = "pin_required";
+        *message = "this unit has a PIN: send it with the write, as the Cookie pin=<digits>";
+        return 401;
+    }
+    if (!wireless_pin_matches(pin)) {
+        api_v1_pin_wrong += 1;
+        if (api_v1_pin_wrong >= API_V1_PIN_WRONG_MOST) {
+            api_v1_pin_wrong = 0;
+            api_v1_pin_locked = true;
+            api_v1_pin_locked_at_ms = now_ms;
+            printf("API: five wrong PINs in a row; every write refused for a minute\n");
+        }
+        *code = "pin_wrong";
+        *message = "not this unit's PIN";
+        return 401;
+    }
+    api_v1_pin_wrong = 0;
+    return 0;
+}
+
+
+// POST /api/v1/pin: {"pin": "1234"} sets the web's PIN, 4 to 8 digits; "" clears it. Stored at once. With one set,
+// this write too needs it, as every write does
+static void api_v1_set_pin(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"pin"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
+        return;
+    }
+    const http_json_member_t *member = api_member(members, count, "pin");
+    char digits[WIRELESS_PIN_DIGITS_MAX + 2];
+    if (member == NULL) {
+        api_error(reply, 400, "bad_request", "pin", "give the PIN: 4 to 8 digits, or \"\" for none", NULL);
+        return;
+    }
+    if (!http_json_string_value(member, digits, sizeof(digits))) {
+        api_error(reply, 400, "wrong_type", "pin", "the PIN is a string of 4 to 8 digits, or \"\" for none", NULL);
+        return;
+    }
+    wireless_pin_outcome_t outcome = wireless_pin_set(digits, ACTIVITY_BY_API);
+    if (outcome == WIRELESS_PIN_NOT_DIGITS) {
+        api_error(reply, 400, "out_of_range", "pin", "a PIN is 4 to 8 digits, or \"\" for none", NULL);
+        return;
+    }
+    if (outcome == WIRELESS_PIN_NOT_STORED) {
+        api_error(reply, 500, "failed", "pin", "the settings memory did not take it: the PIN is as it was", NULL);
+        return;
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"pin\":");
+    http_json_bool(out, room, &len, wireless_pin_is_set());
+    http_json_raw(out, room, &len, "}");
+    api_send(reply, 200, room, len);
+}
+
+
 static void api_v1_system_restart(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!api_empty(request, reply)) {
         return;
@@ -2193,6 +2280,12 @@ _Static_assert(CHARGE_PROFILE_COUNT == 8, "the schema below gives the charge pro
     "Written into the chosen charge profile\"}]"
 
 static const char *const api_v1_schema_actions[] = {
+    "{\"method\":\"POST\",\"path\":\"/api/v1/pin\",\"fields\":[{\"name\":\"pin\",\"type\":\"string\","
+    "\"required\":true,\"about\":\"4 to 8 digits; \\\"\\\" for none\"}],\"refused_while\":\"never\",\"about\":\"sets "
+    "the web's PIN, stored at once (ADR-016): with one set (the index's pin), every write needs it, sent as the "
+    "Cookie pin=<digits>: 401 pin_required without it, 401 pin_wrong, five wrong in a row 429 pin_locked for a "
+    "minute. Every read is free. A lock against mistakes and meddling, not security: a forgotten PIN is cleared at "
+    "the unit (Settings, Clear PIN) or by a factory reset\",\"example\":{\"pin\":\"1234\"}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/agent/hello\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"min_length\":1,\"max_length\":16,\"about\":\"who you are, printable ASCII; without it, Claude-chan\"}],\"refused_while\":\"a_charge_runs\",\"kind\":\"agent\",\"about\":\"an agent says hello: the screen shows Claude-chan rising at its bottom right, a bubble over her saying '<name> is watching ya!', for 2 s. 409 busy while a charge runs: its screen is never covered. It changes nothing else; send it only when no person reads the screen for a test\",\"example\":{\"name\":\"Claude\"}}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/charge\"," API_V1_SCHEMA_CHARGE_FIELDS ",\"refused_while\":\"in_throw\","
     "\"about\":\"what the next throw uses, any of the fields: the charge profile chosen, and the chosen one's "
@@ -2583,6 +2676,9 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/factory_reset", api_v1_system_factory_reset);
     // The owner's hello for agents: listed since ADR-008's gate 2, an action of the kind agent
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
+    // The web's PIN (ADR-016, gate 3): its action, and the guard every write passes
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/pin", api_v1_set_pin);
+    http_server_set_write_guard(api_v1_pin_guard);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/wifi/networks", api_v1_get_networks);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/scan", api_v1_wifi_scan);

@@ -14,6 +14,7 @@ standard library and the client are used.
 import argparse
 import base64
 import copy
+import http.cookies
 import json
 import sys
 import threading
@@ -160,6 +161,9 @@ class StandIn:
         # The load chosen lies in the eight's block, beside them: stored and put back with them
         self.chosen = replies["/api/v1/charge"]["charge_profile"]
         self.stored_chosen = self.chosen
+        # The web's PIN (ADR-016, gate 3): none, as a unit's at first; every write needs it once one is set
+        self.pin = ""
+        replies["/api/v1"]["pin"] = False
         self.follow_load()
 
     def follow_load(self):
@@ -555,7 +559,7 @@ class StandIn:
                 self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
                                powder_profile=charge["powder_profile"], charge_profile=self.chosen)
 
-    def write(self, method, path, body):
+    def write(self, method, path, body, pin=""):
         """
         A PATCH or a POST, checked against the schema as the unit checks it.
 
@@ -563,10 +567,24 @@ class StandIn:
             method: "PATCH" or "POST".
             path: the path.
             body: the JSON body.
+            pin: the Cookie's pin=, "" with none.
 
         Returns:
             (status, reply).
         """
+        # The web's PIN (ADR-016, gate 3): with one set, every write needs it (no lockout here)
+        if self.pin and not pin:
+            return 401, error("pin_required", "this unit has a PIN: send it with the write, as the Cookie pin=<digits>")
+        if self.pin and pin != self.pin:
+            return 401, error("pin_wrong", "not this unit's PIN")
+        if method == "POST" and path == "/api/v1/pin":
+            digits = body.get("pin")
+            if not isinstance(digits, str) or (digits and not (digits.isdigit() and 4 <= len(digits) <= 8)):
+                return 400, error("out_of_range", "a PIN is 4 to 8 digits, or \"\" for none")
+            self.pin = digits
+            self.replies["/api/v1"]["pin"] = bool(digits)
+            self.add_event("setting", "changed", by="api", path="/api/v1/pin")
+            return 200, {"pin": bool(digits)}
         if path.startswith(CALIBRATION):
             return self.calibration.write(method, path, body)
         if method == "POST" and path in SETUP_PATHS:
@@ -855,7 +873,9 @@ def make_handler(stand_in):
                 self.send(400, error("bad_json", "the body is not JSON"))
                 return
             with stand_in.lock:
-                status, reply = stand_in.write(method, urllib.parse.urlsplit(self.path).path, body)
+                cookie = http.cookies.SimpleCookie(self.headers.get("Cookie", ""))
+                pin = cookie["pin"].value if "pin" in cookie else ""
+                status, reply = stand_in.write(method, urllib.parse.urlsplit(self.path).path, body, pin)
             self.send(status, reply)
 
         def do_PATCH(self):

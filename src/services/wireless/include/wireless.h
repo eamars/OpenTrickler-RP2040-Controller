@@ -28,6 +28,11 @@ typedef struct {
     // Wi-Fi resets; a record from before reads it as it was stored there, 0. Not a setting: only POST /api/v1/setup/done
     // sets it, and a factory reset clears it
     bool setup_done;
+    // The web's PIN (ADR-016, gate 3): appended past the 108 bytes the release stored, as a number and its count of
+    // digits, as a PIN may begin with 0; 0 digits, none. Set by POST /api/v1/pin and stored at once; in no reply, no
+    // export and no settings resource
+    uint32_t pin_code;
+    uint8_t pin_length;
 } eeprom_wireless_metadata_t;
 
 
@@ -139,6 +144,23 @@ bool wireless_set_up(void);
 // The set-up done, by whom: remembered and stored. Joined, the hotspot stops a moment later; hotspot_stays says
 // whether it stays (not joined: the unit's only network). NULL when done, else why not
 const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays);
+
+/*
+ * The web's PIN (ADR-016, gate 3): a lock against mistakes and meddling, not security. Kept in the Wi-Fi record,
+ * stored at once from what is stored of it, so a Wi-Fi change not yet stored is not stored with it.
+ * wireless_pin_set(): 4 to 8 digits, or "" for none; logged as a change of /api/v1/pin, by who set it.
+ * wireless_pin_matches(): the digits given are the PIN set.
+ */
+#define WIRELESS_PIN_DIGITS_MIN 4
+#define WIRELESS_PIN_DIGITS_MAX 8
+typedef enum {
+    WIRELESS_PIN_STORED,
+    WIRELESS_PIN_NOT_DIGITS,        // not 4 to 8 digits, nor ""
+    WIRELESS_PIN_NOT_STORED,        // the settings memory did not take it: the PIN is as it was
+} wireless_pin_outcome_t;
+bool wireless_pin_is_set(void);
+bool wireless_pin_matches(const char *digits);
+wireless_pin_outcome_t wireless_pin_set(const char *digits, activity_by_t by);
 
 #ifdef __cplusplus
 }

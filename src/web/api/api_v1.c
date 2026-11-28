@@ -393,6 +393,8 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/calibration/pour", "[\"POST\"]", "while the cup is filled: the coarse tube turned at least these turns from now"},
     {"/api/v1/calibration/save", "[\"POST\"]", "keeps and stores the records the calibration found"},
     {"/api/v1/calibration/stop", "[\"POST\"]", "stops the calibration, discarding what it found; never fails"},
+    {"/api/v1/pin", "[\"POST\"]",
+     "sets the web's PIN, or clears it: with one set (pin, above), every write needs it as the Cookie pin=<digits>"},
     {"/api/v1/agent/hello", "[\"POST\"]",
      "for agents: say hello, and the screen shows who is watching for 2 s; never over a charge"},
     {"/api/v1/events", "[\"GET\"]",
@@ -514,7 +516,10 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
             http_json_raw(buf, room, len, "}");
         }
         // The guide for an AI agent, by its path: the index's own guide has no room left (ADR-016, gate 2)
-        http_json_raw(buf, room, len, "],\"agent\":\"/api/v1/agent\",\"guide\":");
+        http_json_raw(buf, room, len, "],\"agent\":\"/api/v1/agent\",\"pin\":");
+        // Whether the web's PIN is set (ADR-016, gate 3): every write then needs it; never the PIN
+        http_json_bool(buf, room, len, wireless_pin_is_set());
+        http_json_raw(buf, room, len, ",\"guide\":");
         index->phase = 1;
         return true;
     }
