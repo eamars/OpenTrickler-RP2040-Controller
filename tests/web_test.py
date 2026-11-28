@@ -87,6 +87,10 @@ SETUP_STEPS = ["code", "wifi", "scale", "motors", "ready", "done"]
 JOINED_ADDRESS = "192.168.1.57"
 SETUP_PATHS = {"/api/v1/wifi/scan", "/api/v1/wifi/join", "/api/v1/setup/done"}
 SETUP = "/api/v1/setup"             # the set-up's step, kept by the unit (gate 4's design: proposed here)
+LOADS = "/api/v1/charge_profiles"   # the charge profiles (ADR-014): the charge throws the chosen one's target and powder
+# A write refused while the thing it writes is in use, in the unit's words (profile.c, charge_profiles_settings.c)
+IN_USE = {"/api/v1/powder_profiles/{id}": "the profile in use is refused while a throw is under way",
+          LOADS + "/{id}": "the charge profile in use is refused while a throw is under way"}
 
 
 def record(host):
@@ -153,6 +157,58 @@ class StandIn:
                                            self.powder_of, self.store_powder_speeds)
         replies["/api/v1"]["resources"].append(
             {"path": CALIBRATION, "methods": ["GET"], "about": "the calibration (ADR-009 step 1): the mock's alone"})
+        # The load chosen lies in the eight's block, beside them: stored and put back with them
+        self.chosen = replies["/api/v1/charge"]["charge_profile"]
+        self.stored_chosen = self.chosen
+        self.follow_load()
+
+    def follow_load(self):
+        """The charge's target and powder are the chosen load's (ADR-014): its fields as the unit gives them."""
+        load = self.replies[f"{LOADS}/{self.chosen}"]
+        powder = self.replies.get(f"/api/v1/powder_profiles/{load['powder_profile']}")
+        self.replies["/api/v1/charge"].update(charge_profile=self.chosen, charge_profile_name=load["name"],
+                                              target=load["target"], powder_profile=load["powder_profile"],
+                                              powder_profile_name=powder["name"] if powder else None)
+
+    def loads(self):
+        """GET /api/v1/charge_profiles: each load's id and name, and whether the eight and the choice are stored."""
+        paths = [f"{LOADS}/{index}" for index in range(8)]
+        saved = self.chosen == self.stored_chosen and all(self.replies[path]["saved"] for path in paths)
+        return {"saved": saved, "profiles": [{"id": index, "name": self.replies[path]["name"]}
+                                             for index, path in enumerate(paths)]}
+
+    def write_load(self, values):
+        """A target or a powder written into the chosen load through the charge, live, as a write of its own."""
+        self.write_resource(f"{LOADS}/{self.chosen}", values)
+
+    def write_resource(self, path, values):
+        """A settings resource written, live: its event when it changed, and whether it is still as stored."""
+        before = dict(self.replies[path])
+        self.replies[path].update(values)
+        if self.replies[path] != before:
+            self.add_event("setting", "changed", by="api", path=path)
+        # Not stored is the resource's own (proposed, ADR-008, gate 2): this powder or this motor against what the
+        # EEPROM holds of it, not the whole slot's record. A value written back as stored is stored again
+        live, held = (dict(r, saved=None) for r in (self.replies[path], self.stored[path]))
+        self.replies[path]["saved"] = live == held
+
+    def in_use(self, path):
+        """Whether a powder or a load is the one the charge uses."""
+        charge = self.replies["/api/v1/charge"]
+        index = int(path.rsplit("/", 1)[1])
+        return index == (self.chosen if path.startswith(LOADS) else charge["powder_profile"])
+
+    def refused_now(self, resource, path):
+        """A write refused while a throw or a job runs, as the schema's refused_while says: the unit's words, or None."""
+        in_throw = self.replies["/api/v1/charge"]["in_throw"]
+        rule = resource.get("refused_while", "never")
+        if rule == "in_throw" and in_throw:
+            return f"{resource['path']} is refused while a throw is under way"
+        if rule == "a_job_runs" and self.replies["/api/v1/system"]["activity"] != "none":
+            return f"{resource['path']} is refused while a job runs"
+        if rule == "in_throw_when_in_use" and in_throw and self.in_use(path):
+            return IN_USE.get(resource["path"], "in use while a throw is under way")
+        return None
 
     def powder_of(self, index):
         """A powder's name (without the scale's unit after the comma) and its two least speeds; None for none."""
@@ -289,6 +345,8 @@ class StandIn:
             return 200, self.setup_reply()
         if path.startswith(CALIBRATION):
             return self.calibration.get(path)
+        if path == LOADS:
+            return 200, self.loads()
         if path not in self.replies:
             return 404, error("not_found", "no such path on this build")
         reply = self.replies[path]
@@ -485,9 +543,17 @@ class StandIn:
             self.held += 1
             if self.held >= HOLD_READS // 2:
                 self.held = 0
+                # Each throw takes the chosen load's target and powder as it begins: one chosen between throws with
+                # none set ends the charge on a fault, as the unit does ("No target")
+                self.follow_load()
+                if charge["target"] is None:
+                    charge.update(state="fault", in_throw=False)
+                    self.replies["/api/v1/system"]["activity"] = "none"
+                    self.add_event("charge", "stopped", by="unit", reason="fault")
+                    return
                 charge.update(state="charging", in_throw=True, throw=charge["throw"] + 1, weight=0.0)
                 self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
-                               powder_profile=charge["powder_profile"])
+                               powder_profile=charge["powder_profile"], charge_profile=self.chosen)
 
     def write(self, method, path, body):
         """
@@ -523,6 +589,10 @@ class StandIn:
                         news.append(save)
                     self.replies[inner]["saved"] = True
                     self.stored[inner] = copy.deepcopy(self.replies[inner])
+            if LOADS + "/{id}" in saved:
+                if self.chosen != self.stored_chosen and LOADS + "/save" not in news:
+                    news.append(LOADS + "/save")
+                self.stored_chosen = self.chosen
             for save in news:
                 self.add_event("setting", "stored", by="api", path=save)
             return 200, {"saved": True}
@@ -536,6 +606,9 @@ class StandIn:
                     self.replies[inner].update(copy.deepcopy(self.stored[inner]))
                     if changed:
                         self.add_event("setting", "changed", by="api", path=inner)
+            if LOADS + "/{id}" in reverted:
+                self.chosen = self.stored_chosen
+            self.follow_load()
             return 200, {"reverted": True}
         resource = self.resource(path) if method == "PATCH" else None
         action = self.action(method, path)
@@ -547,14 +620,11 @@ class StandIn:
             code, _, message = problems[0].partition(": ")
             return 400, error(code, message)
         if resource is not None:
-            before = dict(self.replies[path])
-            self.replies[path].update(body)
-            if self.replies[path] != before:
-                self.add_event("setting", "changed", by="api", path=path)
-            # Not stored is the resource's own (proposed, ADR-008, gate 2): this powder or this motor against what the
-            # EEPROM holds of it, not the whole slot's record. A value written back as stored is stored again
-            live, held = (dict(r, saved=None) for r in (self.replies[path], self.stored[path]))
-            self.replies[path]["saved"] = live == held
+            why = self.refused_now(resource, path)
+            if why is not None:
+                return 409, error("busy", why)
+            self.write_resource(path, body)
+            self.follow_load()
             return 200, self.replies[path]
         return self.act(path, body)
 
@@ -565,20 +635,35 @@ class StandIn:
         system = self.replies["/api/v1/system"]
         busy = system["activity"] != "none"
         if path == "/api/v1/charge":
-            charge.update(body)
+            # A load given is chosen; a target or a powder is written into the chosen one, live (ADR-014)
+            if charge["in_throw"]:
+                return 409, error("busy", "the charge's profile, target and powder profile are refused while a throw "
+                                          "is under way")
+            self.chosen = body.get("charge_profile", self.chosen)
+            values = {name: body[name] for name in ("target", "powder_profile") if name in body}
+            if values:
+                self.write_load(values)
+            self.follow_load()
             return 200, charge
         if path == "/api/v1/charge/start":
             if busy:
-                return 409, error("busy", "another job runs")
-            charge.update(body)
-            if charge["target"] is None:
-                return 400, error("no_target", "no target is set: give one")
+                return 409, error("busy", "another job runs, a start is asked already, or a person has a screen open "
+                                          "at the unit")
+            # Refused, it changes nothing: the load it would throw must have a target, or be given one
+            load = self.replies[f"{LOADS}/{body.get('charge_profile', self.chosen)}"]
+            if body.get("target", load["target"]) is None:
+                return 400, error("no_target", "the charge profile has no target set: give one")
+            self.chosen = body.get("charge_profile", self.chosen)
+            values = {name: body[name] for name in ("target", "powder_profile") if name in body}
+            if values:
+                self.write_load(values)
+            self.follow_load()
             charge.update(state="charging", in_throw=True, throw=1, weight=0.0)
             system["activity"] = "charge"
             self.add_event("charge", "started", by="api", target=charge["target"],
-                           powder_profile=charge["powder_profile"])
+                           powder_profile=charge["powder_profile"], charge_profile=self.chosen)
             self.add_event("throw", "started", throw=1, target=charge["target"],
-                           powder_profile=charge["powder_profile"])
+                           powder_profile=charge["powder_profile"], charge_profile=self.chosen)
             return 202, charge
         if path in ("/api/v1/charge/stop", "/api/v1/purge/stop", "/api/v1/stop"):
             stopped = system["activity"] != "none"

@@ -32,12 +32,12 @@ static const setting_field_t charge_profile_fields[] = {
               "of weight, if wanted, goes in the name",
      .type = SETTING_STRING, CHARGE_PROFILE_FIELD(name), .length_min = 1, .applies = "now"},
     {.name = "target", .label = "Target",
-     .about = "The weight thrown, in the scale's unit: what the screen's digits can show, 0.01 to 999.99 at two "
-              "decimal places, 0.001 to 99.999 at three (settings/charge decimal_places); null, not set",
+     .about = "The weight thrown, in the scale's unit: one the screen's digits show at the charge's decimal places, "
+              "to 999.99 at two and to 99.999 at three; null, not set",
      .type = SETTING_NUMBER, CHARGE_PROFILE_FIELD(target), .unit = "weight", .min = 0.001f, .max = 999.99f,
      .nullable = true, .null_held = 0.0f, .applies = "the next throw"},
     {.name = "powder_profile", .label = "Powder",
-     .about = "The powder it is thrown with: a powder profile's id (GET /api/v1/powder_profiles)",
+     .about = "The powder it is thrown with, by its powder profile's id",
      .type = SETTING_INTEGER, CHARGE_PROFILE_FIELD(powder_profile), .min = 0.0f, .max = MAX_PROFILE_CNT - 1,
      .applies = "the next throw"},
 };

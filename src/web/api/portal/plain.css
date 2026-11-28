@@ -28,7 +28,7 @@
     --top: 12px;                /* above the Trickler: no top row (the owner: a waste of space) */
     --bar: 64px;                /* the navigation bar, under 600 px */
     --gap: 10px;
-    --trickler-floor: 500px;    /* the Trickler's least: below it the page scrolls (.trickler) */
+    --trickler-floor: 482px;    /* the Trickler's least: below it the page scrolls (.trickler) */
     color-scheme: light dark;
 }
 /* features: 13 */
@@ -71,8 +71,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* The Trickler: exactly the height left, never scrolled. The height the browser shows (dvh): Chrome on an iPhone gave
    svh some 170 px short of it, and the readout was squeezed to nothing under the job's key. A floor where it cannot
-   fit (the figure and its bar need some 72 px beside the rest's 422): there the page scrolls, never overlaps, and the
-   margin under it keeps the job's key clear of the navigation */
+   fit (the figure and its bar need some 72 px beside the rest's 410, the load's three rows at their least): there the
+   page scrolls, never overlaps, and the margin under it keeps the job's key clear of the navigation */
 .trickler {
     height: calc(100svh - var(--bar) - env(safe-area-inset-bottom));
     height: max(calc(100dvh - var(--bar) - env(safe-area-inset-bottom)), var(--trickler-floor));
@@ -99,7 +99,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* The charge: what to throw */
 .setup { grid-area: setup; padding: 12px; display: grid; gap: 8px; }
-.setup .field { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 10px; }
+/* Three rows, the load and its powder and target (ADR-014): the card groups them, so no rule or padding between */
+.setup .field { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 10px;
+                padding: 0; border-top: 0; }
 .setup .field > span { color: var(--soft); font-weight: 650; }
 .setup select {
     appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; min-height: var(--job-key);
@@ -201,7 +203,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* Navigation: a bar at the bottom on a phone, a rail at the left from 600 px */
 .nav { position: fixed; inset: auto 0 0 0; height: calc(var(--bar) + env(safe-area-inset-bottom));
-       display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px 8px env(safe-area-inset-bottom);
+       display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px 8px env(safe-area-inset-bottom);
        background: var(--card); border-top: 1px solid var(--rule); z-index: 2; }
 .nav a { display: grid; justify-items: center; align-content: center; gap: 2px; border-radius: 12px; color: var(--soft);
          text-decoration: none; font-size: 0.8125rem; font-weight: 650; }
@@ -225,6 +227,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 /* A short phone (an iPhone SE with its bars shown is about 550 px): the job's keys a little lower, the figure first */
 @media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .setup, .scale { padding: 10px; } .bar { margin: 4px 0 0; } .readout-text { gap: 0; } }
+/* There the card's three rows at the least a control may be, so the figure keeps its room: they are set before a
+   charge, never worked during one (rule 2) */
+@media (max-height: 640px) { .setup { --job-key: 48px; gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* The pages that are read and set, not worked at a job: they scroll (rule 14) */
@@ -242,6 +247,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .list .row:first-child { border-top: 0; }
 .list .row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list .row.on { background: var(--well); }
+/* A load's row (ADR-014): its name, and under it what it throws, its target and its powder */
+.list .row.two-line { padding-top: 8px; padding-bottom: 8px; }
+.row-text { display: grid; }
+.row-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-sub { color: var(--soft); font-size: 0.875rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .chevron { color: var(--soft); font-size: 1.5rem; line-height: 1; }
 .tag { flex: none; font-size: 0.8125rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--well);
        border: 1px solid var(--rule); color: var(--soft); }

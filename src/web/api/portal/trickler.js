@@ -3,8 +3,10 @@
 const PURGE_RESEND_MS = 2000;   // a purge's speed lasts 5 s on the unit: a page that goes leaves no motor turning
 const PURGE_STEP = 0.5;
 const PURGE_MAX = 5;
+const TARGET_SETTLE_MS = 800;   // the target stored this long after the last press of its keys
 
 let charge = null;
+let targetTimer = null;         // a target stepped, waiting to be stored
 let purge = null;
 let decimals = 2;
 let purgeSpeed = 0;
@@ -29,13 +31,18 @@ function renderCharge() {
     $("ring").style.strokeDashoffset = String(1000 * (1 - share));
     $("ring").style.visibility = share > 0 ? "visible" : "hidden";  // a round end at nought is drawn as a dot
     $("bar").style.width = `${share * 100}%`;
-    if (document.activeElement !== $("target") && charge.target !== null) {
-        $("target").value = Number(charge.target).toFixed(decimals);
+    // The chosen load's target, or none: a target being typed or stepped is never taken away
+    if (document.activeElement !== $("target") && targetTimer === null) {
+        $("target").value = charge.target === null ? "" : Number(charge.target).toFixed(decimals);
     }
     if (document.activeElement !== $("powder")) {
         $("powder").value = String(charge.powder_profile);
     }
+    if (document.activeElement !== $("load")) {
+        $("load").value = String(charge.charge_profile);
+    }
     // What to throw is locked while it is thrown: the field and its keys alike
+    $("load").disabled = running;
     $("powder").disabled = running;
     $("target").disabled = running;
     document.querySelectorAll("[data-step]").forEach((key) => key.disabled = running);
@@ -158,10 +165,14 @@ async function startCharge() {
         say("Give a target first.");
         return;
     }
+    // The target as shown is the load's, stored, before the cup is asked: the charge throws the load as it is kept
+    if (!await storeTarget()) {
+        return;
+    }
     if (!await askCup()) {
         return;
     }
-    const reply = await api("POST", "/api/v1/charge/start", {target, powder_profile: Number($("powder").value)});
+    const reply = await api("POST", "/api/v1/charge/start", {charge_profile: Number($("load").value)});
     reply.ok ? say("") : refusal(reply, "Not started");
     poll();
 }
@@ -172,20 +183,49 @@ async function stopCharge() {
     poll();
 }
 
-async function choosePowder() {
-    let reply = await api("PATCH", "/api/v1/charge", {powder_profile: Number($("powder").value)});
+// The load, its powder and its target, each written into the chosen load and stored at once (ADR-014), as the screen
+// stores them at its confirm: the page leaves nothing changed and not stored. False when refused, said
+async function writeCharge(values, refused) {
+    let reply = await api("PATCH", "/api/v1/charge", values);
     if (reply.ok) {
-        // The powder is the chosen charge profile's (ADR-014): stored with the charge profiles
         reply = await api("POST", "/api/v1/charge_profiles/save", {});
     }
-    reply.ok ? say("") : refusal(reply, "Powder not changed");
+    reply.ok ? say("") : refusal(reply, refused);
+    return reply.ok;
+}
+
+async function chooseLoad() {
+    await writeCharge({charge_profile: Number($("load").value)}, "Load not changed");
     poll();
+}
+
+async function choosePowder() {
+    await writeCharge({powder_profile: Number($("powder").value)}, "Powder not changed");
+    poll();
+}
+
+// The target: stored when it is typed and left, or a moment after the last of its keys (targetTimer), so a run of
+// presses is one store and not one each
+async function storeTarget() {
+    clearTimeout(targetTimer);
+    targetTimer = null;
+    const target = Number($("target").value);
+    const kept = charge !== null && charge.target !== null && Number(charge.target).toFixed(decimals) === target.toFixed(decimals);
+    if (!(target > 0) || kept) {
+        renderCharge();     // nothing to store: an emptied field shows the load's target again
+        return target > 0;
+    }
+    const stored = await writeCharge({target}, "Target not changed");
+    poll();
+    return stored;
 }
 
 function stepTarget(direction) {
     const step = Math.pow(10, -decimals) * 10;
     const value = Math.max(Number($("target").value || 0) + direction * step, step);
     $("target").value = value.toFixed(decimals);
+    clearTimeout(targetTimer);
+    targetTimer = setTimeout(storeTarget, TARGET_SETTLE_MS);
 }
 
 async function sendPurgeSpeed() {
@@ -239,7 +279,9 @@ PAGES.trickler = {
             tricklerWired = true;
             $("start").onclick = startCharge;
             $("stop").onclick = stopCharge;
+            $("load").onchange = chooseLoad;
             $("powder").onchange = choosePowder;
+            $("target").onchange = storeTarget;
             $("zero").onclick = zero;
             $("purge-start").onclick = startPurge;
             $("purge-stop").onclick = stopPurge;
@@ -248,20 +290,27 @@ PAGES.trickler = {
             document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => stepTarget(Number(b.dataset.step)));
             document.querySelectorAll("[data-speed]").forEach((b) => b.onclick = () => stepPurge(Number(b.dataset.speed)));
         }
-        // The powders' names and the charge's decimals again at each visit: either may have changed elsewhere
-        const [powders, settings] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
-                                                       api("GET", "/api/v1/settings/charge")]);
+        // The loads' and the powders' names and the charge's decimals again at each visit: each may have changed elsewhere
+        const [loads, powders, settings] = await Promise.all([api("GET", "/api/v1/charge_profiles"),
+                                                              api("GET", "/api/v1/powder_profiles"),
+                                                              api("GET", "/api/v1/settings/charge")]);
         if (settings.ok && settings.data.decimal_places) {
             decimals = settings.data.decimal_places;
         }
-        if (powders.ok) {
-            const chosen = $("powder").value;
-            $("powder").replaceChildren(...powders.data.profiles.map((p) => new Option(p.name, p.id)));
-            $("powder").value = chosen;
+        for (const [list, select] of [[loads, $("load")], [powders, $("powder")]]) {
+            if (list.ok) {
+                const chosen = select.value;
+                select.replaceChildren(...list.data.profiles.map((p) => new Option(p.name, p.id)));
+                select.value = chosen;
+            }
         }
         startPolling();
     },
     leave() {
+        // A target stepped and not yet stored is stored as the page goes
+        if (targetTimer !== null) {
+            storeTarget();
+        }
         stopPolling();
     },
 };

@@ -31,7 +31,10 @@
        weight against the target); what to do. The mood on the view colours the ring, the bar and the status -->
   <!-- features: 16 17 18 19 20 21 22 23 24 25 26 34 -->
   <section id="panel" class="view" data-mood="normal">
+    <!-- What to throw is the chosen load (ADR-014): its powder and its target are its own, and a change is stored -->
+    <!-- features: N10 -->
     <div class="group setup">
+      <label class="field"><span>Load</span><select id="load"></select></label>
       <label class="field"><span>Powder</span><select id="powder"></select></label>
       <div class="field"><span>Target</span>
         <div class="stepper">
@@ -90,6 +93,7 @@
 </main>
 
 <!-- The other pages, drawn by their scripts from what the unit says of itself; they scroll, a job's page does not -->
+<main id="page-loads" class="page split-page" hidden></main>
 <main id="page-powders" class="page split-page" hidden></main>
 <main id="page-settings" class="page split-page" hidden></main>
 <main id="page-unit" class="page" hidden></main>
@@ -100,6 +104,7 @@
 <!-- features: 8 -->
 <nav class="nav">
   <a href="#trickler" data-page="trickler"><svg viewBox="0 0 24 24"><path d="M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z"/></svg>Trickler</a>
+  <a href="#loads" data-page="loads"><svg viewBox="0 0 24 24"><path d="M7 21h10M8 21V11h8v10M9 11c0-3.6 1.2-6.2 3-7.8c1.8 1.6 3 4.2 3 7.8M8 15h8"/></svg>Loads</a>
   <a href="#powders" data-page="powders"><svg viewBox="0 0 24 24"><path d="M8 3h8v3H8zM6 6h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM6 12h12"/></svg>Powders</a>
   <a href="#settings" data-page="settings"><svg viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
   <a href="#unit" data-page="unit"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Unit</a>

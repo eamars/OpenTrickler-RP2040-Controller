@@ -8,15 +8,15 @@ const POWDER_COLUMNS = [
     ["fine_kp", "Kp"], ["fine_ki", "Ki"], ["fine_kd", "Kd"],
 ];
 
-// The powders, each read whole where it could be; `failed` when any read failed
-async function readPowders() {
-    const list = await api("GET", "/api/v1/powder_profiles");
+// The powders, or the loads (loads.js), each read whole where it could be; `failed` when any read failed
+async function readProfiles(path) {
+    const list = await api("GET", path);
     if (!list.ok) {
         return Object.assign([], {failed: true});
     }
-    const replies = await Promise.all(list.data.profiles.map((p) => api("GET", `/api/v1/powder_profiles/${p.id}`)));
-    const powders = list.data.profiles.map((p, i) => Object.assign({id: p.id}, replies[i].ok ? replies[i].data : {name: p.name}));
-    return Object.assign(powders, {failed: replies.some((reply) => !reply.ok)});
+    const replies = await Promise.all(list.data.profiles.map((p) => api("GET", `${path}/${p.id}`)));
+    const profiles = list.data.profiles.map((p, i) => Object.assign({id: p.id}, replies[i].ok ? replies[i].data : {name: p.name}));
+    return Object.assign(profiles, {failed: replies.some((reply) => !reply.ok)});
 }
 
 // features: 62
@@ -105,7 +105,7 @@ PAGES.powders = {
     async enter(rest) {
         const page = $("page-powders");
         const drawing = ++this.drawing;     // the latest read alone is shown: one that ends after a newer is dropped
-        const [powders, charge] = await Promise.all([readPowders(), api("GET", "/api/v1/charge")]);
+        const [powders, charge] = await Promise.all([readProfiles("/api/v1/powder_profiles"), api("GET", "/api/v1/charge")]);
         if (drawing !== this.drawing) {
             return;
         }

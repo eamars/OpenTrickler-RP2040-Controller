@@ -7,7 +7,7 @@ window.addEventListener("hashchange", () => {
 });
 // A list and its part side by side, or one at a time: drawn again when the window crosses the width
 SPLIT.addEventListener("change", () => {
-    if (pageShown === "settings" || pageShown === "powders") {
+    if (pageShown === "settings" || pageShown === "powders" || pageShown === "loads") {
         route();
     }
 });

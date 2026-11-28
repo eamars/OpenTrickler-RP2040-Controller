@@ -188,6 +188,8 @@ Handed on to this ADR, and placed here so they are not taken for today's feature
 - **N7. The set-up beyond the Wi-Fi:** a list of networks, the join told without a restart, the scale and its live weight, the drivers found, a first charge offered (README, "Proposed, not settled"). Set-up.
 - **N8. A setting changed elsewhere** shown on an open page with no reload (README, "Every client echoes the unit"). Every page.
 - **N9. Only what the unit carries** shown, by its report (ADR-005, gate 2). Every page.
+- **N10. The load thrown,** chosen on the Trickler above its powder and target, each the chosen load's own and stored when changed (ADR-014; `PATCH /api/v1/charge`, `POST /api/v1/charge_profiles/save`). Charge.
+- **N11. The loads,** a page of the eight: each one's name, target and powder, its powder chosen by name, the one in use marked (ADR-014; `/api/v1/charge_profiles/{id}`). Loads.
 
 ## Counts
 
