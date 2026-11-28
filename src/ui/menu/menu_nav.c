@@ -2790,10 +2790,12 @@ bool menu_nav_goto(const char *id) {
     if (wanted == NULL || menu_nav_in_job()) {
         return false;
     }
-    // A page no row opens sits over the page it is opened from: a start's acknowledgement, a result's discard
+    // A page no row opens sits over the page it is opened from: a start's acknowledgement, a result's discard, the
+    // Wi-Fi's options (its notes' button)
     const menu_page_t *under = wanted == &page_ack_charge ? &page_charge :
                                wanted == &page_ack_cleanup ? &page_main :
-                               wanted == &page_calibration_discard ? &page_calibration : NULL;
+                               wanted == &page_calibration_discard ? &page_calibration :
+                               wanted == &page_wifi_options ? &page_wifi : NULL;
     const menu_page_t *path[MENU_FRAMES_MAX];
     int depth = 0;
     // No way to it, or no room for it: the menu stays where it is, never left with no page
