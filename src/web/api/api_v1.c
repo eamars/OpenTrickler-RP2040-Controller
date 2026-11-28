@@ -365,6 +365,9 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/charge/start", "[\"POST\"]",
      "starts a charge: {}, or the charge profile to choose, the target and the powder profile to set first"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
+    {"/api/v1/charge/throws", "[\"GET\"]",
+     "each throw's record after a number (?after=N), the newest 32 since the start, held until one is recorded with "
+     "?wait=s: what it was thrown on and what it did (the schema's throw)"},
     {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
      "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
     {"/api/v1/purge/start", "[\"POST\"]", "starts a purge, at speed 0"},

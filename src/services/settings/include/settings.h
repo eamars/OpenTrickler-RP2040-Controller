@@ -151,11 +151,11 @@ typedef struct {
 } settings_export_t;
 void settings_export_begin(settings_export_t *export_context, const char *unit_id);
 bool settings_export_more(void *export_context, char *buf, size_t room, size_t *len);
-// The API's own share of the schema, an item at a time: part 0 the commands' actions, 1 the states, 2 the events;
-// each a JSON text, NULL past a part's last
+// The API's own share of the schema, an item at a time: part 0 the commands' actions, 1 the states, 2 the events,
+// 3 the throw record's fields; each a JSON text, NULL past a part's last
 typedef const char *(*settings_schema_extra_fn)(unsigned part, size_t idx);
 typedef struct {
-    uint8_t phase;                  // 0 its head, 1 the resources, 2 the saves, 3 to 5 the API's parts, 6 the errors
+    uint8_t phase;                  // 0 its head, 1 the resources, 2 the saves, 3 to 6 the API's parts, 7 the errors
     uint8_t resource;
     uint8_t field;                  // 0: the resource's head next
     settings_schema_extra_fn extra;

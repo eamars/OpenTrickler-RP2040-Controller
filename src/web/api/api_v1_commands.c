@@ -21,6 +21,7 @@
 #include "calibration.h"
 #include "charge_mode.h"
 #include "charge_profiles.h"
+#include "charge_throws.h"
 #include "cleanup_mode.h"
 #include "eeprom.h"
 #include "unit_id.h"
@@ -950,6 +951,119 @@ static void api_v1_get_events(const http_server_request_t *request, http_server_
         }
     }
     api_v1_events_reply(reply, after);
+}
+
+// --- The throws (ADR-016, gate 1): each throw's record, read as the event log is
+
+typedef struct {
+    uint16_t after;     // asked after this number
+    uint16_t cursor;    // the next to write
+    uint16_t last;      // the newest when the reply began
+    uint8_t phase;      // 0 the head, 1 the records, 2 the end
+    bool wrote_one;     // a record is out: the next takes a comma
+} api_v1_throws_t;
+
+
+static bool api_v1_throws_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_throws_t *throws = ctx;
+    *len = 0;
+    if (throws->phase == 0) {
+        uint16_t first = charge_throws_first();
+        http_json_raw(buf, room, len, "{\"boot\":");
+        http_json_unsigned(buf, room, len, api_v1_boot_id());
+        http_json_raw(buf, room, len, ",\"now_ms\":");
+        write_u64(buf, room, len, chip_time_us() / 1000u);
+        http_json_raw(buf, room, len, ",\"first\":");
+        http_json_integer(buf, room, len, (long) first);
+        http_json_raw(buf, room, len, ",\"newest\":");
+        http_json_integer(buf, room, len, (long) throws->last);
+        http_json_raw(buf, room, len, ",\"throws\":[");
+        throws->cursor = throws->after + 1 > first ? (uint16_t) (throws->after + 1) : first;
+        throws->phase = 1;
+        return true;
+    }
+    if (throws->phase == 1) {
+        while (throws->cursor >= 1 && throws->cursor <= throws->last) {
+            charge_throw_t record;
+            if (!charge_throws_get(throws->cursor, &record)) {
+                throws->cursor += 1;    // gone while the reply was made: the client sees the gap
+                continue;
+            }
+            size_t mark = *len;
+            if (throws->wrote_one) {
+                http_json_raw(buf, room, len, ",");
+            }
+            charge_throws_write_json(&record, buf, room, len);
+            if (!http_json_fits(room, *len)) {
+                *len = mark;    // the next chunk begins with it
+                buf[mark] = '\0';
+                return true;
+            }
+            throws->wrote_one = true;
+            throws->cursor += 1;
+        }
+        throws->phase = 2;
+        return true;
+    }
+    http_json_raw(buf, room, len, "]}");
+    return false;
+}
+
+
+static void api_v1_throws_reply(http_server_reply_t *reply, uint16_t after) {
+    api_v1_throws_t *throws = http_server_reply_context(reply, sizeof(api_v1_throws_t));
+    memset(throws, 0, sizeof(*throws));
+    throws->after = after;
+    throws->last = charge_throws_newest();
+    http_server_reply_stream(reply, 200, "application/json", api_v1_throws_more, throws);
+}
+
+
+static bool api_v1_throws_ready(void *ctx) {
+    return charge_throws_newest() != *(uint16_t *) ctx;
+}
+
+
+static void api_v1_throws_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+    char value[16];
+    uint16_t after = 0;
+    if (http_server_query_value(request->query, "after", value, sizeof(value))) {
+        after = (uint16_t) strtoul(value, NULL, 10);
+    }
+    api_v1_throws_reply(reply, after);
+}
+
+
+// GET /api/v1/charge/throws?after=N[&wait=s]: the throws' records after N; with wait, held until one is recorded
+static void api_v1_get_throws(const http_server_request_t *request, http_server_reply_t *reply) {
+    char value[16];
+    uint16_t after = 0;
+    if (http_server_query_value(request->query, "after", value, sizeof(value))) {
+        char *end;
+        unsigned long parsed = strtoul(value, &end, 10);
+        if (end == value || *end != '\0' || parsed > UINT16_MAX) {
+            api_error(reply, 400, "wrong_type", "after", "after is a throw's number", NULL);
+            return;
+        }
+        after = (uint16_t) parsed;
+    }
+    if (http_server_query_value(request->query, "wait", value, sizeof(value))) {
+        long wait_s = strtol(value, NULL, 10);
+        if (wait_s < 1 || wait_s > API_V1_EVENTS_WAIT_S_MAX) {
+            api_error(reply, 400, "out_of_range", "wait", "wait is 1 to 30 s", "\"min\":1,\"max\":30");
+            return;
+        }
+        // Held only when the client is up to date; after a number past the newest (read before a restart) answered
+        // at once, as the event log is
+        if (charge_throws_newest() == after) {
+            uint16_t *held_newest = http_server_reply_context(reply, sizeof(uint16_t));
+            *held_newest = after;
+            http_server_reply_park(reply, api_v1_throws_ready, held_newest, (uint32_t) wait_s * 1000,
+                                   api_v1_throws_resume);
+            return;
+        }
+    }
+    api_v1_throws_reply(reply, after);
 }
 
 // --- The event stream (ADR-008, gate 2): the event log as it happens, as server-sent events
@@ -2380,6 +2494,32 @@ static const char *const api_v1_schema_events[] = {
 };
 
 
+// A throw's record, GET /api/v1/charge/throws (ADR-016, gate 1): each field. Weights in the scale's unit; a figure
+// the throw did not reach is null
+static const char *const api_v1_schema_throw[] = {
+    "{\"name\":\"throw\",\"about\":\"its number, as the throw's events carry it: from 1 at each start\"}",
+    "{\"name\":\"at_ms\",\"about\":\"when its verdict was read, or it ended: the unit's clock, as now_ms\"}",
+    "{\"name\":\"simulated\",\"about\":\"thrown with the simulated scale: never tune on it\"}",
+    "{\"name\":\"charge_profile\"},{\"name\":\"powder_profile\"},{\"name\":\"target\"}",
+    "{\"name\":\"result\",\"about\":\"good, under, over; none when it ended short\"}",
+    "{\"name\":\"reason\",\"about\":\"finished, or why it ended short: as the throw's ended event\"}",
+    "{\"name\":\"weight\",\"about\":\"the verdict's; ended short, the reading at its end\"}",
+    "{\"name\":\"elapsed_s\",\"about\":\"the whole pour, from its start after the zero\"}",
+    "{\"name\":\"coarse_s\",\"about\":\"from the pour's start to the coarse tube's stop\"}",
+    "{\"name\":\"fine_s\",\"about\":\"the fine tube's part: from the coarse tube's stop to the fine stop\"}",
+    "{\"name\":\"coarse_stop\",\"about\":\"at the coarse tube's stop: weight, the reading; rps, its speed just "
+    "before\"}",
+    "{\"name\":\"fine_stop\",\"about\":\"at the fine stop: weight, the reading; rps, the fine tube's speed just "
+    "before\"}",
+    "{\"name\":\"fall\",\"about\":\"weight less fine_stop's reading: what landed after the fine stop\"}",
+    "{\"name\":\"pauses\",\"about\":\"for want of readings\"}",
+    "{\"name\":\"gains\",\"about\":\"coarse and fine kp, ki, kd it was thrown on; by: profile, or auto_tune (the "
+    "auto-tuner's trial, in no settings resource)\"}",
+    "{\"name\":\"coarse_threshold\"},{\"name\":\"fine_threshold\"},{\"name\":\"forecast\"},{\"name\":\"auto_tune\"},"
+    "{\"name\":\"backoff\",\"about\":\"the charge's settings it was thrown on\"}",
+};
+
+
 // A part's items, then the gate's where one is handed over
 static const char *api_v1_schema_item_of(const char *const *items, size_t count, const char *const *gate_items,
                                          size_t gate_count, size_t idx) {
@@ -2399,6 +2539,8 @@ const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx) {
         case API_V1_SCHEMA_STATES:
             return api_v1_schema_item_of(api_v1_schema_states, ARRAY_COUNT(api_v1_schema_states),
                                          api_v1_schema_gate_states, ARRAY_COUNT(api_v1_schema_gate_states), idx);
+        case API_V1_SCHEMA_THROW:
+            return idx < ARRAY_COUNT(api_v1_schema_throw) ? api_v1_schema_throw[idx] : NULL;
         case API_V1_SCHEMA_EVENTS:
         default:
             return idx < sizeof(api_v1_schema_events) / sizeof(api_v1_schema_events[0]) ?
@@ -2413,6 +2555,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/charge", api_v1_patch_charge);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/start", api_v1_charge_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/stop", api_v1_charge_stop);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/charge/throws", api_v1_get_throws);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/purge", api_v1_get_purge);
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/purge", api_v1_patch_purge);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/start", api_v1_purge_start);

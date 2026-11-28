@@ -24,6 +24,7 @@ typedef enum {
     API_V1_SCHEMA_ACTIONS,
     API_V1_SCHEMA_STATES,
     API_V1_SCHEMA_EVENTS,
+    API_V1_SCHEMA_THROW,
 } api_v1_schema_part_t;
 const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx);
 

@@ -24,6 +24,7 @@
 #include "settings.h"
 #include "charge_controller.h"
 #include "charge_tuner.h"
+#include "charge_throws.h"
 #include "chip.h"
 
 
@@ -104,7 +105,16 @@ static bool charge_mode_stop_asked(void) {
 }
 
 
-// A throw that is under way ends, short of its verdict: its event and its outcome (gate 4)
+// The open record's whole time, while its pour's timer runs (ADR-016, gate 1)
+static void charge_mode_record_elapsed(void) {
+    charge_throw_t * record = charge_throws_current();
+    if (record != NULL && charge_timer_running) {
+        record->elapsed_s = (float) ((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+    }
+}
+
+
+// A throw that is under way ends, short of its verdict: its event and its outcome (gate 4), and its record closed
 static void charge_mode_throw_ended(event_reason_t reason, uint8_t motor, const char * fault) {
     if (!activity_in_throw()) {
         // Between throws no throw ends, but a fault ends the charge: `last.reason` says why, `last.result` stays the
@@ -119,6 +129,8 @@ static void charge_mode_throw_ended(event_reason_t reason, uint8_t motor, const 
     charge_last_result = EVENT_RESULT_NONE;
     charge_last_reason = reason;
     charge_last_weight = scale_get_current_measurement();
+    charge_mode_record_elapsed();
+    charge_throws_close((uint8_t) EVENT_RESULT_NONE, (uint8_t) reason, charge_last_weight);
     event_t ended = {.source = EVENT_SOURCE_THROW, .kind = EVENT_ENDED, .reason = (uint8_t) reason,
                      .throw_number = charge_throw_number, .number = motor, .text = fault};
     events_add(&ended);
@@ -564,6 +576,7 @@ static void charge_mode_scale_fault(const char * reason, event_reason_t throw_re
     // A throw that was running is over: its timer stops, as at a normal end, and the screen shows the time it ran.
     // Outside a throw the screen keeps the time of the last one
     if (charge_timer_running) {
+        charge_mode_record_elapsed();
         last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
         charge_timer_running = false;
     }
@@ -625,7 +638,29 @@ void charge_mode_wait_for_complete() {
     // ADR-009 step 2: the throw on the controller, given its config from the profile, the charge settings and step 1's
     // records, a tick each millisecond and each reading as it comes; it sets both tubes' speeds
     charge_controller_t * controller = &step2->controller;
-    charge_step2_configure(profile_get_selected());
+    profile_t * profile = profile_get_selected();
+    charge_step2_configure(profile);
+    // The record: what the throw is thrown on (ADR-016, gate 1)
+    charge_throw_t * record = charge_throws_current();
+    if (record != NULL) {
+        const charge_config_t * config = &controller->config;
+        const eeprom_charge_mode_data_t * data = &charge_mode_config.eeprom_charge_mode_data;
+        record->configured = 1;
+        record->coarse_kp = config->coarse.kp;
+        record->coarse_ki = config->coarse.ki;
+        record->coarse_kd = config->coarse.kd;
+        record->fine_kp = config->fine.kp;
+        record->fine_ki = config->fine.ki;
+        record->fine_kd = config->fine.kd;
+        record->by_tuner = data->auto_tune && (config->fine.kp != profile->fine_kp ||
+                                               config->fine.kd != profile->fine_kd ||
+                                               config->coarse.kp != profile->coarse_kp);
+        record->coarse_threshold = config->coarse_threshold;
+        record->fine_threshold = config->fine_threshold;
+        record->forecast = config->forecast;
+        record->auto_tune = data->auto_tune;
+        record->backoff = config->backoff_enable;
+    }
     // The throw's room, for the forecast and for the tuner (the weight a turn it learns): borrowed at the first throw
     // that uses it and kept until the charge ends; with both switches off none is borrowed
     bool room_used = charge_mode_config.eeprom_charge_mode_data.forecast ||
@@ -667,6 +702,7 @@ void charge_mode_wait_for_complete() {
     TickType_t coarse_stop_tick = 0;
     double coarse_set = 0.0;
     double fine_set = 0.0;
+    float last_reading = NAN;   // for the record's stops
     TickType_t wake = xTaskGetTickCount();
     while (true) {
         vTaskDelayUntil(&wake, pdMS_TO_TICKS(1));
@@ -688,6 +724,7 @@ void charge_mode_wait_for_complete() {
         float current_weight;
         if (scale_take_new_measurement(&current_weight)) {
             last_reading_tick = xTaskGetTickCount();
+            last_reading = current_weight;
             began_us = (uint32_t) chip_time_us();
             charge_controller_reading(controller, (double) chip_time_us() / 1000.0, current_weight);
             charge_cost_add((uint32_t) chip_time_us() - began_us, &charge_reading_most_us, &charge_reading_sum_us,
@@ -697,6 +734,9 @@ void charge_mode_wait_for_complete() {
         }
         else if ((xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS >= stale_ms) {
             pause_count += 1;
+            if (record != NULL) {
+                record->pauses = pause_count;
+            }
             charge_pause_result_t pause = charge_mode_pause(pause_count, lost_ms, &last_reading_tick, &current_weight);
             if (pause == CHARGE_PAUSE_EXIT) {
                 charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
@@ -715,12 +755,15 @@ void charge_mode_wait_for_complete() {
             double now_ms = (double) chip_time_us() / 1000.0;
             charge_controller_resume(controller, now_ms);
             charge_controller_reading(controller, now_ms, current_weight);
+            last_reading = current_weight;
             coarse_set = 0.0;
             fine_set = 0.0;
             wake = xTaskGetTickCount();
         }
 
-        // The speeds asked, set as they change
+        // The speeds asked, set as they change; those before, for the record's stops
+        double coarse_was = coarse_set;
+        double fine_was = fine_set;
         if (controller->coarse_rps != coarse_set) {
             coarse_set = controller->coarse_rps;
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, (float) coarse_set);
@@ -736,8 +779,20 @@ void charge_mode_wait_for_complete() {
             if (gate_enabled()) {
                 gate_set_ratio(charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio, false);
             }
+            if (record != NULL) {
+                record->coarse_s = (float) ((coarse_stop_tick - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+                record->coarse_stop_weight = last_reading;
+                record->coarse_stop_rps = (float) coarse_was;
+            }
         }
         if (controller->done) {
+            if (record != NULL) {
+                record->fine_stop_weight = last_reading;
+                record->fine_stop_rps = (float) fine_was;
+                if (!coarse_moved) {
+                    record->fine_s = (float) ((xTaskGetTickCount() - coarse_stop_tick) * portTICK_PERIOD_MS) / 1000.0f;
+                }
+            }
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
             break;
@@ -758,6 +813,9 @@ void charge_mode_wait_for_complete() {
     // The fine tube's part, from the coarse tube's stop: what the tuner times, as it does not grow with the charge
     // (the PR's review, T1); 0 for a throw that ended before the coarse tube stopped
     charge_fine_part_seconds = coarse_moved ? 0.0f : (float) ((now - coarse_stop_tick) * portTICK_PERIOD_MS) / 1000.0f;
+    if (record != NULL) {
+        record->elapsed_s = last_charge_elapsed_seconds;
+    }
     charge_timer_running = false;
 
     // Close the gate if the servo gate is present
@@ -862,6 +920,8 @@ void charge_mode_wait_for_cup_removal() {
     charge_last_result = result;
     charge_last_reason = EVENT_REASON_FINISHED;
     charge_last_weight = current_measurement;
+    // The record first, so a client the event wakes reads the throw it names (ADR-016, gate 1)
+    charge_throws_close((uint8_t) result, (uint8_t) EVENT_REASON_FINISHED, current_measurement);
     event_t finished = {.source = EVENT_SOURCE_THROW, .kind = EVENT_FINISHED, .throw_number = charge_throw_number,
                         .result = (uint8_t) result, .value = current_measurement,
                         .value2 = last_charge_elapsed_seconds};
@@ -1011,6 +1071,11 @@ uint8_t charge_mode_menu(void) {
         printf("Charge: no room for the controller, %u bytes\n", (unsigned) sizeof(charge_step2_t));
         charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
     }
+    // The throws' record (ADR-016, gate 1), as the controller: taken at the first charge and kept
+    else if (!charge_throws_ready()) {
+        printf("Charge: no room for the throws' record\n");
+        charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
+    }
 
     bool quit = false;
     while (quit == false) {
@@ -1037,6 +1102,9 @@ uint8_t charge_mode_menu(void) {
                 }
                 charge_throw_number += 1;
                 charge_paused = false;
+                charge_throws_open(charge_throw_number, throw_charge_profile, throw_powder_profile,
+                                   charge_mode_config.target_charge_weight,
+                                   scale_simulation_is_on() || scale_get_running_driver() == SCALE_DRIVER_SIMULATED);
                 event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
                                          .throw_number = charge_throw_number,
                                          .number = throw_powder_profile, .result = throw_charge_profile,

@@ -29,4 +29,17 @@ What that session recorded, not checked again since:
 
 ## Gate 1: the throw record
 
-Not begun.
+**Built 2026-11-28, not yet run on a unit.** No line of the auto-tuner, its twin, or how the charge drives it was changed.
+
+What was built:
+- `src/services/charge/charge_throws.c`: the newest 32 records and the one open, 2,912 bytes (88 a record) taken from the FreeRTOS heap at the first charge and kept, as the controller is; none to have, the charge ends at once, "No memory". The charge's task alone writes; a reader copies a whole record under a critical section. Static RAM: one pointer.
+- `charge_mode.c` fills it: opened as a throw begins (its number, load, powder, target, whether the scale is simulated: the console's or the stored driver); its gains, thresholds and switches as the pour is configured, `by` the auto-tuner's trial when the gains thrown differ from the profile's with the tuner on; at the coarse tube's stop its time, the reading and the speed asked just before; at the fine stop the same and the fine tube's part; the pauses; closed at the verdict before `throw finished`, or as the throw ends short before `throw ended`, the reading at its end as its weight.
+- `GET /api/v1/charge/throws?after=N&wait=s`, streamed a record at a time as the event log is, with `boot`, `now_ms`, `first`, `newest`; held until a throw after N is recorded, answered at once after a number past the newest (a restart). The schema gains a `throw` table, each field with a line, so the record describes itself as the events do. `fall` is written from the record (the weight less the fine stop's reading), never stored.
+- api_v1.md: "The throws" in place of the reserved experiments and recordings, and what was dropped and why; the growth table's three rows brought up to date.
+- `rc_run.py tuning_check` (the gate's check, as the README gives it) and `soak --throws` (a client following the throws by held reads); `unit_api.py` reads the throws and checks a record against the schema and itself; `api_check` checks the new path's records.
+
+Measured (Pico W, debug build, `size_report.py`): flash 941.5 KB against main's 934.8 KB, so **6.7 KB**: the new code at `-O0` some 3.5 KB, the schema's throw table 1.6 KB, the rest the pour loop's additions and the route. RAM at link time 252.9 KB, unchanged. Heap 2,912 bytes at the first charge. `module_graph.py`, `host_test.py` and `release_records.py` end `VERDICT PASS`; the Pico 2 W builds.
+
+**The budget, ahead:** gate 1 leaves 5.3 KB of the 12 KB for gates 2 and 3, and the README allows the guide up to 6 KB. The schema's throw table already says what each figure is, so the guide need not; a guide of about 3 KB and the PIN would fit. If gate 2's guide comes out larger, it stops there and comes back to the owner, as the README says.
+
+To run on the Pico W: `flash`, `menu_tour --compare`, `charge_cycle`, `api_check`, `tuning_check`, then a soak with `--throws`, the heap read quiet before and after.
