@@ -17,7 +17,9 @@ What was built and measured. The plan is in the [README](README.md).
 
 1. **The Pico 2 W** on the probe: flash, `menu_tour` (its Charge page saved again), `charge_cycle`. The owner puts it on.
 2. **A unit on v1.21 updated to this:** it rewrites the unit's settings, so it waits for the owner's word.
-3. **The README and the manuals** where they show the Charge page and the web's pages; then the close (this file, the README, the index) and the PR.
+3. The close (this file, the README, the index) and the PR.
+
+**The README brought up to date** the same evening: the loads in what the unit does, and its two pictures taken again from the Pico W, the screen's Charge page (its snap, three times its size, as before) and the web's Trickler page at 375 x 812 (the browser pane's capture at twice the size, scaled down), both showing the owner's "6.5CM" load. The manuals show neither page and say nothing of the charge: nothing to change there.
 
 ## 2026-11-28, evening, later: "Load" and its name, at the owner's word
 
