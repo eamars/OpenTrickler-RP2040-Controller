@@ -8,18 +8,22 @@ const $ = (id) => document.getElementById(id);
 
 // One call to the unit; the link is shown lost when the unit does not answer (web-ui-design, rule 9)
 // limitMs: a read given up after that long, as one not answered (a unit gone without a word leaves it hanging)
-// A change refused for want of the unit's PIN (ADR-016, gate 3) asks for it once, keeps it, and is sent again
-async function api(method, path, body, limitMs, again = false) {
-    const reply = await apiOnce(method, path, body, limitMs);
-    const code = reply.data && reply.data.error ? reply.data.error.code : null;
-    if (reply.status === 401 && !again && (code === "pin_required" || code === "pin_wrong")) {
-        const digits = await askPin(code === "pin_wrong");
-        if (digits) {
-            setPinCookie(digits);
-            return api(method, path, body, limitMs, true);
+// A change refused for want of the unit's PIN (ADR-016, gate 3) asks for it, keeps it, and is sent again: asked again
+// after a wrong one, until it is right, the person cancels, or the unit refuses every change for a while (429)
+async function api(method, path, body, limitMs) {
+    let reply = await apiOnce(method, path, body, limitMs);
+    for (;;) {
+        const code = reply.data && reply.data.error ? reply.data.error.code : null;
+        if (reply.status !== 401 || (code !== "pin_required" && code !== "pin_wrong")) {
+            return reply;
         }
+        const digits = await askPin(code === "pin_wrong");
+        if (!digits) {
+            return reply;
+        }
+        setPinCookie(digits);
+        reply = await apiOnce(method, path, body, limitMs);
     }
-    return reply;
 }
 
 async function apiOnce(method, path, body, limitMs) {

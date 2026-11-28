@@ -2634,10 +2634,12 @@ class Session:
                 request.add_header("Cookie", f"pin={cookie}")
             try:
                 with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
-                    return reply.status, json.loads(reply.read() or b"null"), reply.headers.get("Retry-After")
+                    text, json_type = reply.read(), reply.headers.get_content_type() == "application/json"
+                    return reply.status, (json.loads(text) if json_type and text else None), reply.headers.get("Retry-After")
             except urllib.error.HTTPError as error:
                 text = error.read()
-                return error.code, (json.loads(text) if text else None), error.headers.get("Retry-After")
+                json_type = error.headers.get_content_type() == "application/json"
+                return error.code, (json.loads(text) if json_type and text else None), error.headers.get("Retry-After")
 
         def expect(what, got, status, code=None):
             got_status, reply, _ = got

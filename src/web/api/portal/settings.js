@@ -44,18 +44,17 @@ async function drawPin(hooks) {
     if (clear) {
         clear.onclick = () => send("");
     }
+    const now = set ? "A PIN is set: every change from the web needs it, reading none."
+                    : "No PIN is set: anyone on the network can change the unit.";
     return element("div", {class: "form"},
                    element("div", {class: "fields"},
-                           element("p", {class: "field-help"}, set
-                               ? "A PIN is set: every change from the web needs it. Reading needs none."
-                               : "No PIN: anyone on the network can change the unit."),
                            element("div", {class: "field"},
-                                   element("label", {for: "f-pin"}, set ? "New PIN" : "PIN"), input,
-                                   element("p", {class: "field-help"}, "4 to 8 digits. It guards against mistakes "
-                                           + "and meddling; it is not security. Forgotten, it is cleared at the unit: "
-                                           + "Settings › Clear PIN."),
+                                   element("label", {for: "f-pin"}, "New PIN"), input,
+                                   element("p", {class: "field-help"}, `${now} 4 to 8 digits. It guards against `
+                                           + "mistakes and meddling; it is not security. Forgotten, it is cleared at "
+                                           + "the unit: Settings › Clear PIN."),
                                    error),
-                           element("div", {class: "store-actions"}, clear, store)));
+                           element("div", {class: "sheet-actions"}, clear, store)));
 }
 
 // Which of a part's resources is shown, by the switch at its top (the motors: Coarse or Fine), kept across a redraw
