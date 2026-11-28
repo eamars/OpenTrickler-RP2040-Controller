@@ -138,6 +138,12 @@ foreach(test_build EEPROM_ABSENT I2C_HELD_LOW RECORD_DAMAGED SAVE_CUT SCALE_MAKE
         target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_${test_build}=1)
     endif()
 endforeach()
+# A unit updated from v1.21 (ADR-014): the loads' slot and the spare slot blank at the start, as on such a unit, on a
+# bench unit that has run a version with loads
+option(RC_TEST_LOADS_BLANK "Test build only (ADR-014): the loads' slot and the spare made blank at the start" OFF)
+if (RC_TEST_LOADS_BLANK)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_LOADS_BLANK=1)
+endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # The flash layout and the image's metadata block (ADR-004)

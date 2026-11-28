@@ -162,6 +162,8 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 http_json_float(out, room, len, event->value);
                 write_member(out, room, len, "powder_profile");
                 http_json_integer(out, room, len, event->number);
+                write_member(out, room, len, "charge_profile");
+                http_json_integer(out, room, len, event->result);
             }
             if (event->kind == EVENT_STOPPED) {
                 write_member(out, room, len, "reason");
@@ -176,6 +178,8 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 http_json_float(out, room, len, event->value);
                 write_member(out, room, len, "powder_profile");
                 http_json_integer(out, room, len, event->number);
+                write_member(out, room, len, "charge_profile");
+                http_json_integer(out, room, len, event->result);
             }
             else if (event->kind == EVENT_PAUSED) {
                 write_member(out, room, len, "pause");

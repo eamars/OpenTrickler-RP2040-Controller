@@ -15,6 +15,7 @@
 #include "access_point_mode.h"
 #include "activity.h"
 #include "charge_mode.h"
+#include "charge_profiles.h"
 #include "calibration.h"
 #include "cleanup_mode.h"
 #include "common.h"
@@ -895,11 +896,11 @@ static bool motors_fault_shown(const char *what) {
 
 static const menu_page_t page_ack_charge;
 static const menu_page_t page_ack_cleanup;
-static const menu_row_t rows_charge[3];
+static const menu_row_t rows_charge[4];
 static void push_edit(const menu_row_t *row);
 
-// The charge page's Target and Powder, which the charge's own screen opens too between throws
-#define ROW_TARGET (&rows_charge[1])
+// The charge page's load, Target and Powder, which the charge's own screen opens too between throws
+#define ROW_TARGET (&rows_charge[2])
 
 
 static void act_charge_start(const menu_row_t *row) {
@@ -926,7 +927,7 @@ static void act_cleanup_start(const menu_row_t *row) {
 // The cup acknowledged (D1): the start, as the API's. The menu's task takes it and the job's screen comes
 static void act_ack_charge(const menu_row_t *row) {
     (void) row;
-    charge_start_result_t result = charge_mode_request_start(ACTIVITY_BY_BUTTON, NAN, -1);
+    charge_start_result_t result = charge_mode_request_start(ACTIVITY_BY_BUTTON, NAN, -1, -1);
     if (result == CHARGE_START_DRIVER_FAULT) {
         push_message(motors_get_fault(), "Charge", "cannot start");
     }
@@ -957,7 +958,42 @@ static void act_ack_cleanup(const menu_row_t *row) {
 }
 
 
-// --- The powder profiles: chosen as PATCH /api/v1/charge chooses one, and stored with the profiles (D2)
+// --- The charge profiles, "Loads" on the screen (ADR-014): one is always chosen, and the page's target and powder
+// are its own. Each change at the screen is stored when it is confirmed: the eight and the choice, one block
+
+#define LOADS_PATH "charge_profiles/0"     // any of the eight: they are stored together
+
+static int load_count(void) {
+    return CHARGE_PROFILE_COUNT;
+}
+
+
+static const char *load_option(int idx) {
+    return idx >= 0 && idx < CHARGE_PROFILE_COUNT ? charge_profiles_get((uint8_t) idx)->name : NULL;
+}
+
+
+static int load_current(void) {
+    return (int) charge_profiles_chosen();
+}
+
+
+// The row's value: the chosen one's name, beside its key "Load", cut by the view where it does not fit (the owner at
+// the unit, 2026-11-28 evening)
+static void value_load(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "%s", charge_profiles_get(charge_profiles_chosen())->name);
+}
+
+
+static const char *load_choose(int idx) {
+    const char *why = charge_profiles_choose((uint8_t) idx);
+    return why != NULL ? why : settings_store(LOADS_PATH);
+}
+
+
+// --- The powder profiles: the chosen load's powder, written as PATCH /api/v1/charge writes it, and stored with the
+// loads (D2; ADR-014)
 
 static int powder_count(void) {
     return MAX_PROFILE_CNT;
@@ -977,14 +1013,10 @@ static int powder_current(void) {
 static const char *powder_choose(int idx) {
     activity_lock();
     bool in_throw = activity_in_throw();
-    if (!in_throw) {
-        profile_select((uint8_t) idx);
-    }
+    const char *why = in_throw ? "not while a throw pours" : charge_profiles_set_powder((uint8_t) idx,
+                                                                                         ACTIVITY_BY_BUTTON);
     activity_unlock();
-    if (in_throw) {
-        return "not while a throw pours";
-    }
-    return settings_store("/api/v1/powder_profiles/0");    // the eight are stored together, the choice with them
+    return why != NULL ? why : settings_store(LOADS_PATH);
 }
 
 
@@ -1228,8 +1260,10 @@ static const menu_row_t rows_ack_cleanup[] = {
 static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/purge", .title = "Purge",
                                              .rows = rows_ack_cleanup, .row_count = ROW_COUNT(rows_ack_cleanup)};
 
-static const menu_row_t rows_charge[3] = {
+static const menu_row_t rows_charge[4] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_charge_start},
+    {.label = "Load", .kind = ROW_CHOICE, .value = value_load, .count = load_count, .option = load_option,
+     .current = load_current, .choose = load_choose},
     {.label = "Target", .kind = ROW_NUMBER, .value = value_target},
     {.label = "Powder", .kind = ROW_CHOICE, .value = value_powder, .count = powder_count, .option = powder_option,
      .current = powder_current, .choose = powder_choose},
@@ -1525,6 +1559,7 @@ static const struct {
     {EEPROM_WIRELESS_CONFIG_BASE_ADDR, "Wi-Fi"},
     {EEPROM_MOTOR_CONFIG_BASE_ADDR, "Motors"},
     {EEPROM_CHARGE_MODE_BASE_ADDR, "Charge"},
+    {EEPROM_CHARGE_PROFILES_BASE_ADDR, "Loads"},
     {EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, "Lights"},
     {EEPROM_MINI_12864_CONFIG_BASE_ADDR, "Display"},
     {EEPROM_PROFILE_DATA_BASE_ADDR, "Powders"},
@@ -1774,14 +1809,21 @@ static void push_edit(const menu_row_t *row) {
 
 static void edit_confirm(frame_t *frame) {
     float target = (float) digits_value(frame) / (frame->decimals == 3 ? 1000.0f : 100.0f);
-    // As PATCH /api/v1/charge: one target, refused while a throw pours
+    // As PATCH /api/v1/charge: the chosen load's target, refused while a throw pours
     activity_lock();
     bool in_throw = activity_in_throw();
-    bool set = !in_throw && target > 0.0f && charge_mode_set_target(target);
+    bool set = !in_throw && charge_mode_target_fits(target) &&
+               charge_profiles_set_target(target, ACTIVITY_BY_BUTTON) == NULL;
     activity_unlock();
     pop();
     if (!set) {
         push_message("Not set", in_throw ? "not while a throw pours" : "not a target the scale shows", NULL);
+        return;
+    }
+    // Stored when confirmed (ADR-014): the weight is there after a power cycle
+    const char *why = settings_store(LOADS_PATH);
+    if (why != NULL) {
+        push_message("Not stored", why, NULL);
     }
 }
 
@@ -2428,7 +2470,8 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
         const char *why = idx >= 0 ? row_choose(row, idx) : "no such choice";
         pop();
         if (why != NULL) {
-            push_message("Not changed", why, NULL);
+            // Wrapped: the decimals' refusal names the load whose target stands in the way (ADR-014)
+            push_message_wrapped("Not changed", why);
         }
         return;
     }
@@ -2978,6 +3021,7 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
         }
         bool opens = row->kind == ROW_PAGE || row->kind == ROW_CHOICE || row->kind == ROW_NUMBER;
         screen->row_info[screen->row_count] = row->kind == ROW_INFO;
+        screen->row_name[screen->row_count] = row->kind == ROW_CHOICE;
         screen_row(screen, row_label(row), value, opens);
     }
     screen->focus = frame->focus < count ? frame->focus : (int8_t) (count - 1);

@@ -80,6 +80,7 @@ set(HOST_MODULES
 # none for a module whose headers alone are needed. The list shortens as gates 6 to 8 free them.
 set(HOST_PART_storage common.c)                 # the loader
 set(HOST_PART_charge charge_mode_layout.c)      # the charge record's earlier layouts
+set(HOST_PART_charge_profiles charge_profiles.c)    # the charge profiles' record: its load, defaults and mending
 set(HOST_PART_profile "")
 set(HOST_PART_activity "")
 set(HOST_PART_events "")
@@ -87,6 +88,7 @@ set(HOST_PART_leds "")
 set(HOST_PARTS
     services/storage
     services/charge
+    services/charge_profiles
     services/profile
     services/activity
     services/events
@@ -100,7 +102,7 @@ endforeach()
 # ---- The tests ----
 # The loader keeping an earlier version's settings (ADR-009, gate 2), over an EEPROM in RAM
 add_executable(config_migration_test config_migration_test.c fake_eeprom.c)
-target_link_libraries(config_migration_test PRIVATE ot::storage ot::charge ot::profile m)
+target_link_libraries(config_migration_test PRIVATE ot::storage ot::charge ot::charge_profiles ot::profile m)
 
 # The scale's framing (ADR-017, gate 2): a stitched frame, a frame with no number, the Generic's long line
 add_executable(scale_framing_test scale_framing_test.c)

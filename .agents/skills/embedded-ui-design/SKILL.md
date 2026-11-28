@@ -76,6 +76,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - A label and its value must fit in one 128 px row with 3 px between them, or the page is a card.
    - Never let two texts overlap: lay out so they cannot, and clip the left text as a safety net, the way the title clips for its marks.
    - Long values (names, addresses, notes) go in cards and wrap at a word; an ellipsis goes only at a word.
+   - **A chosen name beside its key** (a load's, a powder's, on a row that opens its choice) keeps the key whole and shows as many of its characters as fit, cut at a whole character, then ">" (the owner, 2026-11-28: "display maximum number of X characters that doesn't overlaps with the key"). A number is never cut: a cut figure is a false one.
    - **Why:** gate 4's screens overlapped three times ("Check for update" and its value, the verdict over the status, "[Stop the motors]" over the gate line).
 10. **Read before you act.**
     - Where an action has consequences (an update, an erase), it comes after what must be read.

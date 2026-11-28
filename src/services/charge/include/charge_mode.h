@@ -93,8 +93,8 @@ bool charge_mode_config_save(void);
 float charge_mode_get_elapsed_s(void);
 
 /*
- * One target for the unit (ADR-003, gate 4): the menu's weight digits show it and set it. 0 when unset. Setting it
- * fails for a target the digits cannot show: 0.01 to 999.99 at two decimals, 0.001 to 99.999 at three, in their
+ * One target for the unit: the chosen charge profile's (ADR-014; charge_profiles.h, which writes it). 0 when not set.
+ * A target is one the menu's digits can show: 0.01 to 999.99 at two decimals, 0.001 to 99.999 at three, in their
  * steps. Between throws it is the next throw's.
  */
 float charge_mode_get_target(void);
@@ -106,18 +106,14 @@ charge_mode_state_t charge_mode_get_state(void);
 // through the settings' table only
 const eeprom_charge_mode_data_t *charge_mode_get_stored(void);
 bool charge_mode_target_fits(float target);
-bool charge_mode_set_target(float target);
-// The same at other decimals: for a change of decimal places, which keeps the target's weight (review D2)
-float charge_mode_target_at(decimal_places_t places);
+// The same at other decimals: a change of decimal places is refused for a target they cannot show (review D2)
 bool charge_mode_target_fits_at(float target, decimal_places_t places);
-// After the decimals changed from before: the digits written again for the same weight
-void charge_mode_keep_target(decimal_places_t before);
 
 /*
  * A charge asked from outside the menu, by the API or the console (gate 4): handed to the menu with no wait, or
- * refused. target (NAN: the one set) and powder_profile (-1: the one chosen) are written only once the start is
- * taken, so a start refused writes nothing; the caller has checked them. A stop is
- * activity_request_stop(ACTIVITY_CHARGE, by).
+ * refused. charge_profile (-1: the one chosen) is chosen, and target (NAN: its own) and powder_profile (-1: its own)
+ * written into it, live, only once the start is taken, so a start refused writes nothing; the caller has checked
+ * them. A stop is activity_request_stop(ACTIVITY_CHARGE, by).
  */
 typedef enum {
     CHARGE_START_OK = 0,
@@ -127,7 +123,8 @@ typedef enum {
     CHARGE_START_NO_SCALE,      // no make reads the scale: the stored one is not in this build (scale_reads())
     CHARGE_START_NO_STORAGE,    // the EEPROM does not answer: nothing set or tuned could be kept (ADR-017, gate 1)
 } charge_start_result_t;
-charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile,
+                                                int charge_profile);
 
 // What the controller costs (ADR-009, gate 3), since the unit started: its time each millisecond and each reading, the
 // most and the mean, in microseconds; the heap's least free while a charge ran

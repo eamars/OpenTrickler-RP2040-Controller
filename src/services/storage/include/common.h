@@ -138,6 +138,13 @@ bool config_read_stored(uint16_t addr, void * cfg, size_t size);
  */
 bool config_read_part(uint16_t addr, void * out, size_t size);
 
+/*
+ * The EEPROM's size in KB, told without writing (ADR-014): 32, the chip the board is designed with; 16, a 128 kbit
+ * chip, which looks at 14 address bits, so what it gives at 17 KB is what lies at 1 KB; 0, not told: the chip does
+ * not answer, or holds no record at 1 KB (the scale's) to tell by. Read once and kept
+ */
+uint8_t config_eeprom_kb(void);
+
 /**
  * @brief Whether the struct in RAM is what was last stored at that address, or read from it at the start: their
  * CRCs (ADR-003, gate 3: `saved`). So a change from the menu or the console counts as one from the web does.

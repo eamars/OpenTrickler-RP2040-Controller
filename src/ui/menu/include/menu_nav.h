@@ -75,6 +75,7 @@ typedef struct {
     bool row_bold[MENU_ROWS_MAX];           // a heading, on notes
     bool row_chosen[MENU_ROWS_MAX];         // a choice's current option, marked
     bool row_info[MENU_ROWS_MAX];           // a row only to read: the focus passes it
+    bool row_name[MENU_ROWS_MAX];           // its value a chosen name (a load's, a powder's): cut short of its label
     int8_t focus;
     uint8_t first;
 

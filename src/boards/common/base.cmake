@@ -104,7 +104,7 @@ set(OT_BASE_MODULES
     web/http_server web/api
     console/remote_control
     services/activity services/calibration services/calibration_method services/charge services/charge_control
-    services/cleanup services/events services/gate services/jobs services/leds services/motors services/profile services/scale
+    services/charge_profiles services/cleanup services/events services/gate services/jobs services/leds services/motors services/profile services/scale
     services/servo_gate services/settings services/storage services/system services/update services/update_fetch
     services/wireless
     drivers/cat24c256 drivers/scale_protocols drivers/tmc2209 drivers/uc1701

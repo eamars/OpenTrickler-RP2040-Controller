@@ -20,6 +20,7 @@
 #include "http_server.h"
 #include "http_json.h"
 #include "charge_mode.h"
+#include "charge_profiles.h"
 #include "common.h"
 #include "profile.h"
 #include "scale.h"
@@ -141,8 +142,10 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
              server.slots_parked, server.slots_live, (unsigned long) server.live_opened,
              (unsigned long) server.live_refused);
     http_json_raw(out, room, &len, text);
-    snprintf(text, sizeof(text), "\"uploads\":{\"done\":%lu,\"aborted\":%lu}}", (unsigned long) api_v1_uploads_done,
-             (unsigned long) api_v1_uploads_aborted);
+    // The settings' EEPROM's size, told without writing (ADR-014): 32 or 16 KB; 0, not told
+    snprintf(text, sizeof(text), "\"uploads\":{\"done\":%lu,\"aborted\":%lu},\"eeprom_kb\":%u}",
+             (unsigned long) api_v1_uploads_done, (unsigned long) api_v1_uploads_aborted,
+             (unsigned) config_eeprom_kb());
     http_json_raw(out, room, &len, text);
 
     if (!http_json_fits(room, len)) {
@@ -347,16 +350,20 @@ static const api_v1_resource_t api_v1_resources[] = {
      "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is "
      "refused; every action with its body's fields; every state and event kind; the error codes"},
     {"/api/v1/settings", "[\"GET\"]",
-     "every setting and powder profile in one document, with the firmware's version: the export. An import is a "
-     "PATCH of each resource in turn"},
-    {"/api/v1/settings/save", "[\"POST\"]", "stores every setting and the powder profiles"},
+     "every setting, powder profile and charge profile in one document, with the firmware's version: the export. An "
+     "import is a PATCH of each resource in turn"},
+    {"/api/v1/settings/save", "[\"POST\"]", "stores every setting, the powder profiles and the charge profiles"},
     {"/api/v1/powder_profiles", "[\"GET\"]", "the powder profiles' ids and names, and whether they are stored"},
+    {"/api/v1/charge_profiles", "[\"GET\"]",
+     "the charge profiles' ids and names, and whether they and the one chosen are stored"},
     {"/api/v1/settings/motors", "[\"GET\"]",
      "the motors whose settings the unit holds, each by its id and label, and whether they are stored"},
     {"/api/v1/charge","[\"GET\",\"PATCH\"]",
-     "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a "
-     "PATCH sets the target or the profile the next throw uses"},
-    {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
+     "the charge: its state, the throw, the charge profile chosen with its target and powder profile, the weight, "
+     "the last throw; a PATCH chooses the charge profile, or sets the chosen one's target or powder, for the next "
+     "throw"},
+    {"/api/v1/charge/start", "[\"POST\"]",
+     "starts a charge: {}, or the charge profile to choose, the target and the powder profile to set first"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
     {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
      "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
@@ -419,13 +426,18 @@ static const char api_v1_guide[] =
     "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
     "the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the "
     "scale's own unit. "
-    "The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start "
+    "The unit runs one job at a time: a charge or a purge. A charge throws the chosen charge profile's target "
+    "(GET /api/v1/charge_profiles). It is started with POST /api/v1/charge/start "
     "once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to "
     "the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops "
     "whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at "
     "the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. "
     "The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours "
     "onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.";
+
+// The guide is one item of the index's stream, sent whole in a chunk: the server's buffer less its chunk's head and
+// end (10 bytes), with the guide's quotes and the 14 bytes that follow it. Longer, the index is cut off at the guide
+_Static_assert(sizeof(api_v1_guide) + 2 + 14 < HTTP_SERVER_BUFFER_SIZE - 10, "the guide no longer fits a chunk");
 
 static uint32_t api_v1_boot = 0;        // new at each start, so a client sees a restart (api_v1.md, the index)
 
@@ -609,6 +621,32 @@ static void api_v1_get_powder_profiles(const http_server_request_t *request, htt
 }
 
 
+// GET /api/v1/charge_profiles: saved (the eight and the choice, one block), and each profile's id and name
+// (ADR-014). Which is chosen is the charge's charge_profile
+static void api_v1_get_charge_profiles(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"saved\":");
+    http_json_bool(out, room, &len, charge_profiles_is_saved());
+    http_json_raw(out, room, &len, ",\"profiles\":[");
+    for (uint8_t idx = 0; idx < CHARGE_PROFILE_COUNT; idx += 1) {
+        http_json_raw(out, room, &len, idx ? ",{\"id\":" : "{\"id\":");
+        http_json_integer(out, room, &len, idx);
+        http_json_raw(out, room, &len, ",\"name\":");
+        http_json_string(out, room, &len, charge_profiles_get(idx)->name);
+        http_json_raw(out, room, &len, "}");
+    }
+    http_json_raw(out, room, &len, "]}");
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
 // The motors' settings resources: their paths are this, then the motor's id, the name the motors' state, the events
 // and the actions call it by
 #define API_V1_MOTOR_SETTINGS_PREFIX "/api/v1/settings/motors/"
@@ -663,6 +701,7 @@ bool api_v1_init(void) {
     api_v1_boot = chip_random32();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1", api_v1_get_index);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/charge_profiles", api_v1_get_charge_profiles);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings/motors", api_v1_get_motor_settings);
     // Every module's settings' table, registered at its start (gate 3)
     api_v1_settings_init();

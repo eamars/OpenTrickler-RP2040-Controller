@@ -124,7 +124,8 @@ function limitsOf(field) {
 
 // The form for one resource at one path: its groups and fields, live, and its store bar. `hooks.changed(values, path)` after
 // every write, so what else the page shows of the resource (a list's "Not stored", a table's figures) follows at once;
-// `hooks.reload()` after a store or an undo, which change what every resource of the slot holds
+// `hooks.reload()` after a store or an undo, which change what every resource of the slot holds. `hooks.choices`, by
+// a field's name: the choices of a field that is an id of something the unit lists (a load's powder), drawn by name
 // features: 41 42 43 44 52
 async function drawForm(path, values, hooks) {
     const resource = await resourceOf(path);
@@ -153,7 +154,11 @@ async function drawForm(path, values, hooks) {
         undo.onclick = () => finish(resource.revert, "Changes undone: as stored.", "Not undone");
     }
     const groups = new Map();
-    for (const field of resource.fields) {
+    const choices = hooks.choices || {};
+    const fields = resource.fields.map((field) => choices[field.name]
+        ? Object.assign({}, field, {type: "choice", choices: choices[field.name], min: undefined, max: undefined})
+        : field);
+    for (const field of fields) {
         if (!groups.has(field.group)) {
             groups.set(field.group, []);
         }

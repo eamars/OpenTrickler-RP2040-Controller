@@ -16,6 +16,7 @@
 #include "fake_eeprom.h"
 #include "profile.h"
 #include "charge_mode.h"
+#include "charge_profiles.h"
 
 #define ADDR 0x0400
 
@@ -498,6 +499,162 @@ static void findings(void) {
 }
 
 
+/*
+    The charge profiles' record (ADR-014), by the module's own load (charge_profiles.c): a blank slot's defaults; a
+    later version's longer profiles read and stored at this size; and what a record holds that no unit can run on (a
+    chosen index or a powder's id out of range, a target that is no weight) run as the first, or not set, in RAM, the
+    chip left as it is and the record not stored
+*/
+#define LOADS_ADDR EEPROM_CHARGE_PROFILES_BASE_ADDR
+#define POWDERS 8
+
+typedef struct {
+    charge_profile_t now;
+    float later;                        // a later version's appended fields
+    uint8_t more[4];
+} charge_profile_later_t;
+
+typedef struct {
+    uint16_t zero;
+    uint16_t chosen;
+    charge_profile_later_t profiles[CHARGE_PROFILE_COUNT];
+} charge_profiles_later_t;
+
+
+// A record of this version's size, each profile told apart, stored
+static void loads_store(eeprom_charge_profile_data_t *record, uint16_t chosen) {
+    memset(record, 0, sizeof(*record));
+    record->chosen = chosen;
+    for (int idx = 0; idx < CHARGE_PROFILE_COUNT; idx += 1) {
+        snprintf(record->profiles[idx].name, CHARGE_PROFILE_NAME_LEN, "Stored %d", idx);
+        record->profiles[idx].target = 20.0f + (float) idx;
+        record->profiles[idx].powder_profile = (uint8_t) (7 - idx);
+    }
+}
+
+
+static void loads(void) {
+    check(sizeof(charge_profile_t) == 24 && sizeof(eeprom_charge_profile_data_t) == 196 &&
+          offsetof(eeprom_charge_profile_data_t, profiles) == 4 && offsetof(charge_profile_t, target) == 16 &&
+          offsetof(charge_profile_t, powder_profile) == 20,
+          "the charge profiles' record as ADR-014 lays it out: 24 bytes a profile, 196 in all");
+
+    // A blank slot: "Load 1" to "Load 8", no target, each on the powders' stored choice, the first chosen; stored
+    fake_eeprom_erase();
+    config_found_t found = charge_profiles_load(3, POWDERS);
+    bool defaults = found == CONFIG_FOUND_BLANK && charge_profiles_chosen() == 0 && charge_profiles_target() == 0.0f &&
+                    charge_profiles_get(CHARGE_PROFILE_COUNT) == NULL;
+    for (int idx = 0; idx < CHARGE_PROFILE_COUNT && defaults; idx += 1) {
+        char want[CHARGE_PROFILE_NAME_LEN];
+        snprintf(want, sizeof(want), "Load %d", idx + 1);
+        const charge_profile_t *profile = charge_profiles_get((uint8_t) idx);
+        defaults = strcmp(profile->name, want) == 0 && profile->target == 0.0f && profile->powder_profile == 3;
+    }
+    check(defaults, "a blank slot: Load 1 to Load 8, no target, each on the powder the unit had chosen, the first chosen");
+    static eeprom_charge_profile_data_t back;
+    check(config_read_stored(LOADS_ADDR, &back, sizeof(back)) && back.zero == 0 && back.chosen == 0 &&
+          strcmp(back.profiles[7].name, "Load 8") == 0 && back.profiles[7].powder_profile == 3 &&
+          charge_profiles_is_saved() && !amiss_names(LOADS_ADDR, CONFIG_FOUND_BLANK),
+          "and stored: its first two bytes 0, saved, nothing said");
+    found = charge_profiles_load(5, POWDERS);
+    check(found == CONFIG_FOUND_READ && charge_profiles_get(0)->powder_profile == 3 && charge_profiles_is_saved(),
+          "the next start reads it: the powders' stored choice is taken for the defaults alone");
+
+    // The powders' stored choice past the last powder: the defaults on the first
+    fake_eeprom_erase();
+    charge_profiles_load(200, POWDERS);
+    check(charge_profiles_get(0)->powder_profile == 0 && charge_profiles_get(7)->powder_profile == 0,
+          "a blank slot with the powders' stored choice out of range: each on the first powder");
+
+    // A later version's record, fields appended to each profile: this version's fields read, stored at this size
+    static charge_profiles_later_t later;
+    memset(&later, 0, sizeof(later));
+    later.chosen = 5;
+    for (int idx = 0; idx < CHARGE_PROFILE_COUNT; idx += 1) {
+        snprintf(later.profiles[idx].now.name, CHARGE_PROFILE_NAME_LEN, "Later %d", idx);
+        later.profiles[idx].now.target = 40.0f + 0.25f * (float) idx;
+        later.profiles[idx].now.powder_profile = (uint8_t) idx;
+        later.profiles[idx].later = 99.0f;
+        memset(later.profiles[idx].more, 0xA5, sizeof(later.profiles[idx].more));
+    }
+    fake_eeprom_erase();
+    save_config_now(LOADS_ADDR, &later, sizeof(later));
+    found = charge_profiles_load(3, POWDERS);
+    bool kept = found == CONFIG_FOUND_MIGRATED && charge_profiles_chosen() == 5 &&
+                charge_profiles_target() == 40.0f + 0.25f * 5.0f;
+    for (int idx = 0; idx < CHARGE_PROFILE_COUNT && kept; idx += 1) {
+        kept = memcmp(charge_profiles_get((uint8_t) idx), &later.profiles[idx].now, sizeof(charge_profile_t)) == 0;
+    }
+    check(kept, "a record with longer profiles: each read for this version's fields, the choice too");
+    check(config_read_stored(LOADS_ADDR, &back, sizeof(back)) && back.chosen == 5 &&
+          memcmp(&back.profiles[6], &later.profiles[6].now, sizeof(charge_profile_t)) == 0 &&
+          charge_profiles_is_saved(), "and stored at this version's size");
+
+    // A chosen index past the eight, under a good CRC: the first runs in RAM, the chip as it was, not stored
+    static eeprom_charge_profile_data_t record;
+    loads_store(&record, 9);
+    fake_eeprom_erase();
+    save_config_now(LOADS_ADDR, &record, sizeof(record));
+    keep_slot(LOADS_ADDR);
+    found = charge_profiles_load(3, POWDERS);
+    check(found == CONFIG_FOUND_READ && charge_profiles_chosen() == 0 && charge_profiles_target() == 20.0f &&
+          strcmp(charge_profiles_get(4)->name, "Stored 4") == 0,
+          "a chosen index out of range: the first runs in its place, the eight as stored");
+    check(slot_unchanged(LOADS_ADDR) && !charge_profiles_is_saved(), "in RAM only: the chip left as it is, not stored");
+
+    // A powder's id past the last powder, a target that is no weight, a name with no ending: the same
+    loads_store(&record, 2);
+    record.profiles[2].powder_profile = 200;
+    record.profiles[3].target = NAN;
+    record.profiles[4].target = -5.0f;
+    memset(record.profiles[5].name, 'x', CHARGE_PROFILE_NAME_LEN);
+    fake_eeprom_erase();
+    save_config_now(LOADS_ADDR, &record, sizeof(record));
+    keep_slot(LOADS_ADDR);
+    found = charge_profiles_load(3, POWDERS);
+    check(found == CONFIG_FOUND_READ && charge_profiles_chosen() == 2 && charge_profiles_get(2)->powder_profile == 0 &&
+          charge_profiles_get(2)->target == 22.0f && charge_profiles_get(1)->powder_profile == 6,
+          "a powder's id out of range: the first powder runs in its place, the rest as stored");
+    check(charge_profiles_get(3)->target == 0.0f && charge_profiles_get(4)->target == 0.0f &&
+          strlen(charge_profiles_get(5)->name) == CHARGE_PROFILE_NAME_LEN - 1,
+          "a target that is no weight is not set, and a name with no ending is ended");
+    check(slot_unchanged(LOADS_ADDR) && !charge_profiles_is_saved(), "in RAM only: the chip left as it is, not stored");
+    check(charge_profiles_save() && charge_profiles_is_saved() && config_read_stored(LOADS_ADDR, &back, sizeof(back)) &&
+          back.profiles[2].powder_profile == 0, "stored by the person: what runs is what the chip holds");
+
+    // Damaged: the defaults run, so no target is set and a start is refused; the chip left as it is, and it is said
+    loads_store(&record, 1);
+    fake_eeprom_erase();
+    save_config_now(LOADS_ADDR, &record, sizeof(record));
+    spare_elsewhere();
+    fake_eeprom_bytes()[LOADS_ADDR + 21] ^= 0x5A;
+    keep_slot(LOADS_ADDR);
+    found = charge_profiles_load(3, POWDERS);
+    check(found == CONFIG_FOUND_DAMAGED && charge_profiles_chosen() == 0 && charge_profiles_target() == 0.0f &&
+          strcmp(charge_profiles_get(1)->name, "Load 2") == 0 && slot_unchanged(LOADS_ADDR) &&
+          amiss_names(LOADS_ADDR, CONFIG_FOUND_DAMAGED) && !charge_profiles_is_saved(),
+          "a damaged record: the defaults run with no target set, the chip left as it is, and it is said");
+}
+
+
+/*
+    The EEPROM's size, told without writing (ADR-014): a blank chip tells nothing; a 128 kbit chip gives at 17 KB what
+    lies at 1 KB. The 256 kbit answer is every bench unit's own; the 128 kbit one no board at hand can give, so it is
+    the one made here
+*/
+static void eeprom_size(void) {
+    fake_eeprom_erase();
+    check(config_eeprom_kb() == 0, "a chip with no record at 1 KB: its size not told");
+    record_v2_t full = {.rev = 0, .a = 3.0f, .b = 4.0f, .c = 5.0f, .d = 6.0f};
+    save_config_now(EEPROM_SCALE_CONFIG_BASE_ADDR, &full, sizeof(full));
+    keep_slot(EEPROM_SCALE_CONFIG_BASE_ADDR);
+    // A chip of 16 KB: every address past it reads what lies 16 KB below
+    memcpy(fake_eeprom_bytes() + 16 * 1024, fake_eeprom_bytes(), 16 * 1024);
+    check(config_eeprom_kb() == 16 && slot_unchanged(EEPROM_SCALE_CONFIG_BASE_ADDR),
+          "the same bytes at 1 KB and at 17 KB: one chip of 16 KB, nothing written");
+}
+
+
 int main(void) {
     record_v2_t v2;
     uint16_t reset[4];
@@ -578,6 +735,8 @@ int main(void) {
     findings();
     powders();
     charge_record();
+    loads();
+    eeprom_size();
 
     printf("%s: %d failed\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;

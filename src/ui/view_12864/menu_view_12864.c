@@ -194,6 +194,30 @@ static int view_text_width(const char *text, size_t length, const lv_font_t *fon
 }
 
 
+// A name beside its key: the most of its characters that fit in `room` px, cut at a whole character, with no space
+// left at its end (the owner, 2026-11-28: "display maximum number of X characters that doesn't overlaps with the
+// key"). Its width
+static int view_fit(const char *text, int room, char *out, size_t size) {
+    size_t end = 0;
+    size_t idx = 0;
+    while (text[idx] != '\0') {
+        size_t next = idx;
+        view_next_char(text, &next);
+        if (next >= size || view_text_width(text, next, &menu_font_regular) > room) {
+            break;
+        }
+        idx = next;
+        end = next;
+    }
+    while (end > 0 && text[end - 1] == ' ') {
+        end -= 1;
+    }
+    memcpy(out, text, end);
+    out[end] = '\0';
+    return view_text_width(out, end, &menu_font_regular);
+}
+
+
 // The navigator's measure, for wrapping cards and notes (menu_nav_set_text_width)
 static int view_measure(const char *text, bool bold) {
     return view_text_width(text, strlen(text), bold ? &menu_font_bold : &menu_font_regular);
@@ -377,8 +401,6 @@ static void view_list(const menu_screen_t *screen) {
         lv_obj_set_size(view_rows[idx], edge + 2, VIEW_ROW_H - 1);
         view_font(view_row_label[idx], &menu_font_regular);
         view_text(view_row_label[idx], screen->row_label[row]);
-        // A choice's current option: a check where a value stands
-        view_text(view_row_value[idx], screen->row_chosen[row] ? VIEW_ICON_CHOSEN : screen->row_value[row]);
         view_show(view_row_value[idx], true);      // a card hides it
         // A card uses these two for its columns, in bold on a heading: a list's are regular, and ">"
         view_font(view_row_value[idx], &menu_font_regular);
@@ -390,12 +412,28 @@ static void view_list(const menu_screen_t *screen) {
         view_place(view_row_more[idx], edge - 10, 10, 9);
         int value_w = view_text_width(screen->row_value[row], strlen(screen->row_value[row]), &menu_font_regular);
         bool setting = row == screen->focus && screen->editing;
+        // A chosen name keeps its key whole and is cut short of it, 3 px between (embedded-ui-design, rule 9); any
+        // other value is laid out to fit, its label clipped as the safety net: a number is never cut
+        int value_x = 40;
+        char fitted[MENU_TEXT];
+        const char *value = screen->row_value[row];
+        if (screen->row_name[row] && !setting) {
+            int label_end = VIEW_MARGIN + view_text_width(screen->row_label[row], strlen(screen->row_label[row]),
+                                                          &menu_font_regular) + 3;
+            if (value_w > edge - more_w - label_end) {
+                value_w = view_fit(value, edge - more_w - label_end, fitted, sizeof(fitted));
+                value = fitted;
+            }
+            value_x = label_end;
+        }
+        // A choice's current option: a check where a value stands
+        view_text(view_row_value[idx], screen->row_chosen[row] ? VIEW_ICON_CHOSEN : value);
         // A value being set is as wide as its text and 2 px each side, so its reverse hugs it
         if (setting) {
             view_place(view_row_value[idx], edge - more_w - value_w - 3, value_w + 4, 9);
         }
         else {
-            view_place(view_row_value[idx], 40, edge - 40 - more_w, 9);
+            view_place(view_row_value[idx], value_x, edge - value_x - more_w, 9);
         }
         view_place(view_row_label[idx], VIEW_MARGIN, edge - VIEW_MARGIN - more_w - (value_w > 0 ? value_w + 3 : 0),
                    9);

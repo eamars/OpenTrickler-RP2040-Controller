@@ -636,6 +636,28 @@ static config_found_t config_load(uint16_t addr, void *cfg, const void *default_
 }
 
 
+#define CONFIG_EEPROM_PROBE_BYTES 64        // a page of the record at 1 KB: its first two bytes, 0, and what follows
+#define CONFIG_EEPROM_HALF (16 * 1024)
+
+uint8_t config_eeprom_kb(void) {
+    static uint8_t known_kb = 0;
+    if (known_kb != 0) {
+        return known_kb;
+    }
+    uint8_t low[CONFIG_EEPROM_PROBE_BYTES];
+    uint8_t high[CONFIG_EEPROM_PROBE_BYTES];
+    eeprom_lock();
+    bool is_read = eeprom_read(EEPROM_SCALE_CONFIG_BASE_ADDR, low, sizeof(low)) &&
+                   eeprom_read(EEPROM_SCALE_CONFIG_BASE_ADDR + CONFIG_EEPROM_HALF, high, sizeof(high));
+    eeprom_unlock();
+    // A blank page at 1 KB reads the same at 17 KB on either chip: nothing told
+    if (is_read && !(low[0] == 0xFF && low[1] == 0xFF)) {
+        known_kb = memcmp(low, high, sizeof(low)) == 0 ? 16 : 32;
+    }
+    return known_kb;
+}
+
+
 config_found_t load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size) {
     return load_config_layout(addr, cfg, default_cfg, size, NULL);
 }

@@ -998,6 +998,13 @@ static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome
                     setting_event(EVENT_CHANGED, resource->path, id, by);
                 }
             }
+            if (resource->revert_rest != NULL) {
+                const char *why = resource->revert_rest(pass == 1);
+                if (why != NULL) {
+                    fail(outcome, 409, "busy", NULL, "%s", why);
+                    goto done;
+                }
+            }
         }
     }
 done:
@@ -1043,8 +1050,8 @@ bool settings_action_usage(const char *path, char *out, size_t room, size_t *len
     }
     if (all) {
         http_json_raw(out, room, len, "{\"usage\":{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\","
-                                      "\"fields\":[],\"refused_while\":\"never\",\"about\":\"stores every setting and "
-                                      "the powders\",\"example\":{}},\"see\":\"/api/v1/schema\"}");
+                                      "\"fields\":[],\"refused_while\":\"never\",\"about\":\"stores every setting, "
+                                      "the powders and the loads\",\"example\":{}},\"see\":\"/api/v1/schema\"}");
         return true;
     }
     return false;

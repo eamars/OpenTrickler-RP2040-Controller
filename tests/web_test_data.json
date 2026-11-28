@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-277",
-   "vcs": "7733b5d",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
   "hostname": "opentrickler-4A82",
-  "boot": 2781003122,
-  "uptime_s": 2155,
+  "boot": 4283050194,
+  "uptime_s": 31,
   "features": [
    {
     "name": "servo_gate",
@@ -18,7 +18,7 @@
     "about": "the shutters' servos: GET /api/v1/gate, settings/gate, the screen's Settings, Servo gate"
    }
   ],
-  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
+  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge throws the chosen charge profile's target (GET /api/v1/charge_profiles). It is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
    {
     "path": "/api/v1",
@@ -39,14 +39,14 @@
     "methods": [
      "GET"
     ],
-    "about": "every setting and powder profile in one document, with the firmware's version: the export. An import is a PATCH of each resource in turn"
+    "about": "every setting, powder profile and charge profile in one document, with the firmware's version: the export. An import is a PATCH of each resource in turn"
    },
    {
     "path": "/api/v1/settings/save",
     "methods": [
      "POST"
     ],
-    "about": "stores every setting and the powder profiles"
+    "about": "stores every setting, the powder profiles and the charge profiles"
    },
    {
     "path": "/api/v1/powder_profiles",
@@ -54,6 +54,13 @@
      "GET"
     ],
     "about": "the powder profiles' ids and names, and whether they are stored"
+   },
+   {
+    "path": "/api/v1/charge_profiles",
+    "methods": [
+     "GET"
+    ],
+    "about": "the charge profiles' ids and names, and whether they and the one chosen are stored"
    },
    {
     "path": "/api/v1/settings/motors",
@@ -68,14 +75,14 @@
      "GET",
      "PATCH"
     ],
-    "about": "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a PATCH sets the target or the profile the next throw uses"
+    "about": "the charge: its state, the throw, the charge profile chosen with its target and powder profile, the weight, the last throw; a PATCH chooses the charge profile, or sets the chosen one's target or powder, for the next throw"
    },
    {
     "path": "/api/v1/charge/start",
     "methods": [
      "POST"
     ],
-    "about": "starts a charge: {}, or the target and the powder profile to set first"
+    "about": "starts a charge: {}, or the charge profile to choose, the target and the powder profile to set first"
    },
    {
     "path": "/api/v1/charge/stop",
@@ -390,6 +397,14 @@
     "about": "How a powder flows, and the controller's gains for it"
    },
    {
+    "path": "/api/v1/charge_profiles/{id}",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "What is thrown: a name, a target and the powder it is thrown with"
+   },
+   {
     "path": "/api/v1/settings/gate",
     "methods": [
      "GET",
@@ -504,6 +519,20 @@
     "about": "puts back what is stored of Powder"
    },
    {
+    "path": "/api/v1/charge_profiles/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Load"
+   },
+   {
+    "path": "/api/v1/charge_profiles/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Load"
+   },
+   {
     "path": "/api/v1/settings/gate/save",
     "methods": [
      "POST"
@@ -536,8 +565,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-277",
-   "vcs": "7733b5d",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "resources": [
@@ -1498,7 +1527,7 @@
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
-      "about": "Decimals of the weight and of the target on the screen. A change keeps the target as a weight, and is refused when the target cannot be shown at the new decimals"
+      "about": "Decimals of the weight and of the target on the screen. A change keeps each load's target as a weight, and is refused when one of them cannot be shown at the new decimals"
      },
      {
       "name": "coarse_stop_gate_ratio",
@@ -1835,6 +1864,66 @@
     ]
    },
    {
+    "path": "/api/v1/charge_profiles/{id}",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/charge_profiles/save",
+    "revert": "/api/v1/charge_profiles/revert",
+    "label": "Load",
+    "about": "What is thrown: a name, a target and the powder it is thrown with",
+    "ids": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "refused_while": "in_throw_when_in_use",
+    "fields": [
+     {
+      "name": "name",
+      "label": "Name",
+      "type": "string",
+      "min_length": 1,
+      "max_length": 15,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The load's name, as the menu shows it: printable ASCII, the screen's font draws nothing else. A unit of weight, if wanted, goes in the name"
+     },
+     {
+      "name": "target",
+      "label": "Target",
+      "type": "number",
+      "unit": "weight",
+      "min": 0.001,
+      "max": 999.99,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The weight thrown, in the scale's unit: one the screen's digits show at the charge's decimal places, to 999.99 at two and to 99.999 at three; null, not set"
+     },
+     {
+      "name": "powder_profile",
+      "label": "Powder",
+      "type": "integer",
+      "min": 0,
+      "max": 7,
+      "step": 1,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The powder it is thrown with, by its powder profile's id"
+     }
+    ]
+   },
+   {
     "path": "/api/v1/settings/gate",
     "methods": [
      "GET",
@@ -2087,6 +2176,20 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/charge_profiles/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/charge_profiles/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/gate/save",
     "fields": [],
     "refused_while": "never",
@@ -2144,44 +2247,58 @@
     "path": "/api/v1/charge",
     "fields": [
      {
+      "name": "charge_profile",
+      "type": "integer",
+      "min": 0,
+      "max": 7,
+      "about": "a charge profile's id (GET /api/v1/charge_profiles): it is chosen, and brings its target and its powder"
+     },
+     {
       "name": "target",
       "type": "number",
       "min": 0.001,
       "max": 999.99,
-      "about": "in the scale's unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places)"
+      "about": "in the scale's unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places). Written into the chosen charge profile"
      },
      {
       "name": "powder_profile",
       "type": "integer",
       "min": 0,
       "max": 7,
-      "about": "a powder profile's id (GET /api/v1/powder_profiles)"
+      "about": "a powder profile's id (GET /api/v1/powder_profiles). Written into the chosen charge profile"
      }
     ],
     "refused_while": "in_throw",
-    "about": "what the next throw uses, either field or both; one target for the unit: the menu's digits show it"
+    "about": "what the next throw uses, any of the fields: the charge profile chosen, and the chosen one's target and powder, which the menu shows. Live: POST /api/v1/charge_profiles/save stores them"
    },
    {
     "method": "POST",
     "path": "/api/v1/charge/start",
     "fields": [
      {
+      "name": "charge_profile",
+      "type": "integer",
+      "min": 0,
+      "max": 7,
+      "about": "a charge profile's id (GET /api/v1/charge_profiles): it is chosen, and brings its target and its powder"
+     },
+     {
       "name": "target",
       "type": "number",
       "min": 0.001,
       "max": 999.99,
-      "about": "in the scale's unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places)"
+      "about": "in the scale's unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places). Written into the chosen charge profile"
      },
      {
       "name": "powder_profile",
       "type": "integer",
       "min": 0,
       "max": 7,
-      "about": "a powder profile's id (GET /api/v1/powder_profiles)"
+      "about": "a powder profile's id (GET /api/v1/powder_profiles). Written into the chosen charge profile"
      }
     ],
     "refused_while": "a_job_runs",
-    "about": "starts a charge (202); a target or a powder profile given is set only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 no_target when none is set",
+    "about": "starts a charge (202); a charge profile given is chosen, and a target or a powder profile written into it, only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 409 no_scale when the stored make of scale is not in this build; 409 no_storage when the settings' EEPROM does not answer; 400 no_target when the charge profile has none",
     "example": {
      "target": 30
     }
@@ -2258,7 +2375,7 @@
      }
     ],
     "refused_while": "a_job_runs",
-    "about": "starts a part of the calibration (202), the empty cup on the scale first. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes",
+    "about": "starts a part of the calibration (202), the empty cup on the scale first. 409 busy, 409 driver_fault, 409 no_scale (the stored make of scale is not in this build), 409 no_storage (the settings' EEPROM does not answer). The scale's and a powder's parts turn the tubes",
     "example": {
      "part": "powder",
      "profile": 2
@@ -2325,22 +2442,6 @@
     "path": "/api/v1/scale/zero",
     "fields": [],
     "about": "asks the scale to zero, not that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
-   },
-   {
-    "method": "PATCH",
-    "path": "/api/v1/gate",
-    "fields": [
-     {
-      "name": "ratio",
-      "type": "number",
-      "min": 0,
-      "max": 1,
-      "required": true,
-      "about": "0 open, 1 closed"
-     }
-    ],
-    "refused_while": "in_throw",
-    "about": "moves the servo gate; 409 gate_disabled when it is off in settings/gate"
    },
    {
     "method": "POST",
@@ -2490,10 +2591,26 @@
      }
     ],
     "refused_while": "a_job_runs",
-    "about": "erases the stored settings and restarts (202): the unit then leaves the network and comes back as its own access point, with a new id and host name. 400 confirm_missing without the confirmation",
+    "about": "erases the stored settings and restarts (202): the unit then leaves the network and comes back as its own access point, with a new id and host name. 400 confirm_missing without the confirmation; 409 on_trial while an update runs on trial; 409 no_storage when the settings' EEPROM does not answer",
     "example": {
      "confirm": "factory_reset"
     }
+   },
+   {
+    "method": "PATCH",
+    "path": "/api/v1/gate",
+    "fields": [
+     {
+      "name": "ratio",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "required": true,
+      "about": "0 open, 1 closed"
+     }
+    ],
+    "refused_while": "in_throw",
+    "about": "moves the servo gate; 409 gate_disabled when it is off in settings/gate"
    }
   ],
   "states": {
@@ -2631,25 +2748,6 @@
      "about": "ended on a driver's fault, waiting for a stop or a press"
     }
    ],
-   "gate": [
-    {
-     "value": "open"
-    },
-    {
-     "value": "closed"
-    },
-    {
-     "value": "partial"
-    },
-    {
-     "value": "held",
-     "about": "the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it"
-    },
-    {
-     "value": "disabled",
-     "about": "off in settings/gate: charge mode does not use it"
-    }
-   ],
    "driver": [
     {
      "value": "ok"
@@ -2672,6 +2770,25 @@
      "value": "supply",
      "about": "its motor supply is too low"
     }
+   ],
+   "gate": [
+    {
+     "value": "open"
+    },
+    {
+     "value": "closed"
+    },
+    {
+     "value": "partial"
+    },
+    {
+     "value": "held",
+     "about": "the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it"
+    },
+    {
+     "value": "disabled",
+     "about": "off in settings/gate: charge mode does not use it"
+    }
    ]
   },
   "events": [
@@ -2681,7 +2798,8 @@
     "carries": [
      "by",
      "target",
-     "powder_profile"
+     "powder_profile",
+     "charge_profile"
     ],
     "about": "by: button, api, console"
    },
@@ -2700,7 +2818,8 @@
     "carries": [
      "throw",
      "target",
-     "powder_profile"
+     "powder_profile",
+     "charge_profile"
     ],
     "about": "throw: its number, from 1 at each start of the unit"
    },
@@ -2981,8 +3100,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-277",
-   "vcs": "7733b5d",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "unit_id": "4A821948",
@@ -3203,6 +3322,54 @@
     "fine_weight_per_turn": null,
     "coarse_weight_per_turn": null
    },
+   "/api/v1/charge_profiles/0": {
+    "saved": true,
+    "name": "Load 1",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/1": {
+    "saved": true,
+    "name": "Load 2",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/2": {
+    "saved": true,
+    "name": "Load 3",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/3": {
+    "saved": true,
+    "name": "Load 4",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/4": {
+    "saved": true,
+    "name": "Load 5",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/5": {
+    "saved": true,
+    "name": "Load 6",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/6": {
+    "saved": true,
+    "name": "Load 7",
+    "target": null,
+    "powder_profile": 0
+   },
+   "/api/v1/charge_profiles/7": {
+    "saved": true,
+    "name": "Load 8",
+    "target": null,
+    "powder_profile": 0
+   },
    "/api/v1/settings/gate": {
     "saved": true,
     "enable": false,
@@ -3257,6 +3424,43 @@
    }
   ]
  },
+ "/api/v1/charge_profiles": {
+  "saved": true,
+  "profiles": [
+   {
+    "id": 0,
+    "name": "Load 1"
+   },
+   {
+    "id": 1,
+    "name": "Load 2"
+   },
+   {
+    "id": 2,
+    "name": "Load 3"
+   },
+   {
+    "id": 3,
+    "name": "Load 4"
+   },
+   {
+    "id": 4,
+    "name": "Load 5"
+   },
+   {
+    "id": 5,
+    "name": "Load 6"
+   },
+   {
+    "id": 6,
+    "name": "Load 7"
+   },
+   {
+    "id": 7,
+    "name": "Load 8"
+   }
+  ]
+ },
  "/api/v1/settings/motors": {
   "saved": true,
   "motors": [
@@ -3273,20 +3477,22 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 50,
+  "throw": 0,
   "paused": false,
-  "target": 30,
+  "charge_profile": 0,
+  "charge_profile_name": "Load 1",
+  "target": null,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
   "weight": 0,
-  "elapsed_s": 12.97,
+  "elapsed_s": 0,
   "last": {
-   "throw": 50,
+   "throw": 0,
    "result": "none",
-   "reason": "stopped",
-   "weight": 0
+   "reason": "none",
+   "weight": null
   },
-  "event_seq": 151
+  "event_seq": 1
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -3332,8 +3538,8 @@
   "unit": "gn",
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 40,
-  "bad_frames": 8,
+  "usual_interval_ms": 48,
+  "bad_frames": 0,
   "actions": [
    "zero"
   ]
@@ -3354,13 +3560,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-277",
-   "vcs": "7733b5d",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
-  "uptime_s": 2156,
+  "uptime_s": 34,
   "activity": "none",
   "restart_pending": false,
   "set_up": true
@@ -3370,7 +3576,7 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-4A82",
-  "rssi": -54,
+  "rssi": -51,
   "station": {
    "state": "joined",
    "ssid": "dummy_ssid",
@@ -3393,7 +3599,7 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-277",
+   "version": "2.0.3-393",
    "block": "2.0.3-255",
    "slot": "a",
    "trial": false
@@ -3408,7 +3614,14 @@
    "error": "no connection"
   },
   "found": null,
-  "last": null
+  "last": {
+   "result": "back",
+   "version": "2.88.0",
+   "code": null,
+   "message": null,
+   "reason": "not_confirmed",
+   "reset": null
+  }
  },
  "/api/v1/display": {
   "width": 128,
@@ -3633,6 +3846,54 @@
   "fine_max_speed_rps": 0,
   "fine_weight_per_turn": null,
   "coarse_weight_per_turn": null
+ },
+ "/api/v1/charge_profiles/0": {
+  "saved": true,
+  "name": "Load 1",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/1": {
+  "saved": true,
+  "name": "Load 2",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/2": {
+  "saved": true,
+  "name": "Load 3",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/3": {
+  "saved": true,
+  "name": "Load 4",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/4": {
+  "saved": true,
+  "name": "Load 5",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/5": {
+  "saved": true,
+  "name": "Load 6",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/6": {
+  "saved": true,
+  "name": "Load 7",
+  "target": null,
+  "powder_profile": 0
+ },
+ "/api/v1/charge_profiles/7": {
+  "saved": true,
+  "name": "Load 8",
+  "target": null,
+  "powder_profile": 0
  },
  "/api/v1/settings/gate": {
   "saved": true,

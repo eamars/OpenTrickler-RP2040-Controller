@@ -6,11 +6,11 @@ Join our [Discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 
 ## What it does
 
-- **Charges.** Set a target weight and a powder, put the cup on the scale, and the unit zeroes the scale, trickles the charge, asks you to take the cup off, and starts the next charge when the cup is back.
+- **Charges.** Choose a load, put the cup on the scale, and the unit zeroes the scale, trickles the charge, asks you to take the cup off, and starts the next charge when the cup is back.
 - **Calibrates and tunes itself.** A calibration measures the cup, the scale's lag and each powder's flow, and sets the charge's settings from them. With auto-tune switched on, the unit also tunes its control of the fine trickler as it charges.
-- **Keeps up to eight powders,** each with its own settings.
+- **Keeps up to eight loads and eight powders.** A load is a name, a target weight and the powder it is thrown with; a powder keeps its own settings. Two calibres on one powder are two loads, each with its own weight, and every load is still there after a restart.
 - **Purges** the powder out of the trickler (the cleanup).
-- **Has a web page** that works on a phone, a tablet or a computer: the charge with its live weight, the powders, every setting, and a backup of them. It needs no internet.
+- **Has a web page** that works on a phone, a tablet or a computer: the charge with its live weight, the loads, the powders, every setting, and a backup of them. It needs no internet.
 - **Sets itself up from a phone.** A new unit starts its own Wi-Fi hotspot and shows a code on its screen; scan it, and the page walks you through your Wi-Fi, the scale and the motors.
 - **Updates over Wi-Fi.** The unit finds a new release on GitHub and offers it on its screen and its web page.
 - **Has an API** for programs and agents: a REST API under `/api/v1` that describes itself, and a stream of events ([API v1](docs/developments_plans/ADR-003-http_rest_server/api_v1.md)).

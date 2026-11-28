@@ -15,7 +15,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SOURCES = REPO / "src" / "web" / "api" / "portal"
 # The script's parts, joined in this order: the shared part first, the start last
-SCRIPTS = ["common.js", "stream.js", "trickler.js", "form.js", "settings.js", "powders.js", "unit.js", "update.js", "setup.js", "main.js"]
+SCRIPTS = ["common.js", "stream.js", "trickler.js", "form.js", "settings.js", "powders.js", "loads.js", "unit.js", "update.js",
+           "setup.js", "main.js"]
 
 
 def minify_css(css):

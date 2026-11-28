@@ -1,6 +1,6 @@
 # ADR-014: a charge profile beside the powder profile
 
-Status: **Decided** 2026-11-28, approved by the owner as written. First drafted 2026-11-15 to hold the owner's idea; written in full on 2026-11-28 from the issues and PRs, the code on main (391a90e) and the owner's four answers of that day. Nothing is built.
+Status: **Built** 2026-11-28, closed on its branch before its one PR: proven on the Pico W and the Pico 2 W, a v1.21 unit updated to it among the checks ([progress](progress.md), "Closed"). Approved by the owner as written the same day; parked in the early afternoon and taken up again that evening, when the web's part was built and the owner, trying the unit, asked for "Load" back on the screen's row and kept Loads as a destination of the web. First drafted 2026-11-15 to hold the owner's idea; written in full on 2026-11-28 from the issues and PRs, the code on main (391a90e) and the owner's four answers of that day.
 
 ## What we want
 
@@ -20,6 +20,11 @@ Status: **Decided** 2026-11-28, approved by the owner as written. First drafted 
   - no unit is stored: "No unit, the user can put unit in its charge profile name if they like, just like how I organize the powder profile today."
 - 2026-11-28: "I don't have the 128kbit board."
 - **2026-11-28, the approval:** "Approve as written". Read here as: the ADR as it stands, and each of the five items under "Settled at the approval" as recommended there; the word of item 4 is still the owner's to choose at the mock.
+- **2026-11-28, at the screen's mock:** the profile's name as the row itself; the word "Load"; the charge's line as today.
+- **2026-11-28, on the bench's Pico W reporting a 16 KB EEPROM:** "So yes this MIGHT be my home build, for which ran 128Kbit EEPROM. The production units on Pico 2W should be 256Kbit so we don't need to worry that much rightn ow, but in the future." Read here as: nothing more is built for the smaller chip in this ADR; what was found is written where a later ADR giving out a slot meets it (`eeprom.h`, AGENTS.md).
+- **2026-11-28, the park:** "Can you write down the progress and park the action for now? And perhaps leave for later implementation this afternoon."
+- **2026-11-28, evening, at the unit and the web's mock:** "I like how web UI and front display is designed. The only comment is I'd keep the "Load" under the charge, and display maixmum number of X characters that doesn't overlaps with the key (load), and the right arrow showing this is a submenu." Read here as: the Charge page's row is "Load" and the name, cut at a whole character where it does not fit, with ">"; this replaces the name as the row, chosen at the mock that morning.
+- **2026-11-28, evening, the web's navigation:** asked whether Loads stays a destination of its own, a fifth beside the four of 2026-11-18, or goes under Powders behind a switch: "Yes, keep it".
 - 2026-11-26 (AGENTS.md): never insert a field into a stored record, always append. 2026-11-28: an upgrade is from a release to a release; the floor is v1.21.
 
 ## Why here
@@ -71,7 +76,7 @@ typedef struct {
 } eeprom_charge_profile_data_t; // 196 bytes, 200 with its CRC
 ```
 
-- **The defaults:** "Charge 1" to "Charge 8", no target, each on the powder the unit had chosen (the powders' `current_profile_idx` as stored), the first chosen. So an upgraded unit charges with the powder it had.
+- **The defaults:** "Load 1" to "Load 8", no target, each on the powder the unit had chosen (the powders' `current_profile_idx` as stored), the first chosen. So an upgraded unit charges with the powder it had.
 - **A new field** is appended to each profile: the loader reads an array's elements at any size. Within the 1 KB slot a profile may grow to 125 bytes.
 - **The powder in use becomes the chosen charge's.** The powders' `current_profile_idx` stays in its record as stored, read when the defaults above are made and by nothing after, as `rev` and `compatibility` are kept. It is no longer written, so choosing a powder no longer stores the eight powders, and `powder_profiles.saved` no longer moves with the choice.
 
@@ -80,14 +85,18 @@ typedef struct {
 ```
 Charge
   Start
-  Charge   308 match ›    one of the eight, by name
-  Target   44.00 gr       the chosen one's weight
-  Powder   AR2208 ›       the chosen one's powder
+  Load   308 match ›      the chosen one's name
+  Target   44.00 gr ›     its weight
+  Powder   AR2208,gr ›    its powder
 ```
 
+- **"Load" and the name** (the owner at the unit, 2026-11-28, evening). A name of 15 characters is 3 px too wide beside "Load": it is cut at a whole character, as many as fit, the key kept whole ("Load 6.5CM 140 ELD- ›"). The same holds for every choice's name beside its key (a powder's too); a number is never cut. The name as the row, chosen at the mock that morning, was dropped for it.
+- A click opens the choice's own page, titled **Load**: the eight by name, the chosen one checked.
+- **The word is "Load"** (the owner, the same day): the page's title, the names never set ("Load 3") and the web's page. "Charge" stays the job and its page.
 - The same three rows on the Change page a charge opens between throws.
+- **The charge's own screen keeps its line** (the owner, the same day): "of 44.00, AR2208,gr", the target and the powder. Nothing leaves it.
 - Names are typed on the web only, as the powders' are.
-- A mock comes first (`tools/ui_mock`), and settles the row's word and what the charge's own screen shows under the weight.
+- The mock: `tools/ui_mock/charge_profiles_12864.py`, its sheet in [mockups](mockups/charge_profiles_12864.png), with the layouts passed over beside the one chosen.
 
 ### The API
 
@@ -101,7 +110,7 @@ Charge
 ### The web
 
 - **The Trickler page:** a picker above Target and Powder. The page stores what it changes, so a weight set there is kept.
-- **A page for the eight,** beside Powders: name, weight and powder, its form drawn from the schema, the powder chosen by name.
+- **A page for the eight,** Loads, a destination of the navigation beside Powders (the owner, "Yes, keep it"): name, weight and powder, its form drawn from the schema, the powder chosen by name.
 - A mock on the stand-in first (`tests/web_test.py`).
 
 ### Each value's life
@@ -111,7 +120,7 @@ Charge
 | The chosen profile | The first, on a blank slot | The screen (stored); `PATCH /api/v1/charge`, a start (live) | During a throw | With the eight |
 | A profile's target | Not set | The screen's editor (stored); a PATCH, a start (live) | During a throw, for the chosen one; a weight the digits cannot show | With the eight |
 | A profile's powder | The unit's stored choice | The screen (stored); a PATCH, a start (live) | During a throw, for the chosen one; an id no powder has | With the eight |
-| A profile's name | "Charge 1" to "Charge 8" | The web, the API | Not printable ASCII | With the eight |
+| A profile's name | "Load 1" to "Load 8" | The web, the API | Not printable ASCII | With the eight |
 
 A store at the screen stores the block, so it also stores what the API left live in the other seven, as a powder's choice does today.
 
@@ -155,7 +164,7 @@ One PR, one gate.
 
 - **Two charge profiles on one powder throw two weights,** and a change to the powder's gains shows in both (`charge_cycle` on each, the simulated scale).
 - **The weight is there after a power cycle,** set at the screen and set from the Trickler page.
-- **A unit on v1.21 updated to this** keeps its eight powders and the one chosen, has "Charge 1" on that powder with no target, and charges once a target is set (the settings copied before and compared after).
+- **A unit on v1.21 updated to this** keeps its eight powders and the one chosen, has "Load 1" on that powder with no target, and charges once a target is set (the settings copied before and compared after).
 - **On the PC** (`host_test.py`): a blank slot's defaults; a record with longer profiles read and stored at this size; a chosen index and a powder's id out of range.
 - **`release_records.py`** finds the new record by its use and passes, both compilers' layouts the same.
 - `menu_tour` against the baseline, saved again for the pages that change; `reach`; `api_check`; `settings_roundtrip`.
@@ -177,5 +186,5 @@ Each was put with the agent's recommendation, and the owner approved the ADR as 
 1. **The slot: 6 KB.** Blank on every unit, and inside a 128 kbit chip. The other free slots each hold something on some unit.
 2. **The powders' `current_profile_idx` is kept and no longer written.** One truth for the powder in use. Said here as a stored field's use ending, not its layout changing. (The proposal of this morning said it would go on being written; that would store two records at every choice of powder.)
 3. **`api_v1.md`'s line is changed before anything is built on it.** It says a target given beside a charge profile "overrides it for that charge", which needs a second target. Here it writes the profile. With that, the powder's choice is stored by `charge_profiles/save`, no longer by `powder_profiles/save`: a change to an API called stable, made while v2 has only candidates and no release.
-4. **The word on the screen and the web.** "Charge" is already the job and the page, so a "Charge" row on the Charge page reads twice. Recommended: **Load**, a reloader's own word for a calibre's recipe ("Load: 308 match", "Load 1" to "Load 8"), the API's name staying `charge_profiles`. The owner chooses at the mock.
+4. **The word on the screen and the web.** "Charge" is already the job and the page, so a "Charge" row on the Charge page reads twice. Recommended: **Load**, a reloader's own word for a calibre's recipe ("Load: 308 match", "Load 1" to "Load 8"), the API's name staying `charge_profiles`. The owner chooses at the mock. **Chosen 2026-11-28:** "Load", and on the Charge page no word at all, the name being the row; that evening, at the unit, "Load" as the row's key and the name beside it, cut to fit ("The screen").
 5. **Whether the unit says its EEPROM's size** (a suggestion, not in the scope above). It can tell without writing: the same bytes read at 1 KB and at 17 KB are one chip of 16 KB. Shown in `GET /api/v1/debug` and on the console, a user with such a board could then tell us what the owner cannot try. Recommended: yes, as it is a few lines and the only proof within reach; left out if the owner would rather not grow the PR.
