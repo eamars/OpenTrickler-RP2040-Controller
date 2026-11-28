@@ -862,20 +862,36 @@ def http_put_bytes(host, path, data, timeout_s):
         return status, None
 
 
-def build_version(build_dir):
+def elf_version(elf):
     """
-    Read the version the last build wrote into src/generated/version.c.
+    The version and commit an image was built with, read from its ELF (`version_string` and `vcs_hash`, each a pointer
+    to its text), so an image built elsewhere, a release's from CI, is checked by what it carries.
 
     Args:
-        build_dir: unused today; src/generated is shared by both boards' builds, so build the board last.
+        elf: the image's ELF.
 
     Returns:
         (version_string, vcs_hash).
     """
-    text = (REPO / "src" / "generated" / "version.c").read_text(encoding="utf-8")
-    version = re.search(r'version_string = "([^"]*)"', text).group(1)
-    vcs = re.search(r'vcs_hash = "([^"]*)"', text).group(1)
-    return version, vcs
+    from elftools.elf.elffile import ELFFile
+
+    with open(elf, "rb") as file:
+        image = ELFFile(file)
+        loaded = [segment for segment in image.iter_segments() if segment["p_type"] == "PT_LOAD"]
+
+        def read(address, size):
+            for segment in loaded:
+                start = segment["p_vaddr"]
+                if start <= address < start + segment["p_filesz"]:
+                    return segment.data()[address - start:address - start + size]
+            raise ValueError(f"{elf}: nothing loaded at {address:#x}")
+
+        def text(name):
+            symbol = image.get_section_by_name(".symtab").get_symbol_by_name(name)[0]
+            pointer = struct.unpack("<I", read(symbol["st_value"], 4))[0]
+            return read(pointer, 64).split(b"\0")[0].decode("ascii")
+
+        return text("version_string"), text("vcs_hash")
 
 
 def read_manifest(source):
@@ -1401,7 +1417,7 @@ class Session:
         if not self.elf.exists():
             self.fail(f"{self.elf} does not exist")
             return
-        version, vcs = build_version(self.board["build"])
+        version, vcs = elf_version(self.elf)
         layout = self.board.get("layout")
         if layout is not None:
             # The block's version is taken when CMake configures, the version string at every build: a build
