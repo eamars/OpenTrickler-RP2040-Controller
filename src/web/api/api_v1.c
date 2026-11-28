@@ -423,19 +423,21 @@ static const char api_v1_guide[] =
     "once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or "
     "when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, "
     "and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: "
-    "the charge's, the scale's and the gate's settings and the powder profile and the charge profile in use while a "
-    "throw is under way, "
+    "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
     "the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the "
     "scale's own unit. "
-    "The unit runs one job at a time: a charge or a purge. One charge profile is always chosen (GET "
-    "/api/v1/charge_profiles): the charge's target and powder are its own. A charge is started with POST "
-    "/api/v1/charge/start once it has a target, and throws until it is stopped: each throw waits for the scale to "
-    "read zero, pours to "
+    "The unit runs one job at a time: a charge or a purge. A charge throws the chosen charge profile's target "
+    "(GET /api/v1/charge_profiles). It is started with POST /api/v1/charge/start "
+    "once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to "
     "the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops "
     "whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at "
     "the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. "
     "The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours "
     "onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.";
+
+// The guide is one item of the index's stream, sent whole in a chunk: the server's buffer less its chunk's head and
+// end (10 bytes), with the guide's quotes and the 14 bytes that follow it. Longer, the index is cut off at the guide
+_Static_assert(sizeof(api_v1_guide) + 2 + 14 < HTTP_SERVER_BUFFER_SIZE - 10, "the guide no longer fits a chunk");
 
 static uint32_t api_v1_boot = 0;        // new at each start, so a client sees a restart (api_v1.md, the index)
 

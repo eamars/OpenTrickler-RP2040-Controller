@@ -139,7 +139,6 @@ PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
 # Pages that show values that change from build to build, unit to unit or moment to moment: reported, not judged,
 # by --compare (ADR-010, gate 4: the menu's pages by id, in place of MUI's numbered forms)
 MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the unit's id",
-                        "charge": "the target, which lives in RAM until ADR-014 and a charge or the API sets",
                         "wifi": "the network's address and signal",
                         "settings/scale": "the scale's reading"}
 # Pages whose picture holds a secret: snapped into the session's folder (logs/, not in git), never into a baseline
