@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-390",
-   "vcs": "4043b28",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
   "hostname": "opentrickler-4A82",
-  "boot": 3312385355,
-  "uptime_s": 13714,
+  "boot": 4283050194,
+  "uptime_s": 31,
   "features": [
    {
     "name": "servo_gate",
@@ -565,8 +565,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-390",
-   "vcs": "4043b28",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "resources": [
@@ -1907,7 +1907,7 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The weight thrown, in the scale's unit: what the screen's digits can show, 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places); null, not set"
+      "about": "The weight thrown, in the scale's unit: one the screen's digits show at the charge's decimal places, to 999.99 at two and to 99.999 at three; null, not set"
      },
      {
       "name": "powder_profile",
@@ -1919,7 +1919,7 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The powder it is thrown with: a powder profile's id (GET /api/v1/powder_profiles)"
+      "about": "The powder it is thrown with, by its powder profile's id"
      }
     ]
    },
@@ -3100,8 +3100,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-390",
-   "vcs": "4043b28",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "unit_id": "4A821948",
@@ -3560,13 +3560,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-390",
-   "vcs": "4043b28",
+   "version": "2.0.3-393",
+   "vcs": "ba863a8",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
-  "uptime_s": 13717,
+  "uptime_s": 34,
   "activity": "none",
   "restart_pending": false,
   "set_up": true
@@ -3576,7 +3576,7 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-4A82",
-  "rssi": -52,
+  "rssi": -51,
   "station": {
    "state": "joined",
    "ssid": "dummy_ssid",
@@ -3599,7 +3599,7 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-390",
+   "version": "2.0.3-393",
    "block": "2.0.3-255",
    "slot": "a",
    "trial": false

@@ -2,6 +2,41 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, evening: the web's part, a mock for the owner
+
+Taken over from the parked session at the owner's word. The bench open again, the hopper empty ("Open, hopper empty"). Built in `ba863a8`, on the stand-in first, then put on the Pico W.
+
+### What was built
+
+- **The Trickler:** a Load row above Powder and Target in the charge's card. Each is written into the chosen load and stored at once (`PATCH /api/v1/charge`, then `POST /api/v1/charge_profiles/save`), as the screen stores at its confirm: the page leaves nothing changed and not stored. The target is stored when it is typed and left, or 0.8 s after the last press of its keys, so a run of presses is one store. Start stores a target not yet stored, then starts the load shown (`{"charge_profile": n}`). While a charge runs the load is locked with the powder and the target.
+- **Loads, a fifth destination** between Trickler and Powders, a cartridge for its icon. The eight, each with its target and powder under its name, "In use" on the chosen, "Not stored" on one changed. Each opens its form drawn from the schema; its powder is a choice by name (`hooks.choices` in `form.js`, the powders' names given by the page). Store and Undo act on the eight and the choice. It follows another client's write (a setting's event) and another load chosen (the stream's state: a choice is no event).
+- **The charge's card made compact:** its rows lost the padding and rules the form's style gave them, and go to 48 px at a height of 640 or less (rule 2's least; they are set before a charge, never worked during one). On main the Trickler sat on its 500 px floor at 375 x 553 and scrolled by 11 px; with the third row it fits, the figure's room 79 px, the floor now 482.
+- **The loads' two help lines** named API paths ("settings/charge decimal_places", "GET /api/v1/powder_profiles"), which no other field on the pages does: reworded in the settings' table.
+- **The stand-in** (`tests/web_test.py`): recorded from the Pico W, on 2.0.3-390 and again on 2.0.3-393; taught the loads (the charge as the chosen load, the choice stored and undone with the eight, the list's `saved`, `charge_profile` in the started events), and a write refused while a throw or a job runs, by the schema's `refused_while`, in the unit's words. It refused none before, for any resource.
+- `features.md` rows N10 and N11; `features_check.py --final` passes.
+
+### Measured
+
+| Check | Result |
+|---|---|
+| The portal | 44.9 KB gzipped, 43.1 before |
+| `build_pico_w.ps1` | links. Flash 935.0 KB of 1,016 (933.2 at `4043b28`); RAM at link time 252.9 KB, unchanged |
+| The stand-in, 375 x 553 | no scroll; three presses of + one store; a load with no target, "Give a target first."; a charge of Load 2 at 44.00, `charge_profile` 1 in both started events; a write to the load in use during the throw refused under its field, "the charge profile in use is refused while a throw is under way"; the list's tags followed each write |
+| The stand-in, 390 x 664, 768 x 1024 dark, 1280 x 800 | looked at: the wide window opens the load in use beside the list; nothing collides; no console error but the 409 asked for |
+| `settings --save logs/adr014/picow_before_web`, then `flash` | `VERDICT PASS`: 2.0.3-393 at `ba863a8` |
+| `settings --compare` with that copy | `VERDICT PASS`: the 25 resources unchanged |
+| The unit's own pages, 390 x 664 | the Trickler with its Load row, the Loads page: read, no console error. Nothing written |
+
+### For the owner, at the mock
+
+1. **A fifth destination** (the owner's rule of 2026-11-18 was four). Recommended: Loads beside Powders, as built: a person looks for loads by their name. The other way keeps four, a Loads | Powders switch at the top of the Powders page, and hides the loads under a word that is not theirs.
+2. **The Trickler stores each change** of the load, its powder and its target (the README's "The page stores what it changes"). A store is two writes of the block (the spare slot, then its place); a run of presses is one.
+
+### Left
+
+1. The owner's look at the mock (the stand-in, or the unit at 192.168.2.100). Then on the unit: a target set from the Trickler there after a restart (the README's check), and the usual proof.
+2. The Pico 2 W's baseline, the v1.21 update, the README and the manuals, the close and the PR, as below.
+
 ## 2026-11-28, early afternoon: parked by the owner
 
 The owner: "Can you write down the progress and park the action for now? And perhaps leave for later implementation this afternoon." Nothing runs: the build's session is idle, the unit is left as below ("How the unit was left"), and the branch `adr014_charge_profiles` holds the work in this checkout, not pushed.
