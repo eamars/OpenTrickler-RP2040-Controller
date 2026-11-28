@@ -76,8 +76,6 @@ struct menu_row {
     const char *(*option)(int idx);
     int (*current)(void);
     const char *(*choose)(int idx);                                         // NULL when done, else why not
-    const char *choice_title;                                               // ROW_CHOICE: its page's title; NULL:
-                                                                            // the row's label
     bool bold;                                                              // a heading, on notes
 };
 
@@ -980,9 +978,11 @@ static int load_current(void) {
 }
 
 
-// The row's label: the chosen one's name, with no word before it (the owner at the mock, 2026-11-28)
-static const char *load_name(void) {
-    return charge_profiles_get(charge_profiles_chosen())->name;
+// The row's value: the chosen one's name, beside its key "Load", cut by the view where it does not fit (the owner at
+// the unit, 2026-11-28 evening)
+static void value_load(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "%s", charge_profiles_get(charge_profiles_chosen())->name);
 }
 
 
@@ -1262,8 +1262,8 @@ static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/pur
 
 static const menu_row_t rows_charge[4] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_charge_start},
-    {.label = "", .kind = ROW_CHOICE, .label_now = load_name, .choice_title = "Load", .count = load_count,
-     .option = load_option, .current = load_current, .choose = load_choose},
+    {.label = "Load", .kind = ROW_CHOICE, .value = value_load, .count = load_count, .option = load_option,
+     .current = load_current, .choose = load_choose},
     {.label = "Target", .kind = ROW_NUMBER, .value = value_target},
     {.label = "Powder", .kind = ROW_CHOICE, .value = value_powder, .count = powder_count, .option = powder_option,
      .current = powder_current, .choose = powder_choose},
@@ -3021,6 +3021,7 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
         }
         bool opens = row->kind == ROW_PAGE || row->kind == ROW_CHOICE || row->kind == ROW_NUMBER;
         screen->row_info[screen->row_count] = row->kind == ROW_INFO;
+        screen->row_name[screen->row_count] = row->kind == ROW_CHOICE;
         screen_row(screen, row_label(row), value, opens);
     }
     screen->focus = frame->focus < count ? frame->focus : (int8_t) (count - 1);
@@ -3032,8 +3033,7 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
 static void screen_choice(menu_screen_t *screen, const frame_t *frame) {
     const menu_row_t *row = frame->row;
     snprintf(screen->id, sizeof(screen->id), "choice");
-    snprintf(screen->title, sizeof(screen->title), "%s", row->choice_title != NULL ? row->choice_title :
-                                                         row_label(row));
+    snprintf(screen->title, sizeof(screen->title), "%s", row_label(row));
     screen->title_back = true;
     int now = row_choice_now(row);
     for (int idx = 0; idx < row_choice_count(row); idx += 1) {

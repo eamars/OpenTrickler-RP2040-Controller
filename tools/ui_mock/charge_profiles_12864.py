@@ -48,6 +48,23 @@ def row_width(label, value):
     return 3 + m.TEXT.width(label) + 3 + m.TEXT.width(value) + 3 + m.TEXT.width(">") + 3
 
 
+def fit(label, value):
+    """
+    A name beside its key, as the firmware's view cuts it (the owner, 2026-11-28: "display maximum number of X
+    characters that doesn't overlaps with the key"): the most of its characters that fit, no space left at its end.
+
+    Args:
+        label: the row's label.
+        value: the name.
+
+    Returns:
+        The name, cut where it must be.
+    """
+    while value and row_width(label, value) > W:
+        value = value[:-1].rstrip(" ")
+    return value
+
+
 def screens():
     """
     Every screen the charge profile changes, in each word.
@@ -67,10 +84,12 @@ def screens():
                    ("Powder", "AR2208,gr", True)], 0)
         add(p, f'"{word}": the Charge page')
 
+        # The owner's choice, 2026-11-28 evening: "Load", and the longest name cut beside it
+        cut = word == "Load"
         p = Panel(); m.title(p, "Charge", back=True)
-        m.rows(p, [("Start", "", False), (word, LONGEST_NAME, True), ("Target", "41.50 gr", True),
-                   ("Powder", "AR2209,gr", True)], 1)
-        add(p, f'"{word}": the longest name does not fit')
+        m.rows(p, [("Start", "", False), (word, fit(word, LONGEST_NAME) if cut else LONGEST_NAME, True),
+                   ("Target", "41.50 gr", True), ("Powder", "AR2209,gr", True)], 1)
+        add(p, f'"{word}": the longest name cut (chosen)' if cut else f'"{word}": the longest name does not fit')
 
         p = Panel()
         par.choice_page(p, word, names(word), 0, 0)
@@ -128,7 +147,8 @@ def main():
     for idx, panel in enumerate(panels):
         write_sheet(args.out / "screens" / f"{idx:02d}.png", [panel], scale=4, gap=8)
     for word in ("Load", "Charge"):
-        print(f'"{word}" with the longest name: {row_width(word, LONGEST_NAME)} of {W} px')
+        print(f'"{word}" with the longest name: {row_width(word, LONGEST_NAME)} of {W} px; cut to fit: '
+              f'"{fit(word, LONGEST_NAME)}"')
     print(f'the charge\'s line with the longest name: {m.TEXT.width(f"of 41.50, {LONGEST_NAME}")} of {W} px')
     print(f"{len(panels)} screens: {args.out / 'charge_profiles_12864.png'}")
     return 0
