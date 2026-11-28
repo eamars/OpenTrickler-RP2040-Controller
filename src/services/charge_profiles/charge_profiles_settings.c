@@ -141,6 +141,14 @@ static const settings_resource_t charge_profile_settings = {
 
 
 bool charge_profiles_init(void) {
+#if RC_TEST_LOADS_BLANK
+    // A test build (ADR-014): the loads' slot and the spare slot blank before the load, as on a unit that never ran a
+    // version with loads (one updated from v1.21): the spare would otherwise finish the slot from the loads' last save
+    static const uint8_t blank[2] = {0xff, 0xff};
+    eeprom_write(EEPROM_CHARGE_PROFILES_BASE_ADDR, (uint8_t *) blank, sizeof(blank));
+    eeprom_write(EEPROM_SPARE_BASE_ADDR, (uint8_t *) blank, sizeof(blank));
+    printf("Charge profiles: test build, their slot and the spare made blank\n");
+#endif
     charge_profiles_load(profile_get_stored_choice(), MAX_PROFILE_CNT);
     profile_select(charge_profiles_get(charge_profiles_chosen())->powder_profile);
     return settings_register(&charge_profile_settings);
