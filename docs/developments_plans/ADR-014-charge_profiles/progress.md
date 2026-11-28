@@ -2,6 +2,21 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## 2026-11-28, evening: the Pico 2 W
+
+The owner put the Pico 2 W on the probe ("It's on"): opentrickler-FA0C, unit FA0C3B5E, 192.168.2.101, on 2.0.3-377 (`e8dd9b4`) before, AR2209,gr in use, no scale sending (the A&D is on the Pico W).
+
+| Check | Result |
+|---|---|
+| `settings --save logs/adr014/pico2w_before` | 17 resources of 2.0.3-377 kept |
+| `flash` | `VERDICT PASS`: 2.0.3-400 at `c7d6475`. At its first start: "Config: 0x1800 never written: its defaults stored" |
+| `settings --compare` with that copy | every field of the 17 unchanged; the eight loads new, as meant (the tool counts a new resource as a difference): "Load 1" to "Load 8", no target, each on powder 1, the powder the unit had chosen; "Load 1" chosen |
+| `stats` | **`eeprom_kb=32`**: a 256 kbit chip, as the owner expects on the production boards. The Pico W says 16 |
+| `menu_tour --compare tests/menu_baseline/pico2_w` | every judged page as its baseline but three: Charge, changed as meant (its Load row; its powder AR2209,gr, which the unit had in use before the flash, where the baseline of 2026-11-19 shows AR2208,gr), saved again; Settings › Charge and › Calibration, their weights without "gr" for want of a scale sending, as AGENTS.md says of a tour without one: not saved |
+| `charge_cycle`, `--no-cup-check` (no scale on this unit; the hopper empty by the owner's word this session) | `VERDICT PASS`: 30.000 for a target of 30.000; "Load 1" put back to no target |
+
+The unit is left on 2.0.3-400, its 17 earlier resources as they were, the eight loads at their defaults, "Load 1" chosen.
+
 ## 2026-11-28, evening: a v1.21 unit updated to this
 
 The owner: "Test v1.21 update". The README's check: a unit on v1.21 updated to this keeps its eight powders and the one chosen, has "Load 1" on that powder with no target, and charges once a target is set. Run on the Pico W, as ADR-006's gate 10 and ADR-009 ran theirs.
@@ -34,7 +49,7 @@ The owner: "Test v1.21 update". The README's check: a unit on v1.21 updated to t
 
 ### Left
 
-1. **The Pico 2 W** on the probe: flash, `menu_tour` (its Charge page saved again), `charge_cycle`. The owner puts it on.
+1. ~~The Pico 2 W~~: done, above.
 2. ~~A unit on v1.21 updated to this~~: done, above.
 3. The close (this file, the README, the index) and the PR.
 
