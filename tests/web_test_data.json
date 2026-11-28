@@ -3671,7 +3671,6 @@
  },
  "/api/v1/scale": {
   "weight": 0,
-  "unit": "gn",
   "driver": "and_fxi",
   "simulated": false,
   "usual_interval_ms": 48,
