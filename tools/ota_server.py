@@ -74,8 +74,8 @@ CHAINS = {
 }
 
 
-def tag_key(tag: str) -> list:
-    """Order tags by their numbers, so v2.0.10 comes after v2.0.9.
+def tag_key(tag: str) -> tuple:
+    """Order tags by their numbers, so v2.0.10 comes after v2.0.9, and v2.0.0-1 after v2.0.0.
 
     Args:
         tag: a release's tag, such as v2.0.2 or v2.0.2-rc1.
@@ -83,7 +83,7 @@ def tag_key(tag: str) -> list:
     Returns:
         A sort key: the tag's numbers, then the tag itself.
     """
-    return [int(number) for number in re.findall(r"\d+", tag)] + [tag]
+    return [int(number) for number in re.findall(r"\d+", tag)], tag
 
 
 class Releases:
