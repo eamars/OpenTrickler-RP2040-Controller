@@ -628,25 +628,10 @@ static void value_wifi_station_network(const menu_row_t *row, char *out, size_t 
 }
 
 
-// Wi-Fi off or on, at its next start: the button at the end of its page, which only turns it, so a press is undone by
-// another; a line above it says when a change waits for a restart
-static bool wifi_enabled(void) {
-    char text[8];
-    return settings_read_text("settings/wifi", "enable", text, sizeof(text)) && strcmp(text, "true") == 0;
-}
-
-
-static const char *wifi_button_label(void) {
-    return wifi_enabled() ? "Turn Wi-Fi off" : "Turn Wi-Fi on";
-}
-
-
-static void act_wifi_button(const menu_row_t *row) {
+// The web's PIN (ADR-016, gate 3): shown on the Wi-Fi page while it is asked for, new at each start
+static void value_web_pin(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    const char *why = settings_write_and_save("settings/wifi", "enable", wifi_enabled() ? "false" : "true");
-    if (why != NULL) {
-        push_message("Not changed", why, NULL);
-    }
+    snprintf(out, room, "%s", wireless_pin());
 }
 
 
@@ -1296,8 +1281,26 @@ static void act_join_by_camera(const menu_row_t *row) {
 }
 
 
-// Notes: each line says what it is, read only, then at the end Wi-Fi turned off or on, or on its own hotspot with no
-// network named, the code that joins it
+// The Wi-Fi's options (the owner, 2026-11-29): the Wi-Fi itself and the web's PIN (ADR-016, gate 3), each stored at
+// once
+static const menu_row_t rows_wifi_options[] = {
+    {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/wifi", .name = "enable"},
+    {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/wifi",
+     .name = "pin_required"},
+    {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
+};
+static const menu_page_t page_wifi_options = {.id = "wifi/options", .title = "Wi-Fi options", .rows = rows_wifi_options,
+                                              .row_count = ROW_COUNT(rows_wifi_options)};
+
+
+static void act_wifi_options(const menu_row_t *row) {
+    (void) row;
+    push_page(&page_wifi_options);
+}
+
+
+// Notes: each line says what it is, read only, then at the end the options (the Wi-Fi turned off or on, the web's PIN),
+// or on its own hotspot with no network named, the code that joins it
 static const menu_row_t rows_wifi[] = {
     {.label = "", .kind = ROW_INFO, .value = value_wifi_mode, .label_now = wifi_mode_label},
     {.label = "Network", .kind = ROW_INFO, .value = value_wifi_station_network, .shown = wifi_has_trouble},
@@ -1306,10 +1309,10 @@ static const menu_row_t rows_wifi[] = {
     {.label = "IP", .kind = ROW_INFO, .value = value_wifi_address},
     {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
+    {.label = "Web PIN", .kind = ROW_INFO, .value = value_web_pin, .shown = wireless_pin_required},
     {.label = "Takes effect at restart", .kind = ROW_INFO, .shown = shown_restart_pending},
     {.label = "Join by camera", .kind = ROW_ACTION, .act = act_join_by_camera, .shown = wifi_code_offered},
-    {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label,
-     .shown = wifi_switch_offered},
+    {.label = "Options", .kind = ROW_ACTION, .act = act_wifi_options, .shown = wifi_switch_offered},
 };
 static const menu_page_t page_wifi = {.kind = PAGE_NOTES, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
                                       .row_count = ROW_COUNT(rows_wifi)};
@@ -1527,24 +1530,6 @@ static const menu_page_t page_calibration_discard = {.kind = PAGE_DIALOG, .id = 
                                                      .row_count = ROW_COUNT(rows_calibration_discard),
                                                      .cancel_first = true};
 
-// The web's PIN cleared at the unit, for one forgotten (ADR-016, gate 3): the row only while one is set
-static void act_clear_pin(const menu_row_t *row) {
-    (void) row;
-    pop();
-    if (wireless_pin_set("", ACTIVITY_BY_BUTTON) != WIRELESS_PIN_STORED) {
-        push_message("Clear PIN", "The settings memory", "did not take it");
-    }
-}
-
-static const menu_row_t rows_clear_pin[] = {
-    {.label = "Clear the web's PIN?", .kind = ROW_INFO},
-    {.label = "The web is then open", .kind = ROW_INFO},
-    {.label = "Clear", .kind = ROW_ACTION, .act = act_clear_pin},
-};
-static const menu_page_t page_clear_pin = {.kind = PAGE_DIALOG, .id = "settings/clear_pin", .title = "Clear PIN",
-                                           .rows = rows_clear_pin, .row_count = ROW_COUNT(rows_clear_pin),
-                                           .cancel_first = true};
-
 static const menu_row_t rows_settings[] = {
     {.label = "Calibration", .kind = ROW_PAGE, .page = &page_calibration},
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
@@ -1554,7 +1539,6 @@ static const menu_row_t rows_settings[] = {
     {.label = "Motors", .kind = ROW_PAGE, .page = &page_motors},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
-    {.label = "Clear PIN", .kind = ROW_PAGE, .page = &page_clear_pin, .shown = wireless_pin_is_set},
     {.label = "Factory reset", .kind = ROW_PAGE, .page = &page_factory_reset},
 };
 static const menu_page_t page_settings = {.id = "settings", .title = "Settings", .rows = rows_settings,
@@ -1664,10 +1648,10 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
-    &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_calibration_powder, &page_scale, &page_charge_settings,
+    &page_main, &page_charge, &page_wifi, &page_wifi_options, &page_settings, &page_calibration, &page_calibration_powder, &page_scale, &page_charge_settings,
     &page_display, &page_gate, &page_motors, &page_firmware,
     &page_factory_reset, &page_calibration_discard, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
-    &page_start_faults, &page_clear_pin,
+    &page_start_faults,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 

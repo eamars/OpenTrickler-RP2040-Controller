@@ -87,10 +87,9 @@ function confirmAction(title, text, act, keep, loses = false) {
 }
 
 // The web's PIN (ADR-016, gate 3), kept by this browser as the cookie the unit reads, pin=<digits>, sent to the
-// unit's own pages alone (SameSite=Strict); "" forgets it
+// unit's own pages alone (SameSite=Strict), until a change is refused again (the unit restarted: a new PIN)
 function setPinCookie(digits) {
-    document.cookie = digits ? `pin=${digits}; path=/; SameSite=Strict; max-age=31536000`
-                             : "pin=; path=/; SameSite=Strict; max-age=0";
+    document.cookie = `pin=${digits}; path=/; SameSite=Strict`;
 }
 
 // Asked when a change is refused for want of it, in the one confirmation with its field shown: the digits, or null
@@ -105,8 +104,9 @@ async function askPin(wrong) {
             $("confirm").close("act");
         }
     };
-    const asked = confirmAction("Enter the unit's PIN", wrong ? "That is not this unit's PIN. Try again."
-                                : "This unit asks for its PIN before it takes a change.", "Enter", "Cancel");
+    const asked = confirmAction("Enter the unit's PIN", wrong
+        ? "That is not the PIN on the unit's Wi-Fi page: it is new each time the unit starts. Try again."
+        : "The unit asks for the PIN on its Wi-Fi page before it takes a change.", "Enter", "Cancel");
     field.focus();
     const entered = await asked;
     field.hidden = true;

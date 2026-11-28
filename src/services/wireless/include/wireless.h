@@ -28,11 +28,9 @@ typedef struct {
     // Wi-Fi resets; a record from before reads it as it was stored there, 0. Not a setting: only POST /api/v1/setup/done
     // sets it, and a factory reset clears it
     bool setup_done;
-    // The web's PIN (ADR-016, gate 3): appended past the 108 bytes the release stored, as a number and its count of
-    // digits, as a PIN may begin with 0; 0 digits, none. Set by POST /api/v1/pin and stored at once; in no reply, no
-    // export and no settings resource
-    uint32_t pin_code;
-    uint8_t pin_length;
+    // The web's PIN asked for (ADR-016, gate 3): 0 off, 1 on. A boolean in a word, so it starts past the 108 bytes the
+    // release stored (a byte would lie in their tail padding); a record from before reads it as off
+    uint32_t pin_required;
 } eeprom_wireless_metadata_t;
 
 
@@ -146,21 +144,17 @@ bool wireless_set_up(void);
 const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays);
 
 /*
- * The web's PIN (ADR-016, gate 3): a lock against mistakes and meddling, not security. Kept in the Wi-Fi record,
- * stored at once from what is stored of it, so a Wi-Fi change not yet stored is not stored with it.
- * wireless_pin_set(): 4 to 8 digits, or "" for none; logged as a change of /api/v1/pin, by who set it.
- * wireless_pin_matches(): the digits given are the PIN set.
+ * The web's PIN (ADR-016, gate 3): a check that whoever changes the unit over the network can read its screen. With
+ * the switch on (settings/wifi pin_required, off by default), every write over the network needs the PIN, 4 digits
+ * made at each start and shown on the Wi-Fi page; a client that reached the unit by its own hotspot needs none.
+ * wireless_pin(): the PIN, its 4 digits. wireless_reached_by_hotspot(): the unit's address a client reached, as its 4
+ * bytes in order, is the hotspot's while the hotspot is up.
  */
-#define WIRELESS_PIN_DIGITS_MIN 4
-#define WIRELESS_PIN_DIGITS_MAX 8
-typedef enum {
-    WIRELESS_PIN_STORED,
-    WIRELESS_PIN_NOT_DIGITS,        // not 4 to 8 digits, nor ""
-    WIRELESS_PIN_NOT_STORED,        // the settings memory did not take it: the PIN is as it was
-} wireless_pin_outcome_t;
-bool wireless_pin_is_set(void);
+#define WIRELESS_PIN_DIGITS 4
+bool wireless_pin_required(void);
+const char *wireless_pin(void);
 bool wireless_pin_matches(const char *digits);
-wireless_pin_outcome_t wireless_pin_set(const char *digits, activity_by_t by);
+bool wireless_reached_by_hotspot(const uint8_t reached[4]);
 
 #ifdef __cplusplus
 }

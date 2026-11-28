@@ -2173,8 +2173,6 @@ class Session:
                 self.fail("api_check: the revert did not put back the charge profile's target, not set")
         expect("PATCH", "purge", {"speed_rps": 1}, 409, "not_running")
         expect("POST", "system/factory_reset", {}, 400, "confirm_missing")
-        # The web's PIN (ADR-016, gate 3): refused, as not 4 to 8 digits, so none is set; pin_check sets one
-        expect("POST", "pin", {"pin": "12"}, 400, "out_of_range")
         # The gate, where the build carries it (ADR-008, gate 2: the index's features); without it, its paths are gone
         carries = {feature["name"]: feature["present"] for feature in index.get("features", [])}
         if carries.get("servo_gate", True):
@@ -2612,18 +2610,19 @@ class Session:
         if unit.read("settings") != export_before:
             self.fail("tuning_check: the settings differ after the restart")
 
-    def pin_check(self, host, pin):
+    def pin_check(self, host):
         """
-        The web's PIN (ADR-016, gate 3), on a unit that has none. Set over the API; then every read free and every
-        kind of write refused without it (a POST, a PATCH, an upload's PUT, the PIN's own action), each refused
-        before its route, changing nothing; a write with it done; four wrong and one right go through, five wrong in
-        a row refuse every write for a minute (429 with Retry-After), the right one too, and after it the right one
-        goes; the settings' copy the same with the PIN set, no PIN in it. Last, the PIN cleared at the screen,
-        Settings › Clear PIN pressed through the console, and the row gone with it.
+        The web's PIN (ADR-016, gate 3), on a unit whose switch is off. The switch turned on at the screen (Wi-Fi >
+        Options > Web PIN, pressed through the console) and the PIN read off the Wi-Fi page, as a person reads it. Then
+        every read free and every kind of write refused without it (a POST, a PATCH, the hello, an upload's PUT), each
+        before its route, changing nothing; a write with it done; four wrong and the right one goes; five wrong in a row
+        refuse every write for a minute (429 with Retry-After), the right one too, and after it the right one goes; the
+        settings' copy holding no PIN. A restart makes another PIN: the old one refused, the new one taken. Last, the
+        switch turned off at the screen, and a write with none goes. A client on the unit's own hotspot needs none: not
+        reached from here, the PC not on the hotspot.
 
         Args:
             host: the unit's address.
-            pin: the PIN set for the check.
         """
         def call(method, path, body=None, cookie=None, data=None):
             request = urllib.request.Request(f"http://{host}{path}", method=method,
@@ -2648,36 +2647,65 @@ class Session:
             if got_status != status or (code is not None and got_code != code):
                 self.fail(f"pin_check: {what}: {got_status} {got_code}, not {status} {code or ''}")
 
+        def switch_at_screen():
+            """Wi-Fi > Options > Web PIN, its toggle pressed through the console."""
+            self.send("screen wifi/options")
+            rows = [row["label"] for row in self.screen_now()["rows"]]
+            if "Web PIN" not in rows:
+                self.fail(f"pin_check: Wi-Fi options has no Web PIN: {rows}")
+                return
+            self.send("press ccw 5")
+            self.send(f"press cw {rows.index('Web PIN') + 1}")
+            self.send("press enc 1")
+            time.sleep(0.5)
+            self.send("screen main")
+
+        def pin_on_screen():
+            """The PIN as the Wi-Fi page shows it, or None."""
+            self.send("screen wifi")
+            pin = None
+            for line in self.console.data_lines:
+                found = re.match(r'@line \d+ "Web PIN" value="(\d+)"', line)
+                if found:
+                    pin = found.group(1)
+            self.send("screen main")
+            return pin
+
         unit = unit_api.Unit(host)
         if unit.index.get("pin") is not False:
-            self.fail(f"pin_check: the index's pin is {unit.index.get('pin')}, not false: the unit has a PIN already")
+            self.fail(f"pin_check: the index's pin is {unit.index.get('pin')}, not false: the switch is on already")
             return
         export_before = unit.read("settings")
         charge = unit.read("settings/charge")
+        same = {"fine_stop_threshold": charge["fine_stop_threshold"]}
+        if pin_on_screen() is not None:
+            self.fail("pin_check: the Wi-Fi page shows a PIN with the switch off")
         try:
-            expect("the PIN set, none before", call("POST", "/api/v1/pin", {"pin": pin}), 200)
+            switch_at_screen()
             unit.forget()
-            if unit.index.get("pin") is not True:
-                self.fail("pin_check: the index's pin is not true with a PIN set")
+            pin = pin_on_screen()
+            self.log.write("rc", f"pin_check: the switch on at the screen; the index's pin {unit.index.get('pin')}, "
+                                 f"the Wi-Fi page's PIN {pin}")
+            if unit.index.get("pin") is not True or pin is None or len(pin) != 4:
+                self.fail("pin_check: the switch on, but the index or the Wi-Fi page does not say so")
+                return
             # Reads are free
             for path in ("/api/v1", "/api/v1/charge", "/api/v1/settings", "/api/v1/charge/throws", "/api/v1/agent"):
                 status, _, _ = call("GET", path)
                 if status != 200:
                     self.fail(f"pin_check: GET {path} without the PIN: {status}")
             # Every kind of write refused without it, before its route: nothing changes
-            same = {"fine_stop_threshold": charge["fine_stop_threshold"]}
             expect("POST stop, no PIN", call("POST", "/api/v1/stop", {}), 401, "pin_required")
             expect("PATCH settings/charge, no PIN", call("PATCH", "/api/v1/settings/charge", same), 401, "pin_required")
             expect("POST agent/hello, no PIN", call("POST", "/api/v1/agent/hello", {"name": "pin_check"}), 401,
                    "pin_required")
             expect("PUT debug/upload, no PIN", call("PUT", "/api/v1/debug/upload", data=b"x" * 64), 401,
                    "pin_required")
-            expect("POST pin, no PIN", call("POST", "/api/v1/pin", {"pin": ""}), 401, "pin_required")
-            if unit.index.get("pin") is not True:
-                self.fail("pin_check: the PIN changed by a write without it")
+            expect("PATCH settings/wifi off, no PIN", call("PATCH", "/api/v1/settings/wifi", {"pin_required": False}),
+                   401, "pin_required")
             expect("PATCH settings/charge, the PIN", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
             # Four wrong and one right: the count starts again
-            wrong = pin[::-1] if pin[::-1] != pin else ("1" + pin)[:len(pin)]
+            wrong = f"{(int(pin) + 1) % 10000:04d}"
             for n in range(1, 5):
                 expect(f"PATCH, wrong PIN {n}", call("PATCH", "/api/v1/settings/charge", same, wrong), 401, "pin_wrong")
             expect("PATCH, the PIN after four wrong", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
@@ -2695,34 +2723,46 @@ class Session:
                 self.fail(f"pin_check: a read while locked: {status}")
             time.sleep(PIN_CHECK_LOCK_S)
             expect("PATCH, the PIN after the minute", call("PATCH", "/api/v1/settings/charge", same, pin), 200)
-            # No PIN in the settings' copy: the same as before it was set
-            export_now = unit.read("settings")
-            if export_now != export_before or pin in json.dumps(export_now):
-                self.fail("pin_check: the settings' copy differs with the PIN set, or holds it")
-            # Cleared at the screen: Settings > Clear PIN, its dialog's Clear
-            self.send("screen settings")
-            rows = [row["label"] for row in self.screen_now()["rows"]]
-            if "Clear PIN" not in rows:
-                self.fail(f"pin_check: Settings shows no Clear PIN with a PIN set: {rows}")
-            self.send("screen settings/clear_pin")
-            self.send("press cw 1")
-            self.send("press enc 1")
-            time.sleep(0.5)
+            # No PIN in the settings' copy
+            if pin in json.dumps(unit.read("settings").get("resources", {}).get("/api/v1/settings/wifi", {})):
+                self.fail("pin_check: the settings' copy holds the PIN")
+            # A restart makes another: the old one refused, the new one taken
+            boot = unit.index["boot"]
+            expect("POST system/restart, the PIN", call("POST", "/api/v1/system/restart", {}, pin), 202)
+            time.sleep(1.5)
+            self.wait_for_console()
             unit.forget()
-            if unit.index.get("pin") is not False:
-                self.fail("pin_check: the PIN not cleared by the screen's Clear")
-            self.send("screen settings")
-            rows = [row["label"] for row in self.screen_now()["rows"]]
-            if "Clear PIN" in rows:
-                self.fail(f"pin_check: Settings still shows Clear PIN with none set: {rows}")
-            self.send("screen main")
-            expect("PATCH settings/charge, no PIN, none set", call("PATCH", "/api/v1/settings/charge", same), 200)
+            deadline = time.monotonic() + API_CHECK_BACK_S
+            back = None
+            while back is None and time.monotonic() < deadline:
+                try:
+                    back = unit.index
+                except OSError:
+                    time.sleep(1.0)
+            if back is None or back["boot"] == boot:
+                self.fail("pin_check: the unit not back after its restart")
+                return
+            fresh = pin_on_screen()
+            self.log.write("rc", f"pin_check: after the restart the PIN {fresh}, before it {pin}")
+            if fresh is None or back.get("pin") is not True:
+                self.fail("pin_check: after the restart, the switch is not on or no PIN is shown")
+                return
+            if fresh != pin:
+                expect("PATCH, the old PIN after the restart", call("PATCH", "/api/v1/settings/charge", same, pin), 401,
+                       "pin_wrong")
+            else:
+                self.log.write("rc", "pin_check: the restart made the same PIN (1 in 10,000): the old one not judged")
+            expect("PATCH, the new PIN", call("PATCH", "/api/v1/settings/charge", same, fresh), 200)
+            pin = fresh
         finally:
-            # Whatever failed, the unit is left with no PIN
+            # Whatever failed, the switch is left off, as found
             unit.forget()
             if unit.index.get("pin") is not False:
-                time.sleep(PIN_CHECK_LOCK_S)
-                call("POST", "/api/v1/pin", {"pin": ""}, pin)
+                switch_at_screen()
+        unit.forget()
+        if unit.index.get("pin") is not False or pin_on_screen() is not None:
+            self.fail("pin_check: the switch not off at the screen, or the Wi-Fi page still shows a PIN")
+        expect("PATCH settings/charge, no PIN, the switch off", call("PATCH", "/api/v1/settings/charge", same), 200)
         if unit.read("settings") != export_before:
             self.fail("pin_check: the settings differ from those found")
 
@@ -4433,8 +4473,8 @@ def main():
     parser = argparse.ArgumentParser(description="Drive a unit through a debug probe (ADR-001).")
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
-    parser.add_argument("--pin", help="the unit's web PIN, sent with every request over the network (ADR-016, "
-                                       "gate 3); the bench's units have none")
+    parser.add_argument("--pin", help="the PIN on the unit's Wi-Fi page, sent with every request over the network, "
+                                       "for a unit whose web PIN is on (ADR-016, gate 3); the bench's units have it off")
     parser.add_argument("--most-pour", type=float, help="the most this run may pour, in grains (default: the run's own)")
     parser.add_argument("--cup-emptied", metavar="WORDS",
                         help="the owner's words that the cup was emptied, quoted: the cup's count starts again from the "
@@ -4499,10 +4539,9 @@ def main():
                                                         "between them, a held read, a restart (ADR-016, gate 1)")
     tuning_parser.add_argument("--host", required=True, help="the unit's address")
     tuning_parser.add_argument("--target", type=float, default=10.0)
-    pin_parser = sub.add_parser("pin_check", help="the web's PIN: writes refused without it, the lockout, the "
-                                                  "screen's Clear PIN (ADR-016, gate 3)")
+    pin_parser = sub.add_parser("pin_check", help="the web's PIN: the switch at the screen, writes refused without "
+                                                  "it, the lockout, a new PIN at a restart (ADR-016, gate 3)")
     pin_parser.add_argument("--host", required=True, help="the unit's address")
-    pin_parser.add_argument("--set", default="4821", help="the PIN set for the check")
     api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
                                                   "schema; every action called (ADR-003, gate 4); ends with a restart")
     api_parser.add_argument("--host", required=True, help="the unit's address")
@@ -4733,7 +4772,7 @@ def run_command(session, args):
     elif args.command == "settings_roundtrip":
         session.settings_roundtrip(args.host, args.target)
     elif args.command == "pin_check":
-        session.pin_check(args.host, args.set)
+        session.pin_check(args.host)
     elif args.command == "tuning_check":
         session.tuning_check(args.host, args.target)
     elif args.command == "soak":

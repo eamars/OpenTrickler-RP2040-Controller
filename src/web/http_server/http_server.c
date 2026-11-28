@@ -884,7 +884,14 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
             const char *code = NULL;
             const char *message = NULL;
             uint32_t retry_after_s = 0;
-            int status = write_guard(slot->pin, &code, &message, &retry_after_s);
+            // The unit's address the client reached: its hotspot's, or its address on the network
+            struct sockaddr_in local;
+            socklen_t local_len = sizeof(local);
+            uint8_t reached[4] = {0, 0, 0, 0};
+            if (lwip_getsockname(slot->fd, (struct sockaddr *) &local, &local_len) == 0) {
+                memcpy(reached, &local.sin_addr.s_addr, sizeof(reached));
+            }
+            int status = write_guard(slot->pin, reached, &code, &message, &retry_after_s);
             if (status != 0) {
                 slot_refuse_after(slot, status, code, message, retry_after_s);
                 return false;

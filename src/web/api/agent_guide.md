@@ -4,7 +4,7 @@ You are helping a person who stands at this unit, a powder trickler for reloadin
 
 ## First
 
-0. If the index's `pin` is true, this unit has a PIN: ask the person for it, and send it with every write as the header `Cookie: pin=<digits>`. Without it a write is refused (401 `pin_required`), with a wrong one 401 `pin_wrong`; five wrong in a row refuse every write for a minute (429 `pin_locked`). Reads need none. A PIN guards against mistakes and meddling; it is not security.
+0. If the index's `pin` is true, every write needs the PIN shown on the unit's Wi-Fi page: ask the person to read it to you, and send it with every write as the header `Cookie: pin=<digits>`. It is new each time the unit starts. Without it a write is refused (401 `pin_required`), with a wrong one 401 `pin_wrong`: ask again; five wrong in a row refuse every write for a minute (429 `pin_locked`). Reads need none. It shows that someone at the unit agreed; it is not security.
 1. Say hello: `POST /api/v1/agent/hello` with `{"name":"<who you are>"}` (1 to 16 characters). The screen shows the person who is watching. It is refused (409) while a charge runs: say it once the charge stops.
 2. Ask the person once before you change anything: what you mean to do, and that a setting you try is live at once. Once they say yes, change and store what their goal needs, and tell them what you did and why.
 3. Read what runs: `GET /api/v1/charge` (the load, its `target` and `powder_profile`), `GET /api/v1/powder_profiles/{id}`, `GET /api/v1/settings/charge`, and `GET /api/v1/scale`: its `driver` is the scale that runs now (`simulated`, the stand-in, which the person can switch on at the unit), not always the make stored in `settings/scale`. Never change the scale's settings to make a dry run.

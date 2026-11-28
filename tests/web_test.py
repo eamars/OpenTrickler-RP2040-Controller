@@ -29,6 +29,7 @@ import unit_api  # noqa: E402  (the client's folder, put on the path just above)
 from calibration_mock import PATH as CALIBRATION, CalibrationMock  # noqa: E402  (beside this file; ADR-009's mock)
 
 DATA = Path(__file__).resolve().with_name("web_test_data.json")
+STAND_IN_PIN = "1234"               # the web's PIN while settings/wifi's pin_required is on (ADR-016, gate 3)
 MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web/api/portal by scripts/web_build.py
 # The unit's addresses of the portal (rest_endpoints.c), and the wizard's old one, which it redirects to the set-up
 PAGES = {"/", "/mobile", "/display_mirror"}
@@ -161,9 +162,6 @@ class StandIn:
         # The load chosen lies in the eight's block, beside them: stored and put back with them
         self.chosen = replies["/api/v1/charge"]["charge_profile"]
         self.stored_chosen = self.chosen
-        # The web's PIN (ADR-016, gate 3): none, as a unit's at first; every write needs it once one is set
-        self.pin = ""
-        replies["/api/v1"]["pin"] = False
         self.follow_load()
 
     def follow_load(self):
@@ -339,6 +337,9 @@ class StandIn:
         Returns:
             (status, reply): a dict for JSON, bytes for the frame.
         """
+        if path == "/api/v1":
+            # Whether writes need the PIN, as the Wi-Fi's switch is (ADR-016, gate 3)
+            self.replies[path]["pin"] = bool(self.replies.get("/api/v1/settings/wifi", {}).get("pin_required"))
         if path == EVENTS:
             after = int(query.get("after", "0"))
             return 200, {"boot": self.replies["/api/v1"]["boot"], "now_ms": self.now_ms(), "first": 1,
@@ -572,19 +573,14 @@ class StandIn:
         Returns:
             (status, reply).
         """
-        # The web's PIN (ADR-016, gate 3): with one set, every write needs it (no lockout here)
-        if self.pin and not pin:
-            return 401, error("pin_required", "this unit has a PIN: send it with the write, as the Cookie pin=<digits>")
-        if self.pin and pin != self.pin:
-            return 401, error("pin_wrong", "not this unit's PIN")
-        if method == "POST" and path == "/api/v1/pin":
-            digits = body.get("pin")
-            if not isinstance(digits, str) or (digits and not (digits.isdigit() and 4 <= len(digits) <= 8)):
-                return 400, error("out_of_range", "a PIN is 4 to 8 digits, or \"\" for none")
-            self.pin = digits
-            self.replies["/api/v1"]["pin"] = bool(digits)
-            self.add_event("setting", "changed", by="api", path="/api/v1/pin")
-            return 200, {"pin": bool(digits)}
+        # The web's PIN (ADR-016, gate 3): while the Wi-Fi's switch is on, every write needs the stand-in's, STAND_IN_PIN
+        # (a unit makes its own at each start and shows it on its Wi-Fi page); no lockout here
+        required = bool(self.replies.get("/api/v1/settings/wifi", {}).get("pin_required"))
+        if required and not pin:
+            return 401, error("pin_required", "this unit asks for the PIN on its Wi-Fi page: send it with the write, "
+                                              "as the Cookie pin=<digits>")
+        if required and pin != STAND_IN_PIN:
+            return 401, error("pin_wrong", "not the PIN on the unit's Wi-Fi page: it is new at each start")
         if path.startswith(CALIBRATION):
             return self.calibration.write(method, path, body)
         if method == "POST" and path in SETUP_PATHS:
