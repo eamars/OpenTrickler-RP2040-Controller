@@ -26,12 +26,17 @@ static charge_throws_room_t *throws = NULL;
 
 bool charge_throws_ready(void) {
     if (throws == NULL) {
-        throws = (charge_throws_room_t *) pvPortMalloc(sizeof(charge_throws_room_t));
-        if (throws != NULL) {
-            memset(throws, 0, sizeof(*throws));
+        // Cleared before it is handed to readers, on the other core too (the release candidate's review, finding 2)
+        charge_throws_room_t *room = (charge_throws_room_t *) pvPortMalloc(sizeof(charge_throws_room_t));
+        if (room == NULL) {
+            return false;
         }
+        memset(room, 0, sizeof(*room));
+        rtos_critical_enter();
+        throws = room;
+        rtos_critical_exit();
     }
-    return throws != NULL;
+    return true;
 }
 
 
@@ -93,10 +98,14 @@ uint16_t charge_throws_newest(void) {
 
 
 uint16_t charge_throws_first(void) {
-    if (throws == NULL || throws->count == 0) {
+    if (throws == NULL) {
         return 0;
     }
-    return (uint16_t) (throws->newest - throws->count + 1);
+    // The newest and the count, read as the close writes them: together
+    rtos_critical_enter();
+    uint16_t first = throws->count == 0 ? 0 : (uint16_t) (throws->newest - throws->count + 1);
+    rtos_critical_exit();
+    return first;
 }
 
 

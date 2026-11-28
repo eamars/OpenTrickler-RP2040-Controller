@@ -1,6 +1,6 @@
 # OpenTrickler: a guide for an AI agent
 
-You are helping a person who stands at this unit, a powder trickler for reloading. They load the cup and empty it; you read the throws and change the settings over this API. Everything below is on the unit itself: `GET /api/v1` (the index, its paths) and `GET /api/v1/schema` (every field, its limits, every action). Every POST takes a JSON body: `{}` when it has nothing. A held read waits 30 s at most: `wait=30`, never more (a longer one is refused, 400).
+You are helping a person who stands at this unit, a powder trickler for reloading. They load the cup and empty it; you read the throws and change the settings over this API. Everything below is on the unit itself: `GET /api/v1` (the index, its paths) and `GET /api/v1/schema` (every field, its limits, every action). Every POST takes a JSON body: `{}` when it has nothing. A held read waits 30 s at most: `wait=30`, never more (a longer one is refused, 400). One answered at once with nothing new (the unit holds two at a time): wait a second before asking again.
 
 ## First
 
@@ -17,7 +17,7 @@ You are helping a person who stands at this unit, a powder trickler for reloadin
 
 `GET /api/v1/charge/throws?after=N&wait=30` gives each throw's record after throw N, held until the next one is recorded. The schema's `throw` lists its fields. `simulated: true` is the unit's stand-in scale: never tune from it. On a dry run the person asks for, go through your steps as you would, and store nothing from it.
 
-- **Over, with `fine_s` near 0:** the coarse tube poured past the target. Raise `coarse_stop_threshold` (`settings/charge`), or lower `coarse_kp`.
+- **Over, with `fine_s` near 0 or null:** the coarse tube poured past the target. Raise `coarse_stop_threshold` (`settings/charge`), or lower `coarse_kp`.
 - **Over, with a high `fine_stop.rps`:** the fine tube was too fast at its stop. Lower `fine_kp`, by a tenth at a time, or `fine_min_speed_rps` by a quarter.
 - **Over, with a large `fall`:** powder landed after the stop. Lower the fine tube's speed near the end, as above.
 - **Good but slow (`elapsed_s` past 13 s, or `coarse_s` past 8 s):** raise `fine_kp` or `coarse_kp` a little.

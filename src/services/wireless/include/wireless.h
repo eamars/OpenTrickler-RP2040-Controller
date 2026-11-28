@@ -147,14 +147,14 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays);
  * The web's PIN (ADR-016, gate 3): a check that whoever changes the unit over the network can read its screen. With
  * the switch on (settings/wifi pin_required, off by default), every write over the network needs the PIN, 4 digits
  * made at each start and shown on the Wi-Fi page; a client that reached the unit by its own hotspot needs none.
- * wireless_pin(): the PIN, its 4 digits. wireless_reached_by_hotspot(): the unit's address a client reached, as its 4
- * bytes in order, is the hotspot's while the hotspot is up.
+ * wireless_pin(): the PIN, its 4 digits. wireless_reached_by_hotspot(): while the hotspot is up, a client's own
+ * address is in its range and the unit's address it reached is the hotspot's, each as its 4 bytes in order.
  */
 #define WIRELESS_PIN_DIGITS 4
 bool wireless_pin_required(void);
 const char *wireless_pin(void);
 bool wireless_pin_matches(const char *digits);
-bool wireless_reached_by_hotspot(const uint8_t reached[4]);
+bool wireless_reached_by_hotspot(const uint8_t peer[4], const uint8_t reached[4]);
 
 #ifdef __cplusplus
 }

@@ -114,6 +114,17 @@ static void charge_mode_record_elapsed(void) {
 }
 
 
+// A pour ended short of its stop (a fault, a stop asked, in a pause too): the time it ran kept, for the screen and
+// the record, and its timer stopped, so no later throw takes it (the release candidate's review, finding 1)
+static void charge_mode_pour_ended(void) {
+    if (charge_timer_running) {
+        charge_mode_record_elapsed();
+        last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+        charge_timer_running = false;
+    }
+}
+
+
 // A throw that is under way ends, short of its verdict: its event and its outcome (gate 4), and its record closed
 static void charge_mode_throw_ended(event_reason_t reason, uint8_t motor, const char * fault) {
     if (!activity_in_throw()) {
@@ -575,11 +586,7 @@ static void charge_mode_scale_fault(const char * reason, event_reason_t throw_re
     );
     // A throw that was running is over: its timer stops, as at a normal end, and the screen shows the time it ran.
     // Outside a throw the screen keeps the time of the last one
-    if (charge_timer_running) {
-        charge_mode_record_elapsed();
-        last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
-        charge_timer_running = false;
-    }
+    charge_mode_pour_ended();
     charge_ended_on_fault = true;
     snprintf(title_string, sizeof(title_string), "%s", reason);
     printf("Charge: ended, %s\n", reason);
@@ -709,6 +716,7 @@ void charge_mode_wait_for_complete() {
         if (charge_mode_stop_asked()) {
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            charge_mode_pour_ended();
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
@@ -739,6 +747,7 @@ void charge_mode_wait_for_complete() {
             }
             charge_pause_result_t pause = charge_mode_pause(pause_count, lost_ms, &last_reading_tick, &current_weight);
             if (pause == CHARGE_PAUSE_EXIT) {
+                charge_mode_pour_ended();
                 charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
                 return;
             }

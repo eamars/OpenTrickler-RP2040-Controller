@@ -1814,9 +1814,9 @@ static uint32_t api_v1_pin_locked_at_ms = 0;
 // The server's guard: with the switch on, every write needs the PIN on the unit's Wi-Fi page, by the Cookie pin=,
 // but a client's that reached the unit by its own hotspot; five wrong in a row lock every write for a minute. A write
 // with no PIN is refused, and not counted as wrong
-static int api_v1_pin_guard(const char *pin, const uint8_t reached[4], const char **code, const char **message,
-                            uint32_t *retry_after_s) {
-    if (!wireless_pin_required() || wireless_reached_by_hotspot(reached)) {
+static int api_v1_pin_guard(const char *pin, const uint8_t peer[4], const uint8_t reached[4], const char **code,
+                            const char **message, uint32_t *retry_after_s) {
+    if (!wireless_pin_required() || wireless_reached_by_hotspot(peer, reached)) {
         return 0;
     }
     uint32_t now_ms = (uint32_t) (chip_time_us() / 1000u);

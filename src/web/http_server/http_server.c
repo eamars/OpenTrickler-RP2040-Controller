@@ -891,7 +891,9 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
             if (lwip_getsockname(slot->fd, (struct sockaddr *) &local, &local_len) == 0) {
                 memcpy(reached, &local.sin_addr.s_addr, sizeof(reached));
             }
-            int status = write_guard(slot->pin, reached, &code, &message, &retry_after_s);
+            uint8_t peer[4];
+            memcpy(peer, &slot->peer, sizeof(peer));
+            int status = write_guard(slot->pin, peer, reached, &code, &message, &retry_after_s);
             if (status != 0) {
                 slot_refuse_after(slot, status, code, message, retry_after_s);
                 return false;

@@ -809,7 +809,8 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
 
 
 bool wireless_pin_required(void) {
-    return wireless_config.eeprom_wireless_metadata.pin_required != 0;
+    // Its first byte, as the settings read and write a boolean (the release candidate's review, R3)
+    return *(const uint8_t *) &wireless_config.eeprom_wireless_metadata.pin_required != 0;
 }
 
 
@@ -823,10 +824,12 @@ bool wireless_pin_matches(const char *digits) {
 }
 
 
-bool wireless_reached_by_hotspot(const uint8_t reached[4]) {
+bool wireless_reached_by_hotspot(const uint8_t peer[4], const uint8_t reached[4]) {
+    // Both ends: a client of the network that routes to the hotspot's address by way of the unit's own reaches it
+    // too, from an address of the network's (the release candidate's review, R2)
     static const uint8_t hotspot[4] = {192, 168, 4, 1};     // ACCESS_POINT_MODE_ADDRESS
     return wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN &&
-           memcmp(reached, hotspot, sizeof(hotspot)) == 0;
+           memcmp(reached, hotspot, sizeof(hotspot)) == 0 && memcmp(peer, hotspot, 3) == 0 && peer[3] != hotspot[3];
 }
 
 
