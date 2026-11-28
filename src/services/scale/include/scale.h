@@ -141,6 +141,10 @@ void simulated_scale_send_bad(void);
 // A weight published in place of the simulated powder's, until it is switched off (ADR-012); never stored
 void simulated_scale_force_weight(bool forced, float weight);
 void simulated_scale_go_quiet(uint32_t ms);
+// sim lag (ADR-016, gate 2): the powder shows this many ms after it is poured, 0 to 2000, never snapped to the
+// target, so a throw can land over; 0, the default, as before. False if out of range or no room for it
+bool simulated_scale_set_lag(uint32_t ms);
+uint32_t simulated_scale_get_lag(void);
 
 /**
  * @brief Print one frame as "@sf <ms> <value> <bytes>" when the tap is on: the time since boot in ms, the value

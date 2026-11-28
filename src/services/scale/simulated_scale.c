@@ -31,6 +31,81 @@ static volatile bool simulated_scale_quiet = false;
 static volatile bool simulated_scale_weight_forced = false;     // sim weight: this is published, whatever the powder does
 static volatile float simulated_scale_forced_weight = 0.0f;
 
+/*
+    sim lag (ADR-016, gate 2): the powder poured in a reading's time shows that long after, as real powder lands
+    after it leaves the tube, and the weight is never snapped to the target, so a throw can land over by what was in
+    the air at its stop. 0, the default, is the simulated scale as it was. The powder in the air is a ring of one
+    amount a reading, taken from the heap the first time a lag is set; never stored
+*/
+#define SIMULATED_SCALE_LAG_MS_MOST 2000
+#define SIMULATED_SCALE_AIR_MOST 100            // readings in the air at most: 2 s at 50 a second
+static volatile uint32_t simulated_scale_lag_ms = 0;
+static float *simulated_scale_air = NULL;
+static uint32_t simulated_scale_air_count = 0;  // readings the powder is in the air: the lag over the interval
+static uint32_t simulated_scale_air_next = 0;   // the oldest, landing next
+
+
+bool simulated_scale_set_lag(uint32_t ms) {
+    if (ms > SIMULATED_SCALE_LAG_MS_MOST) {
+        return false;
+    }
+    if (ms > 0 && simulated_scale_air == NULL) {
+        simulated_scale_air = (float *) pvPortMalloc(SIMULATED_SCALE_AIR_MOST * sizeof(float));
+        if (simulated_scale_air == NULL) {
+            return false;
+        }
+    }
+    simulated_scale_lag_ms = ms;
+    return true;
+}
+
+
+uint32_t simulated_scale_get_lag(void) {
+    return simulated_scale_lag_ms;
+}
+
+
+// Everything in the air lands at once: the lag or the rate changed, or the scale was zeroed. Its sum
+static float simulated_scale_air_land(void) {
+    float landed = 0.0f;
+    for (uint32_t i = 0; i < simulated_scale_air_count; i++) {
+        landed += simulated_scale_air[i];
+        simulated_scale_air[i] = 0.0f;
+    }
+    return landed;
+}
+
+
+// A reading's pour into the air, and what lands now; with no lag, all of it at once
+static float simulated_scale_air_pour(float poured, uint32_t interval_ms) {
+    uint32_t count = simulated_scale_air != NULL ? simulated_scale_lag_ms / interval_ms : 0;
+    count = count < SIMULATED_SCALE_AIR_MOST ? count : SIMULATED_SCALE_AIR_MOST;
+    float landed = 0.0f;
+    if (count != simulated_scale_air_count) {
+        landed = simulated_scale_air_land();
+        simulated_scale_air_count = count;
+        simulated_scale_air_next = 0;
+    }
+    if (simulated_scale_air_count == 0) {
+        return landed + poured;
+    }
+    landed += simulated_scale_air[simulated_scale_air_next];
+    simulated_scale_air[simulated_scale_air_next] = poured;
+    simulated_scale_air_next = (simulated_scale_air_next + 1) % simulated_scale_air_count;
+    return landed;
+}
+
+
+// Whether any powder is still in the air
+static bool simulated_scale_air_empty(void) {
+    for (uint32_t i = 0; i < simulated_scale_air_count; i++) {
+        if (simulated_scale_air[i] != 0.0f) {
+            return false;
+        }
+    }
+    return true;
+}
+
 
 bool simulated_scale_set_rate(float per_second) {
     if (!(per_second >= 1.0f && per_second <= 50.0f)) {
@@ -75,6 +150,7 @@ static float get_current_trickler_flow_rate(void) {
 }
 
 void simulated_scale_force_zero(void) {
+    simulated_scale_air_land();
     simulated_scale_weight = 0.0f;
     simulated_powder_weight = 0.0f;
     simulated_scale_state = SIM_SCALE_STATE_EMPTY_CUP;
@@ -109,7 +185,23 @@ void simulated_scale_read_loop_task(void *p) {
                 const float target_tolerance = 0.1f; // snap to target when within 0.1 grains
                 bool reached_target = false;
 
-                if (target_weight > 0.0f) {
+                if (simulated_scale_lag_ms > 0) {
+                    // sim lag: what lands now was poured a lag ago; the throw is over once the tubes stand and the
+                    // air is empty, wherever its weight came to
+                    simulated_powder_weight += simulated_scale_air_pour(add_amount, interval_ms);
+                    reached_target = flow_rate <= flow_threshold && simulated_powder_weight > 0.0f &&
+                                     simulated_scale_air_empty();
+                    if (reached_target) {
+                        target_reached_ms += interval_ms;
+                        if (target_reached_ms >= target_hold_ms) {
+                            simulated_scale_state = SIM_SCALE_STATE_POST_CHARGE_WAIT;
+                            target_reached_ms = 0;
+                        }
+                    } else {
+                        target_reached_ms = 0;
+                    }
+                }
+                else if (target_weight > 0.0f) {
                     if (simulated_powder_weight >= target_weight - target_tolerance) {
                         simulated_powder_weight = target_weight;
                         reached_target = true;
@@ -141,8 +233,14 @@ void simulated_scale_read_loop_task(void *p) {
 
                 // No noise once target is reached, nor while nothing falls: powder landing jiggles the pan, a pan
                 // with nothing landing on it reads steady (ADR-013's pause waits for that)
-                if ((target_weight > 0.0f && reached_target) || flow_rate <= flow_threshold) {
+                if ((target_weight > 0.0f && reached_target) || (flow_rate <= flow_threshold &&
+                                                                  (simulated_scale_lag_ms == 0 ||
+                                                                   simulated_scale_air_empty()))) {
                     // keep exact value
+                } else if (simulated_scale_lag_ms > 0) {
+                    // sim lag: a pan as steady as a real scale's (the A&D's step is 0.02 gr), so the fall shows
+                    float noise = ((float)(rand() % 21) - 10.0f) / 1000.0f;
+                    simulated_scale_weight += noise;
                 } else if (target_weight <= 0.0f) {
                     float noise = ((float)(rand() % 101) - 50.0f) / 1000.0f;
                     simulated_scale_weight += noise;

@@ -14,7 +14,7 @@ You are helping a person who stands at this unit, a powder trickler for reloadin
 
 ## Reading a throw
 
-`GET /api/v1/charge/throws?after=N&wait=30` gives each throw's record after throw N, held until the next one is recorded. The schema's `throw` lists its fields. `simulated: true` is the unit's stand-in scale, which has no lag and no fall: never tune from it. On a dry run the person asks for, go through your steps as you would, and store nothing from it.
+`GET /api/v1/charge/throws?after=N&wait=30` gives each throw's record after throw N, held until the next one is recorded. The schema's `throw` lists its fields. `simulated: true` is the unit's stand-in scale: never tune from it. On a dry run the person asks for, go through your steps as you would, and store nothing from it.
 
 - **Over, with `fine_s` near 0:** the coarse tube poured past the target. Raise `coarse_stop_threshold` (`settings/charge`), or lower `coarse_kp`.
 - **Over, with a high `fine_stop.rps`:** the fine tube was too fast at its stop. Lower `fine_kp`, by a tenth at a time, or `fine_min_speed_rps` by a quarter.
