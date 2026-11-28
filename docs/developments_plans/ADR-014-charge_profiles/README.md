@@ -1,6 +1,6 @@
 # ADR-014: a charge profile beside the powder profile
 
-Status: **Open** 2026-11-28: approved by the owner as written, its firmware built and proven on the Pico W the same day ([progress](progress.md)), then parked by the owner until the afternoon; taken up again that evening, its web's part built as a mock for the owner, with the close left ("Left", in progress). First drafted 2026-11-15 to hold the owner's idea; written in full on 2026-11-28 from the issues and PRs, the code on main (391a90e) and the owner's four answers of that day.
+Status: **Built** 2026-11-28, closed on its branch before its one PR: proven on the Pico W and the Pico 2 W, a v1.21 unit updated to it among the checks ([progress](progress.md), "Closed"). Approved by the owner as written the same day; parked in the early afternoon and taken up again that evening, when the web's part was built and the owner, trying the unit, asked for "Load" back on the screen's row and kept Loads as a destination of the web. First drafted 2026-11-15 to hold the owner's idea; written in full on 2026-11-28 from the issues and PRs, the code on main (391a90e) and the owner's four answers of that day.
 
 ## What we want
 

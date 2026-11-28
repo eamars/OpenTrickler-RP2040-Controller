@@ -2,6 +2,35 @@
 
 What was built and measured. The plan is in the [README](README.md).
 
+## Closed, 2026-11-28
+
+At the owner's word ("Yes, close it"), on the branch `adr014_charge_profiles`, before its one PR.
+
+**What the PR holds,** as the README lists it: the mocks (the screen's sheet, the web's pages on the stand-in); the module `services/charge_profiles` (the record of 200 bytes at 6 KB, its table, its load after the powders'); the charge, the API and the events; the portal's Load row on the Trickler and its Loads destination; the record named in the update's reset list and "Faults at the start"; `api_v1.md`, `menu_design.md`, AGENTS.md, the README; `rc_run.py`, `unit_api.py`'s users, the stand-in recorded again; the unit's EEPROM size (`eeprom_kb`). Beside them, the owner's words at the unit: "Load" on the screen's row with the name cut short of it (the view's rule for a chosen name, a number never cut), Loads kept as a destination; and a test build, `-DRC_TEST_LOADS_BLANK=ON`, for the v1.21 path on a bench unit.
+
+**How the unit shows it works,** each of the README's checks:
+
+| Check | Where | Result |
+|---|---|---|
+| Two loads on one powder throw two weights, a change to the powder's gains in both | Pico W | 20 and 10 thrown, each `started` with its load; `fine_kp` 1.5 in both (afternoon) |
+| The weight there after a restart, set at the screen and set from the Trickler page | Pico W | both, after `rc_run.py reset`: a whole-chip restart by the watchdog, not a power cut; the EEPROM is read the same either way |
+| A unit on v1.21 updated to this | Pico W | 32 of 32 values as v1.21 held them, "Load 1" to "Load 8" on its chosen powder, no target; a start refused until a target is set, then a charge |
+| On the PC: a blank slot's defaults, longer profiles, an index and an id out of range | `host_test.py` | `VERDICT PASS`, again at the close |
+| `release_records.py` finds the record by its use, both compilers' layouts the same | both images | `VERDICT PASS`, again at the close |
+| `menu_tour` against the baseline, saved again for the pages that change | both | `VERDICT PASS` on the Pico W; the Pico 2 W's Charge page saved, its two pages without a scale's unit as AGENTS.md says |
+| `reach` | Pico W (afternoon), Pico 2 W (the final image) | `VERDICT PASS` |
+| `api_check`, `settings_roundtrip` | Pico W | `VERDICT PASS` (afternoon; since then the API changed by two help lines' words) |
+| The Pico W's image links, its RAM at link time reported | both | Pico W flash 936 KB of 1,016, RAM at link time 252.9 KB of 256; Pico 2 W flash 921 KB of 1,792 |
+| `charge_cycle` | both | `VERDICT PASS` |
+
+`module_graph.py` and `features_check.py --final`: `VERDICT PASS` at the close.
+
+**As built, the owner's to change** (none objected to when reported): the six choices the README did not settle (below, "Choices the README did not settle"); the Trickler page storing each change at once.
+
+**Handed on, nothing waiting on it:** the bench Pico W's EEPROM chip, very likely 128 kbit (it says 16 KB; the Pico 2 W says 32), its marking not read; a second coarse Kp per load, only if throws show it is needed (the README, "When it fails").
+
+**How the units were left:** the Pico W on 2.0.3-399, its own settings as before the v1.21 test, the owner's "6.5CM" load chosen; the Pico 2 W on 2.0.3-400, its 17 earlier resources unchanged, the eight loads at their defaults, on the probe.
+
 ## 2026-11-28, evening: the Pico 2 W
 
 The owner put the Pico 2 W on the probe ("It's on"): opentrickler-FA0C, unit FA0C3B5E, 192.168.2.101, on 2.0.3-377 (`e8dd9b4`) before, AR2209,gr in use, no scale sending (the A&D is on the Pico W).
