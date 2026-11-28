@@ -44,6 +44,11 @@ Each is as built, and the owner's to change.
 5. **Choosing a charge profile gives no event of its own.** The stream's state message follows it, as it followed the powder's choice. A target or a powder written by `PATCH /api/v1/charge` or by a start now gives a `setting changed` for `charge_profiles/{id}`, where a target gave none.
 6. **The Trickler page stores its powder choice and no more.** A target given at its Start is written into the chosen load live, as the README's table says of a start, and is not stored: the picker and the page's stores are the web's part of this ADR.
 
+### Two things a copy of the settings does not do
+
+- **It does not hold which load is chosen.** The export gives each resource's fields, and the choice is no field of the eight: it lies in their block's header, as the powders' choice did in theirs. A restore leaves the choice as the unit has it.
+- **A restore across a change of decimal places can need two passes.** The decimals are refused while a stored target cannot be shown at them, and the targets are refused while the decimals cannot show them. With one target in RAM this could not last past a restart; with eight stored it can. The import writes each resource in the export's order (the charge's settings before the loads), says which it could not write, and a second restore then goes through.
+
 ### What an update to this version shows
 
 A unit updated over Wi-Fi finds the slot at 6 KB blank on its trial, so the record is held as its defaults and the `update confirmed` event names `charge_profiles` among the settings reset. That is the loader's rule for a new record's slot (ADR-017), not a setting lost.
